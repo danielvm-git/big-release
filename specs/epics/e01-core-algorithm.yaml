@@ -1,0 +1,93 @@
+epic: e01
+title: Core Algorithm Implementation
+description: Implement the core release algorithm (commit analysis, version calculation, notes generation)
+status: in-progress
+priority: P0
+
+stories:
+  - id: e01s01
+    title: Implement commit analyzer
+    description: Parse conventional commits and determine release type
+    status: done
+    files:
+      - internal/algorithm/analyzer.go
+      - internal/algorithm/analyzer_test.go
+
+  - id: e01s02
+    title: Implement version calculator
+    description: Calculate next semantic version based on release type
+    status: done
+    files:
+      - internal/algorithm/calculator.go
+      - internal/algorithm/calculator_test.go
+
+  - id: e01s03
+    title: Implement notes generator
+    description: Generate release notes from commits
+    status: done
+    files:
+      - internal/algorithm/generator.go
+      - internal/algorithm/generator_test.go
+
+  - id: e01s04
+    title: Implement git client
+    description: Git operations (commits, tags, push)
+    status: done
+    files:
+      - internal/git/client.go
+
+  - id: e01s05
+    title: Implement configuration loader
+    description: Load and validate configuration from YAML
+    status: done
+    files:
+      - internal/config/config.go
+
+  - id: e01s06
+    title: Implement plugin system
+    description: Plugin registry and execution
+    status: done
+    files:
+      - internal/plugins/registry.go
+      - internal/plugins/changelog.go
+
+  - id: e01s07
+    title: Implement publisher base
+    description: Publisher interface and registry
+    status: done
+    files:
+      - internal/publishers/base.go
+
+  - id: e01s08
+    title: Implement npm publisher
+    description: Publish to npm registry
+    status: done
+    files:
+      - internal/publishers/npm/npm.go
+
+  - id: e01s09
+    title: Implement CLI
+    description: Command-line interface with cobra
+    status: done
+    files:
+      - cmd/big-release/main.go
+
+  - id: e01s10
+    title: Implement main release flow
+    description: Orchestrate all phases in sequence
+    status: done
+    files:
+      - pkg/release/release.go
+
+verification:
+  - step: Build binary
+    command: make build
+    expected: Binary exists in bin/big-release
+
+  - step: Run version
+    command: ./bin/big-release --version
+    expected: Shows version information
+
+  - step: Run validate
+    command: ./bin/big-release validate
+    expected: Configuration is valid

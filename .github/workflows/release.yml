@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    branches: [main, next, 'N.x', beta, alpha]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Build
+        run: make build
+
+      - name: Install big-release
+        run: |
+          sudo cp bin/big-release /usr/local/bin/
+          big-release --version
+
+      - name: Run big-release
+        run: big-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+          CARGO_TOKEN: ${{ secrets.CARGO_TOKEN }}
+
+      - name: Upload release artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            bin/big-release-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

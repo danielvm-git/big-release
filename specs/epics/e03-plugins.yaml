@@ -1,0 +1,47 @@
+epic: e03
+title: Plugin System
+description: Implement core plugins for release workflow
+status: planning
+priority: P0
+
+stories:
+  - id: e03s01
+    title: Implement git plugin
+    description: Commit changes back to repository
+    status: todo
+    files:
+      - internal/plugins/git.go
+
+  - id: e03s02
+    title: Implement GitHub plugin
+    description: Create GitHub releases
+    status: todo
+    files:
+      - internal/plugins/github.go
+
+  - id: e03s03
+    title: Implement exec plugin
+    description: Execute custom commands
+    status: todo
+    files:
+      - internal/plugins/exec.go
+
+  - id: e03s04
+    title: Implement changelog plugin
+    description: Generate CHANGELOG.md
+    status: todo
+    files:
+      - internal/plugins/changelog.go
+
+verification:
+  - step: Test git plugin
+    command: make test
+    expected: All tests pass
+
+  - step: Test GitHub plugin
+    command: make test
+    expected: All tests pass
+
+  - step: Test exec plugin
+    command: make test
+    expected: All tests pass
