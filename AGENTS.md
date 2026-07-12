@@ -47,6 +47,18 @@ Stack: Go, YAML, Bash
 | Test | `make test` |
 | Build | `make build` |
 | CI | `gh pr checks` (when a PR is open) |
+| Health | `./bin/big-release health` |
+| Setup | `bash scripts/setup.sh` |
+
+## Observability
+
+| What | Command |
+|------|---------|
+| Health check (JSON) | `./bin/big-release health` |
+| View logs | `./bin/big-release --verbose release` (structured JSON via zap) |
+| Validate config | `./bin/big-release validate` |
+| Show version | `./bin/big-release version` |
+| CI status | `gh run list --limit 5` |
 
 ## Architecture
 

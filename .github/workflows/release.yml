@@ -1,29 +1,112 @@
 name: Release
+# version: 1.0.0 — see workflow-templates/CHANGELOG.md
 
 on:
   push:
     branches: [main, next, 'N.x', beta, alpha]
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GO_VERSION: '1.22'
 
 jobs:
-  release:
-    name: Release
+  ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '${{ env.GO_VERSION }}'
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./... -count=1 -timeout 120s
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '${{ env.GO_VERSION }}'
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+
+  verify:
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: Preflight
+        run: |
+          if [ -f scripts/preflight.sh ]; then
+            bash scripts/preflight.sh
+          elif [ -f Makefile ] && grep -q '^preflight:' Makefile; then
+            make preflight
+          else
+            echo "WARN: No preflight script found"
+          fi
+
+      - name: Check Conventional Commits
+        run: |
+          git log origin/main..HEAD --oneline | while read -r line; do
+            if ! echo "$line" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?: "; then
+              echo "FAIL: Non-conventional commit: $line"
+              exit 1
+            fi
+          done
+          echo "PASS: All commits follow Conventional Commits"
+
+      - name: Check no AI agent attribution
+        run: |
+          if git log origin/main..HEAD --format="%B" | grep -qiE '^co[- ]authored[- ]by:'; then
+            echo "FAIL: Co-authored-by: footer found — blocked by CONVENTIONS.md"
+            exit 1
+          fi
+          echo "PASS: No AI agent attribution"
+
+  release:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [ci, lint, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
         with:
-          go-version: '1.22'
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '${{ env.GO_VERSION }}'
           cache: true
 
       - name: Build
@@ -45,7 +128,6 @@ jobs:
       - name: Upload release artifacts
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            bin/big-release-*
+          files: bin/big-release-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

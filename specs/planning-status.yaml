@@ -1,0 +1,9 @@
+planning_status:
+  phase: discover
+  checklist:
+    survey-context: not-started
+    scope-work: not-started
+    research-first: not-started
+    elaborate-spec: not-started
+    plan-release: not-started
+    slice-tasks: not-started

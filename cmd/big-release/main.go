@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -68,7 +70,16 @@ func main() {
 		},
 	}
 
-	rootCmd.AddCommand(releaseCmd, validateCmd, versionCmd)
+	// Health command
+	healthCmd := &cobra.Command{
+		Use:   "health",
+		Short: "Check system health",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runHealth()
+		},
+	}
+
+	rootCmd.AddCommand(releaseCmd, validateCmd, versionCmd, healthCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -81,7 +92,7 @@ func runRelease(dryRun, verbose bool, configFile string) error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize logger: %w", err)
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Load configuration
 	cfg, err := config.Load(configFile)
@@ -115,7 +126,7 @@ func runValidate(configFile string) error {
 		return fmt.Errorf("configuration invalid: %w", err)
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := config.ValidateConfig(cfg); err != nil {
 		return fmt.Errorf("configuration invalid: %w", err)
 	}
 
@@ -146,5 +157,66 @@ func runVersion(configFile string) error {
 
 	fmt.Printf("Current version: %s\n", lastRelease.Version)
 	fmt.Printf("Git tag: %s\n", lastRelease.GitTag)
+	return nil
+}
+
+type healthResult struct {
+	Status string            `json:"status"`
+	Checks map[string]string `json:"checks"`
+}
+
+func runHealth() error {
+	checks := make(map[string]string)
+	healthy := true
+
+	// Check git
+	if out, err := exec.Command("git", "version").Output(); err == nil {
+		checks["git"] = string(out[:len(out)-1])
+	} else {
+		checks["git"] = "NOT FOUND"
+		healthy = false
+	}
+
+	// Check git repository
+	if _, err := exec.Command("git", "rev-parse", "--is-inside-work-tree").Output(); err == nil {
+		checks["git_repo"] = "ok"
+	} else {
+		checks["git_repo"] = "NOT A GIT REPOSITORY"
+		healthy = false
+	}
+
+	// Check go
+	if out, err := exec.Command("go", "version").Output(); err == nil {
+		checks["go"] = string(out[:len(out)-1])
+	} else {
+		checks["go"] = "NOT FOUND"
+		healthy = false
+	}
+
+	// Check config
+	if _, err := config.Load(""); err == nil {
+		checks["config"] = "valid"
+	} else {
+		checks["config"] = fmt.Sprintf("invalid: %v", err)
+		healthy = false
+	}
+
+	result := healthResult{
+		Status: "ok",
+		Checks: checks,
+	}
+	if !healthy {
+		result.Status = "degraded"
+	}
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(result); err != nil {
+		return fmt.Errorf("failed to encode health result: %w", err)
+	}
+
+	if !healthy {
+		return fmt.Errorf("health check failed")
+	}
 	return nil
 }

@@ -37,7 +37,7 @@ func (g *Generator) GenerateNotes(commits []*Commit, lastRelease *Release, nextR
 	if len(groups["breaking"]) > 0 {
 		sb.WriteString("### ⚠ BREAKING CHANGES\n\n")
 		for _, commit := range groups["breaking"] {
-			sb.WriteString(fmt.Sprintf("- %s\n", g.formatCommit(commit)))
+			fmt.Fprintf(&sb, "- %s\n", g.formatCommit(commit))
 		}
 		sb.WriteString("\n")
 	}
@@ -45,7 +45,7 @@ func (g *Generator) GenerateNotes(commits []*Commit, lastRelease *Release, nextR
 	if len(groups["feat"]) > 0 {
 		sb.WriteString("### Features\n\n")
 		for _, commit := range groups["feat"] {
-			sb.WriteString(fmt.Sprintf("- %s\n", g.formatCommit(commit)))
+			fmt.Fprintf(&sb, "- %s\n", g.formatCommit(commit))
 		}
 		sb.WriteString("\n")
 	}
@@ -53,7 +53,7 @@ func (g *Generator) GenerateNotes(commits []*Commit, lastRelease *Release, nextR
 	if len(groups["fix"]) > 0 {
 		sb.WriteString("### Bug Fixes\n\n")
 		for _, commit := range groups["fix"] {
-			sb.WriteString(fmt.Sprintf("- %s\n", g.formatCommit(commit)))
+			fmt.Fprintf(&sb, "- %s\n", g.formatCommit(commit))
 		}
 		sb.WriteString("\n")
 	}
@@ -61,15 +61,15 @@ func (g *Generator) GenerateNotes(commits []*Commit, lastRelease *Release, nextR
 	if len(groups["perf"]) > 0 {
 		sb.WriteString("### Performance Improvements\n\n")
 		for _, commit := range groups["perf"] {
-			sb.WriteString(fmt.Sprintf("- %s\n", g.formatCommit(commit)))
+			fmt.Fprintf(&sb, "- %s\n", g.formatCommit(commit))
 		}
 		sb.WriteString("\n")
 	}
 
 	// Add comparison link if there's a last release
 	if lastRelease != nil && lastRelease.GitTag != "" && nextRelease != nil {
-		sb.WriteString(fmt.Sprintf("\n---\n\n"))
-		sb.WriteString(fmt.Sprintf("Full Changelog: comparing changes from %s to %s\n", lastRelease.GitTag, nextRelease.GitTag))
+		sb.WriteString("\n---\n\n")
+		fmt.Fprintf(&sb, "Full Changelog: comparing changes from %s to %s\n", lastRelease.GitTag, nextRelease.GitTag)
 	}
 
 	return g.hideSensitive(sb.String())

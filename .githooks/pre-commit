@@ -1,0 +1,46 @@
+#!/bin/sh
+set -e
+
+echo "Running pre-commit checks..."
+
+# Check for staged .go files
+STAGED_GO=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+
+if [ -z "$STAGED_GO" ]; then
+  echo "No staged .go files, skipping Go checks."
+  exit 0
+fi
+
+echo "Staged Go files:"
+echo "$STAGED_GO"
+echo ""
+
+# Lint with golangci-lint
+echo "→ golangci-lint run..."
+if command -v golangci-lint >/dev/null 2>&1; then
+  golangci-lint run ./...
+else
+  echo "⚠  golangci-lint not found, skipping lint"
+fi
+
+# Vet
+echo "→ go vet ./..."
+go vet ./...
+
+# Format check — ensure staged files are formatted
+echo "→ gofmt check..."
+UNFORMATTED=$(gofmt -l $STAGED_GO)
+if [ -n "$UNFORMATTED" ]; then
+  echo "❌ The following files are not formatted:"
+  echo "$UNFORMATTED"
+  echo ""
+  echo "Run: gofmt -s -w <file>"
+  exit 1
+fi
+
+# Tests
+echo "→ go test ./..."
+go test ./...
+
+echo ""
+echo "✅ Pre-commit checks passed"

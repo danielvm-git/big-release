@@ -1,0 +1,13 @@
+scope:
+  in:
+    - Core release algorithm (commit analysis, version calculation, notes generation)
+    - Git operations (commits, tags, push)
+    - Configuration system (YAML, auto-detection, validation)
+    - Plugin system (registry, changelog plugin)
+    - Publisher system (interface + language-specific implementations)
+    - CLI (release, validate, version commands)
+    - Documentation (Diátaxis structure)
+  out:
+    - CI/CD pipeline management (separate concern)
+    - Package registry APIs (consumed, not owned)
+    - Bigpowers methodology (extends, not replaces)

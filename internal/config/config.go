@@ -13,7 +13,7 @@ import (
 const (
 	// DefaultConfigFile is the default configuration file name
 	DefaultConfigFile = ".big-release.yml"
-	
+
 	// DefaultTagFormat is the default tag format
 	DefaultTagFormat = "v${version}"
 )
@@ -108,8 +108,8 @@ func findConfigFile() string {
 	return ""
 }
 
-// Validate validates the configuration
-func (c *algorithm.Config) Validate() error {
+// ValidateConfig validates the configuration
+func ValidateConfig(c *algorithm.Config) error {
 	// Validate branches
 	if len(c.Branches) == 0 {
 		return fmt.Errorf("at least one branch must be configured")

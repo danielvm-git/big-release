@@ -53,7 +53,7 @@ func (p *ChangelogPlugin) Prepare(ctx *algorithm.Context) error {
 	var sb strings.Builder
 
 	// Add new release section
-	sb.WriteString(fmt.Sprintf("## %s (%s)\n\n", ctx.NextRelease.Version, "2024-01-01"))
+	fmt.Fprintf(&sb, "## %s (%s)\n\n", ctx.NextRelease.Version, "2024-01-01")
 	sb.WriteString(ctx.NextRelease.Notes)
 	sb.WriteString("\n\n")
 

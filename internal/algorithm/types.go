@@ -2,39 +2,39 @@ package algorithm
 
 // Commit represents a parsed git commit
 type Commit struct {
-	Hash      string
-	Message   string
-	Type      string
-	Scope     string
-	Subject   string
-	Breaking  bool
-	Author    string
-	Email     string
-	Date      string
-	Body      string
-	Footers   map[string]string
+	Hash     string
+	Message  string
+	Type     string
+	Scope    string
+	Subject  string
+	Breaking bool
+	Author   string
+	Email    string
+	Date     string
+	Body     string
+	Footers  map[string]string
 }
 
 // ReleaseType represents the type of release
 type ReleaseType string
 
 const (
-	ReleaseTypeMajor    ReleaseType = "major"
-	ReleaseTypeMinor    ReleaseType = "minor"
-	ReleaseTypePatch    ReleaseType = "patch"
+	ReleaseTypeMajor      ReleaseType = "major"
+	ReleaseTypeMinor      ReleaseType = "minor"
+	ReleaseTypePatch      ReleaseType = "patch"
 	ReleaseTypePrerelease ReleaseType = "prerelease"
 )
 
 // Release represents a release to be created
 type Release struct {
-	Version   string
-	GitTag    string
-	GitHead   string
-	Channel   string
-	Notes     string
-	Type      ReleaseType
-	Branch    string
-	Assets    []Asset
+	Version string
+	GitTag  string
+	GitHead string
+	Channel string
+	Notes   string
+	Type    ReleaseType
+	Branch  string
+	Assets  []Asset
 }
 
 // Asset represents a release asset
@@ -73,9 +73,9 @@ type Tag struct {
 
 // Config represents the release configuration
 type Config struct {
-	Branches   []BranchConfig  `yaml:"branches" json:"branches"`
-	TagFormat  string          `yaml:"tagFormat" json:"tagFormat"`
-	Plugins    []string        `yaml:"plugins" json:"plugins"`
+	Branches   []BranchConfig             `yaml:"branches" json:"branches"`
+	TagFormat  string                     `yaml:"tagFormat" json:"tagFormat"`
+	Plugins    []string                   `yaml:"plugins" json:"plugins"`
 	Publishers map[string]PublisherConfig `yaml:"publishers" json:"publishers"`
 }
 
@@ -89,17 +89,18 @@ type BranchConfig struct {
 
 // PublisherConfig represents publisher configuration
 type PublisherConfig struct {
-	Enabled  bool              `yaml:"enabled" json:"enabled"`
-	Options  map[string]string `yaml:"options,omitempty" json:"options,omitempty"`
+	Enabled bool              `yaml:"enabled" json:"enabled"`
+	Options map[string]string `yaml:"options,omitempty" json:"options,omitempty"`
 }
 
 // Context represents the release context
 type Context struct {
-	Config      *Config
-	Branch      *Branch
-	LastRelease *Release
-	NextRelease *Release
-	Commits     []*Commit
-	Releases    []*Release
+	Config        *Config
+	Branch        *Branch
+	LastRelease   *Release
+	NextRelease   *Release
+	Commits       []*Commit
+	Releases      []*Release
 	RepositoryURL string
+	DryRun        bool
 }

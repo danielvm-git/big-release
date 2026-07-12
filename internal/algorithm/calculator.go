@@ -9,7 +9,7 @@ import (
 const (
 	// FirstRelease is the default version for the first release
 	FirstRelease = "1.0.0"
-	
+
 	// FirstPrerelease is the default prerelease number
 	FirstPrerelease = "1"
 )
@@ -84,9 +84,8 @@ func (c *Calculator) calculatePrerelease(lastVersion *semver.Version, releaseTyp
 
 	// If current version is already a prerelease with same preid
 	if lastVersion.Prerelease() != "" {
-	 prereleases := lastVersion.Prerelease()
-		if len(prereleases) > 0 && prereleases[0] == preid {
-			// Increment prerelease number
+		parts := splitPrerelease(lastVersion.Prerelease())
+		if len(parts) > 0 && parts[0] == preid {
 			return c.incrementPrerelease(lastVersion), nil
 		}
 	}
@@ -102,29 +101,53 @@ func (c *Calculator) calculatePrerelease(lastVersion *semver.Version, releaseTyp
 		baseVersion = semver.MustParse(fmt.Sprintf("%d.%d.%d", lastVersion.Major(), lastVersion.Minor(), lastVersion.Patch()+1))
 	}
 
-	return semver.NewVersion(fmt.Sprintf("%s-%s.%s", baseVersion.String(), preid, FirstPrerelease)), nil
+	next, err := semver.NewVersion(fmt.Sprintf("%s-%s.%s", baseVersion.String(), preid, FirstPrerelease))
+	if err != nil {
+		return nil, err
+	}
+	return next, nil
 }
 
 // calculateMaintenance calculates the next maintenance version
 func (c *Calculator) calculateMaintenance(lastVersion *semver.Version, releaseType ReleaseType) (*semver.Version, error) {
 	// Maintenance releases are typically patches
-	var nextVersion semver.Version
-	nextVersion = *semver.MustParse(fmt.Sprintf("%d.%d.%d", lastVersion.Major(), lastVersion.Minor(), lastVersion.Patch()+1))
+	nextVersion := *semver.MustParse(fmt.Sprintf("%d.%d.%d", lastVersion.Major(), lastVersion.Minor(), lastVersion.Patch()+1))
 	return &nextVersion, nil
 }
 
 // incrementPrerelease increments the prerelease number
 func (c *Calculator) incrementPrerelease(version *semver.Version) *semver.Version {
-	prerelease := version.Prerelease()
-	if len(prerelease) < 2 {
-		// Can't increment, return as-is
+	parts := splitPrerelease(version.Prerelease())
+	if len(parts) < 2 {
 		return version
 	}
 
-	// Parse preid.N format
-	preid := prerelease[0]
+	preid := parts[0]
 	var num int
-	fmt.Sscanf(prerelease[1], "%d", &num)
+	_, _ = fmt.Sscanf(parts[1], "%d", &num)
 
 	return semver.MustParse(fmt.Sprintf("%s-%s.%d", version.Original(), preid, num+1))
+}
+
+// splitPrerelease splits a prerelease string like "alpha.1" into ["alpha", "1"]
+func splitPrerelease(prerelease string) []string {
+	if prerelease == "" {
+		return nil
+	}
+	result := make([]string, 0, 2)
+	current := ""
+	for i := 0; i < len(prerelease); i++ {
+		if prerelease[i] == '.' {
+			if current != "" {
+				result = append(result, current)
+			}
+			current = ""
+		} else {
+			current += string(prerelease[i])
+		}
+	}
+	if current != "" {
+		result = append(result, current)
+	}
+	return result
 }

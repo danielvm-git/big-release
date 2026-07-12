@@ -2,8 +2,6 @@ package publishers
 
 import (
 	"fmt"
-
-	"github.com/danielvm-git/big-release/internal/algorithm"
 )
 
 // Publisher defines the interface for package publishers
