@@ -13,8 +13,8 @@
 | Severity | Count | CWE Coverage |
 |----------|-------|--------------|
 | HIGH     | 1     | CWE-522     |
-| MEDIUM   | 2     | CWE-201, CWE-532 |
-| LOW      | 1     | CWE-400     |
+| MEDIUM   | 3     | CWE-201, CWE-532, CWE-88 |
+| LOW      | 3     | CWE-400     |
 
 ---
 
@@ -216,6 +216,9 @@ if len(body) > maxResponseSize {
 | Missing token validation before HTTP call (E02-CRATES-02) | MEDIUM | 8/10 | CWE-201 | Small (validate in Prepare) |
 | Package name injection in Verify URL (E02-CRATES-03) | MEDIUM | 7/10 | CWE-532 | Small (validate name format) |
 | Unbounded response body (E02-CRATES-04) | LOW | 5/10 | CWE-400 | Trivial (add LimitReader) |
+|| Git tag injection via version string (E02-GOPROXY-01) | MEDIUM | 7/10 | CWE-88 | Small (version validation) |
+|| Unbounded response body (E02-GOPROXY-02) | LOW | 6/10 | CWE-400 | Trivial (add LimitReader) |
+|| Module name injection in Verify URL (E02-GOPROXY-03) | LOW | 5/10 | CWE-88 | Small (validate module path) |
 
 ---
 
@@ -400,5 +403,134 @@ const maxResponseSize = 10 * 1024 * 1024 // 10 MB
 body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize+1))
 if len(body) > maxResponseSize {
     return fmt.Errorf("crates: response body too large")
+}
+```
+
+---
+
+## e02s03 — Go Proxy Publisher
+
+> **Risk Tier:** P2  
+> **Token:** None (token-less — tag-based versioning only)  
+> **API Endpoints:**
+> - Publish: `git tag <version> && git push origin <tag>`, then `go list -m <module>@<version>` (poll Go proxy)
+> - Verify: `GET https://proxy.golang.org/<module>/@v/<version>.info`
+
+### Data Flow
+
+```
+┌──────────────────────────────┐
+│  Go Proxy Publisher           │
+│                              │
+│  Publish():                   │
+│    git tag v<version>        │
+│    git push origin v<version>│
+│    go list -m <mod>@<version>│
+│      (GOPROXY env override)  │
+│                              │
+│  Verify():                    │
+│    GET /<module>/@v/<ver>.info│
+└──────┬───────────────────────┘
+       │
+       ├── os/exec: git tag, git push, go list -m
+       │
+       ▼
+   Go Module Mirror (proxy.golang.org)
+```
+
+**Trust boundary:** No credentials are handled. The publisher relies on the user's local Git credentials (`git push`) and the Go module mirror's public API (`go list -m`, `proxy.golang.org`). The GOPROXY environment variable may be overridden but contains only a URL, not a secret.
+
+---
+
+## FINDING E02-GOPROXY-01 — MEDIUM (Confidence 7/10)
+
+### Git tag injection via version string
+
+**File:** `internal/publishers/goproxy/goproxy.go` (Publish)  
+**Severity:** MEDIUM  
+**Category:** Argument Injection  
+**CWE:** CWE-88
+
+#### Description
+
+`Publish(version)` constructs a git tag as `v<version>` and passes it to `git tag` and `git push` via `os/exec`. If the version string contains shell metacharacters (e.g., `; rm -rf /`, `$(malicious)`, `` `backtick` ``), and the command is executed via a shell, arbitrary command injection is possible.
+
+Even with direct `os/exec.Command` (no shell), characters like newlines or flag injection (`--delete`) in the version string could result in unexpected tag operations.
+
+#### Exploit Scenario
+
+1. An attacker-controlled input (e.g., from commit message parsing or changelog generation) produces a version string like `1.0.0; rm -rf /`.
+2. If passed to `exec.Command("sh", "-c", ...)`, the shell interprets the semicolon and executes the destructive command.
+3. If passed to `exec.Command("git", "tag", tagName)`, the `exec.Command` variant is safe from shell injection, but a version like `--delete` or `-d` could be interpreted as a git flag.
+
+#### Recommendation
+
+1. **Always use `exec.Command` (variadic args) instead of `exec.Command("sh", "-c", ...)`.** Go's `os/exec.Command` with separate arguments does not invoke a shell, preventing shell injection.
+2. **Validate version string** before constructing the tag — reject characters beyond `[a-zA-Z0-9._-]`:
+   ```go
+   var validVersion = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
+   func isValidVersion(v string) bool {
+       return len(v) > 0 && len(v) <= 128 && validVersion.MatchString(v)
+   }
+   ```
+3. **Validate version in Prepare()** as a defense-in-depth measure — all publishers accept `version` as input, so a shared validation helper would catch injection at the earliest point.
+4. **Do not echo or log the version string verbatim** in error messages that could appear in a pipeline log; return opaque errors.
+
+---
+
+## FINDING E02-GOPROXY-02 — LOW (Confidence 6/10)
+
+### Unbounded response body in HTTP client
+
+**File:** `internal/publishers/goproxy/goproxy.go` (Verify)  
+**Severity:** LOW  
+**Category:** Uncontrolled Resource Consumption  
+**CWE:** CWE-400
+
+#### Description
+
+The `Verify` method reads the Go proxy's `.info` endpoint response body without a size limit. While Go proxy responses are typically small (a few KB of JSON), a misconfigured proxy or CDN could return a large response, causing excessive memory allocation.
+
+#### Recommendation
+
+Use `io.LimitReader` when reading response bodies:
+
+```go
+const maxResponseSize = 1 * 1024 * 1024 // 1 MB
+body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize+1))
+if len(body) > maxResponseSize {
+    return fmt.Errorf("goproxy: response body too large")
+}
+```
+
+---
+
+## FINDING E02-GOPROXY-03 — LOW (Confidence 5/10)
+
+### Module name injection in Verify URL
+
+**File:** `internal/publishers/goproxy/goproxy.go` (Verify)  
+**Severity:** LOW  
+**Category:** Injection  
+**CWE:** CWE-88
+
+#### Description
+
+`Verify(version)` constructs a URL from the module name:
+```
+/<module>/@v/<version>.info
+```
+If the module name (read from `go.mod`) contains special characters, the URL could resolve to an unexpected endpoint. Go module paths are validated by the Go toolchain, but a malicious or malformed `go.mod` from a fork could contain a crafted module path.
+
+#### Recommendation
+
+Validate the module name against Go module path rules before using it in URL construction:
+
+```go
+var validGoModPath = regexp.MustCompile(`^[a-zA-Z0-9./_-]+$`)
+
+func isValidModulePath(path string) bool {
+    return len(path) > 0 && len(path) <= 256 && validGoModPath.MatchString(path)
 }
 ```
