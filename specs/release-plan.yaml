@@ -12,4 +12,4 @@ release_plan:
     - epic: e03
       title: Plugins
       priority: P2
-      status: planned
+      status: complete

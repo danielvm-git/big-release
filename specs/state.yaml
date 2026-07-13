@@ -1,12 +1,12 @@
 workflow_mode: solo-git
-active_flow: build_epic
-active_epic: e03
+active_flow: null
+active_epic: null
 active_story: null
 epic_cycle:
-  step: 7
+  step: 8
   epic: e03
   steps: [0, 1, 2, 3, 4, 5, 6, 7, 8]
-  status: audit_passed
+  status: complete
   audit_result: pass
 bug_id: null
 bigpowers_version: 2.76.1
@@ -17,8 +17,8 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'E03 audit PASS. All 3 function-size violations resolved via helper extraction. All 93 tests pass. Ready for commit-message and release-branch.'
-  next_skill: commit-message
+  context: 'E03 fully released. CI green, audit PASS, 93 plugin tests pass. Plugins: git, github, exec, changelog. Ready for next epic.'
+  next_skill: survey-context
 release:
   commit_landed: true
   ci_verified: true
