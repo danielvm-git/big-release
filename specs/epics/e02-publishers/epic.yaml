@@ -58,7 +58,7 @@ stories:
   - id: e02s07
     title: Implement Godot publisher
     description: Publish Godot projects via GitHub Releases
-    status: todo
+    status: done
     files:
       - internal/publishers/godot/godot.go
 
