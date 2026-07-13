@@ -4,7 +4,7 @@ active_epic: null
 active_story: null
 epic_cycle:
   step: 8
-  epic: e03
+  epic: e04
   steps: [0, 1, 2, 3, 4, 5, 6, 7, 8]
   status: complete
   audit_result: pass
@@ -17,7 +17,7 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'CLI hardening bug fixes released. Fixes: pkg/release orchestrator created (was compile blocker), error output now printed to stderr before os.Exit, --dry-run flag wired through 8 publishers + GitHub plugin. 279 tests pass, CI+Release green, commit 0491dcb on main. Ready for next initiative.'
+  context: 'E04 (Semantic Release Parity) complete. 5 stories implemented: configurable initial version (0.1.0 default), version calculator wired into orchestrator, branch validation, CI environment detection, VerifyRelease plugin step. 2 bugs fixed (BUG-version-calc, BUG-branch-validation). 290 tests pass, CI green. Ready for next initiative.'
   next_skill: run-planning
 release:
   commit_landed: true

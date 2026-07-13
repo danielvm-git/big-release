@@ -55,6 +55,11 @@ func (p *GitPlugin) AnalyzeCommits(ctx *algorithm.Context) (algorithm.ReleaseTyp
 	return "", nil
 }
 
+// VerifyRelease is not applicable for the git plugin.
+func (p *GitPlugin) VerifyRelease(ctx *algorithm.Context) error {
+	return nil
+}
+
 // GenerateNotes is not applicable for the git plugin.
 func (p *GitPlugin) GenerateNotes(ctx *algorithm.Context) (string, error) {
 	return "", nil

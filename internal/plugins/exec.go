@@ -65,6 +65,11 @@ func (p *ExecPlugin) AnalyzeCommits(ctx *algorithm.Context) (algorithm.ReleaseTy
 	return "", nil
 }
 
+// VerifyRelease is not applicable for the exec plugin.
+func (p *ExecPlugin) VerifyRelease(ctx *algorithm.Context) error {
+	return nil
+}
+
 // GenerateNotes is not applicable for the exec plugin.
 func (p *ExecPlugin) GenerateNotes(ctx *algorithm.Context) (string, error) {
 	return "", nil

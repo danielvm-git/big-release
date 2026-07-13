@@ -17,6 +17,9 @@ type Plugin interface {
 	// AnalyzeCommits analyzes commits and returns release type
 	AnalyzeCommits(ctx *algorithm.Context) (algorithm.ReleaseType, error)
 
+	// VerifyRelease verifies the calculated release before proceeding
+	VerifyRelease(ctx *algorithm.Context) error
+
 	// GenerateNotes generates release notes
 	GenerateNotes(ctx *algorithm.Context) (string, error)
 

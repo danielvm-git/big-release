@@ -2,6 +2,7 @@ package release
 
 import (
 	"fmt"
+	"os"
 
 	"go.uber.org/zap"
 
@@ -35,15 +36,41 @@ func New(ctx *Context) *Release {
 // 2. Runs plugins in order: verify → analyze → generate notes → prepare → publish
 // 3. Runs detected publishers: prepare, publish, verify
 // 4. Calls Success hooks on all plugins, or Fail hooks on error
-func (r *Release) Run() error {
+// detectCI auto-enables dry-run when no CI environment variables are detected.
+func (r *Release) detectCI() {
+	if r.ctx.DryRun {
+		return
+	}
+	ciVars := []string{"CI", "GITHUB_ACTIONS", "GITLAB_CI", "CIRCLECI", "TRAVIS"}
+	for _, v := range ciVars {
+		if os.Getenv(v) != "" {
+			return
+		}
+	}
+	r.ctx.Logger.Warn("No CI environment detected, auto-enabling dry-run mode")
+	r.ctx.DryRun = true
+}
+
+// validateBranch checks that the current branch is in the configured release branches.
+func (r *Release) validateBranch(branchName string) error {
+	for _, bc := range r.ctx.Config.Branches {
+		if bc.Name == branchName {
+			return nil
+		}
+	}
+	return fmt.Errorf("branch %q not in release branches, skipping", branchName)
+}
+
+// buildAlgoContext gathers git state and constructs the algorithm context.
+func (r *Release) buildAlgoContext() (*algorithm.Context, error) {
 	branchName, err := r.ctx.Git.GetCurrentBranch()
 	if err != nil {
-		return fmt.Errorf("failed to get current branch: %w", err)
+		return nil, fmt.Errorf("failed to get current branch: %w", err)
 	}
 
 	lastRelease, err := r.ctx.Git.GetLastRelease(r.ctx.Config.TagFormat)
 	if err != nil {
-		return fmt.Errorf("failed to get last release: %w", err)
+		return nil, fmt.Errorf("failed to get last release: %w", err)
 	}
 
 	from := ""
@@ -52,15 +79,15 @@ func (r *Release) Run() error {
 	}
 	commits, err := r.ctx.Git.GetCommits(from, "HEAD")
 	if err != nil {
-		return fmt.Errorf("failed to get commits: %w", err)
+		return nil, fmt.Errorf("failed to get commits: %w", err)
 	}
 
 	repoURL, err := r.ctx.Git.GetRepositoryURL()
 	if err != nil {
-		return fmt.Errorf("failed to get repository URL: %w", err)
+		return nil, fmt.Errorf("failed to get repository URL: %w", err)
 	}
 
-	algoCtx := &algorithm.Context{
+	return &algorithm.Context{
 		Config:        r.ctx.Config,
 		Branch:        &algorithm.Branch{Name: branchName},
 		LastRelease:   lastRelease,
@@ -69,6 +96,19 @@ func (r *Release) Run() error {
 		Releases:      nil,
 		RepositoryURL: repoURL,
 		DryRun:        r.ctx.DryRun,
+	}, nil
+}
+
+func (r *Release) Run() error {
+	r.detectCI()
+
+	algoCtx, err := r.buildAlgoContext()
+	if err != nil {
+		return err
+	}
+
+	if err := r.validateBranch(algoCtx.Branch.Name); err != nil {
+		return err
 	}
 
 	if err := r.runPluginLifecycle(algoCtx); err != nil {
@@ -149,7 +189,30 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 		}
 	}
 
-	// Phase 4 + 5: Prepare and Publish (skipped in dry-run mode)
+	// Phase 3.5: CalculateNextVersion
+	if ctx.NextRelease != nil && releaseType != "" {
+		calc := algorithm.NewCalculator()
+		version, err := calc.CalculateNextVersion(
+			ctx.LastRelease, releaseType, ctx.Branch, ctx.Config.InitialVersion,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to calculate next version: %w", err)
+		}
+		ctx.NextRelease.Version = version
+	}
+
+	// Phase 4: VerifyRelease
+	for _, name := range pluginNames {
+		p, err := plugins.Get(name)
+		if err != nil {
+			return fmt.Errorf("plugin %q not found: %w", name, err)
+		}
+		if err := p.VerifyRelease(ctx); err != nil {
+			return fmt.Errorf("plugin %q verify release failed: %w", name, err)
+		}
+	}
+
+	// Phase 5 + 6: Prepare and Publish (skipped in dry-run mode)
 	if r.ctx.DryRun {
 		r.ctx.Logger.Info("Dry run: skipping plugin prepare and publish")
 		return nil

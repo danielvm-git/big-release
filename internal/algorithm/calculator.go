@@ -22,14 +22,18 @@ func NewCalculator() *Calculator {
 	return &Calculator{}
 }
 
-// CalculateNextVersion calculates the next version based on release type and last release
-func (c *Calculator) CalculateNextVersion(lastRelease *Release, releaseType ReleaseType, branch *Branch) (string, error) {
-	// First release
+// CalculateNextVersion calculates the next version based on release type and last release.
+// If initialVersion is non-empty it is used for first releases; otherwise FirstRelease is the default.
+func (c *Calculator) CalculateNextVersion(lastRelease *Release, releaseType ReleaseType, branch *Branch, initialVersion string) (string, error) {
 	if lastRelease == nil || lastRelease.Version == "" {
-		if branch != nil && branch.Type == BranchTypePrerelease {
-			return fmt.Sprintf("%s-%s.%s", FirstRelease, branch.Prerelease, FirstPrerelease), nil
+		base := FirstRelease
+		if initialVersion != "" {
+			base = initialVersion
 		}
-		return FirstRelease, nil
+		if branch != nil && branch.Type == BranchTypePrerelease {
+			return fmt.Sprintf("%s-%s.%s", base, branch.Prerelease, FirstPrerelease), nil
+		}
+		return base, nil
 	}
 
 	// Parse last version

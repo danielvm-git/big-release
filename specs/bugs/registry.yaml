@@ -25,3 +25,30 @@ bugs:
       - pkg/release/release.go
       - pkg/release/release_test.go
     commit_message: "fix(cmd): harden CLI error handling, publisher dry-run, and missing orchestrator package"
+
+  - id: BUG-version-calc
+    status: fixed
+    severity: high
+    scope: pkg/release
+    title: Version calculator not wired into orchestrator
+    approach: |
+      Calculator.CalculateNextVersion exists but is never called.
+      ctx.NextRelease.Version is always empty string.
+      Fix: call calculator in orchestrator after AnalyzeCommits.
+    risk_level: low
+    files_changed:
+      - pkg/release/release.go
+    commit_message: "fix(release): wire version calculator into orchestrator lifecycle"
+
+  - id: BUG-branch-validation
+    status: fixed
+    severity: medium
+    scope: pkg/release
+    title: Branch validation never checked in orchestrator
+    approach: |
+      config.Branches defined but orchestrator never validates
+      current branch against it. Fix: check branch before proceeding.
+    risk_level: low
+    files_changed:
+      - pkg/release/release.go
+    commit_message: "fix(release): validate current branch against config.Branches"

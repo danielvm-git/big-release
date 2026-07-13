@@ -29,7 +29,8 @@ func DefaultConfig() *algorithm.Config {
 			{Name: "beta", Prerelease: "beta"},
 			{Name: "alpha", Prerelease: "alpha"},
 		},
-		TagFormat: DefaultTagFormat,
+		TagFormat:      DefaultTagFormat,
+		InitialVersion: "0.1.0",
 		Plugins: []string{
 			"changelog",
 			"git",

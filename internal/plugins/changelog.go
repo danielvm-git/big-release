@@ -34,6 +34,11 @@ func (p *ChangelogPlugin) AnalyzeCommits(ctx *algorithm.Context) (algorithm.Rele
 	return "", nil
 }
 
+// VerifyRelease is not applicable for the changelog plugin.
+func (p *ChangelogPlugin) VerifyRelease(ctx *algorithm.Context) error {
+	return nil
+}
+
 // filterCommits returns non-breaking commits matching the given type.
 func filterCommits(commits []*algorithm.Commit, commitType string) []*algorithm.Commit {
 	var result []*algorithm.Commit

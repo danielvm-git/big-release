@@ -1,0 +1,81 @@
+epic: e04
+title: Semantic Release Parity
+description: Close gaps vs SemVer/Conventional Commits/semantic-release spec for dogfood readiness
+status: planning
+priority: P0
+bcps: 5
+
+out_of_scope:
+  - Notification plugin step (e04s06 deferred)
+  - Channel/addChannel support (e04s07 deferred)
+
+stories:
+  - id: e04s01
+    title: Configurable initial version
+    description: >
+      Add InitialVersion to algorithm.Config (default 0.1.0).
+      Use in Calculator when no last release exists.
+      Allows demo repos to start at 0.1.0 per SemVer spec section 4.
+    status: todo
+    files:
+      - internal/algorithm/calculator.go
+      - internal/algorithm/types.go
+      - internal/config/config.go
+
+  - id: e04s02
+    title: Wire version calculator into orchestrator
+    description: >
+      Call Calculator.CalculateNextVersion() in pkg/release/release.go
+      after AnalyzeCommits and before GenerateNotes.
+      Sets ctx.NextRelease.Version so publishers receive a real version.
+    status: todo
+    files:
+      - pkg/release/release.go
+      - pkg/release/release_test.go
+
+  - id: e04s03
+    title: Branch validation in orchestrator
+    description: >
+      Validate current branch against config.Branches before proceeding.
+      Skip release (not error) if branch is not in the allowed list.
+    status: todo
+    files:
+      - pkg/release/release.go
+      - pkg/release/release_test.go
+
+  - id: e04s04
+    title: CI environment detection
+    description: >
+      Auto-enable dry-run when no CI env var detected and --dry-run not set.
+      Prevents accidental real publishes from local machines.
+    status: todo
+    files:
+      - pkg/release/release.go
+
+  - id: e04s05
+    title: VerifyRelease plugin step
+    description: >
+      Add VerifyRelease method to Plugin interface.
+      Runs after version calculation, before generate notes.
+      Plugins can reject invalid releases (e.g. version already exists on registry).
+    status: todo
+    files:
+      - internal/plugins/registry.go
+      - internal/plugins/git.go
+      - internal/plugins/github.go
+      - internal/plugins/exec.go
+      - internal/plugins/changelog.go
+      - pkg/release/release.go
+
+verification:
+  - step: All tests pass
+    command: make test
+    expected: All tests pass
+
+  - step: Build binary
+    command: make build
+    expected: Binary exists in bin/big-release
+
+  - step: Lint
+    command: make lint
+    expected: No lint errors

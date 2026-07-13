@@ -1,7 +1,7 @@
 execution_status:
   last_updated: "2026-07-13"
-  current_epic: e03
-  current_story: e03s01
+  current_epic: null
+  current_story: null
   blocked: false
   stories:
     e02s01: done
@@ -15,4 +15,9 @@ execution_status:
     e03s02: done
     e03s03: done
     e03s04: done
-  notes: "E03 (Plugin System) complete. Branch feat/e03-plugins-v2 landed to main. 4 plugins implemented and tested. CI green, audit PASS. Ready for next epic."
+    e04s01: done
+    e04s02: done
+    e04s03: done
+    e04s04: done
+    e04s05: done
+  notes: "E04 (Semantic Release Parity) complete. 5 stories done. 2 bugs fixed (BUG-version-calc, BUG-branch-validation). 290 tests pass, CI green."

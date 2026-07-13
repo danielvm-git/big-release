@@ -1,0 +1,86 @@
+epic: e04
+stories:
+  - id: e04s01
+    title: Configurable initial version
+    risk: low
+    security: none
+    tasks:
+      - id: e04s01-t1
+        title: Add InitialVersion field to algorithm.Config
+        verify:
+          command: go build ./internal/algorithm/...
+          expected: Compiles clean
+
+      - id: e04s01-t2
+        title: Update calculator to use InitialVersion when lastRelease is nil
+        verify:
+          command: go test ./internal/algorithm/... -run TestFirstRelease -count=1
+          expected: Pass with version 0.1.0
+
+      - id: e04s01-t3
+        title: Set default InitialVersion to 0.1.0 in config.Load
+        verify:
+          command: go test ./internal/config/... -count=1
+          expected: Pass
+
+  - id: e04s02
+    title: Wire version calculator into orchestrator
+    risk: high
+    security: none
+    tasks:
+      - id: e04s02-t1
+        title: Call Calculator.CalculateNextVersion after AnalyzeCommits in runPluginLifecycle
+        verify:
+          command: go test ./pkg/release/... -run TestVersionCalculation -count=1
+          expected: Pass, ctx.NextRelease.Version is non-empty
+
+      - id: e04s02-t2
+        title: Wire version through to publishers via ctx.NextRelease.Version
+        verify:
+          command: go test ./pkg/release/... -count=1
+          expected: All tests pass
+
+  - id: e04s03
+    title: Branch validation in orchestrator
+    risk: medium
+    security: none
+    tasks:
+      - id: e04s03-t1
+        title: Validate current branch against config.Branches, skip if not found
+        verify:
+          command: go test ./pkg/release/... -run TestBranchValidation -count=1
+          expected: Pass, no error for unconfigured branch
+
+  - id: e04s04
+    title: CI environment detection
+    risk: low
+    security: none
+    tasks:
+      - id: e04s04-t1
+        title: Detect CI env vars (CI, GITHUB_ACTIONS, GITLAB_CI, etc.), auto-enable dry-run if absent
+        verify:
+          command: go test ./pkg/release/... -run TestCIDetection -count=1
+          expected: Pass
+
+  - id: e04s05
+    title: VerifyRelease plugin step
+    risk: low
+    security: none
+    tasks:
+      - id: e04s05-t1
+        title: Add VerifyRelease method to Plugin interface
+        verify:
+          command: go build ./...
+          expected: Compiles clean
+
+      - id: e04s05-t2
+        title: Implement VerifyRelease on all 4 plugins (no-op default)
+        verify:
+          command: go test ./internal/plugins/... -count=1
+          expected: All tests pass
+
+      - id: e04s05-t3
+        title: Wire VerifyRelease into orchestrator after CalculateNextVersion
+        verify:
+          command: go test ./pkg/release/... -count=1
+          expected: All tests pass

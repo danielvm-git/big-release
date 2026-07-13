@@ -73,10 +73,11 @@ type Tag struct {
 
 // Config represents the release configuration
 type Config struct {
-	Branches   []BranchConfig             `yaml:"branches" json:"branches"`
-	TagFormat  string                     `yaml:"tagFormat" json:"tagFormat"`
-	Plugins    []string                   `yaml:"plugins" json:"plugins"`
-	Publishers map[string]PublisherConfig `yaml:"publishers" json:"publishers"`
+	Branches       []BranchConfig             `yaml:"branches" json:"branches"`
+	TagFormat      string                     `yaml:"tagFormat" json:"tagFormat"`
+	Plugins        []string                   `yaml:"plugins" json:"plugins"`
+	Publishers     map[string]PublisherConfig `yaml:"publishers" json:"publishers"`
+	InitialVersion string                     `yaml:"initialVersion,omitempty" json:"initialVersion,omitempty"`
 }
 
 // BranchConfig represents branch configuration
