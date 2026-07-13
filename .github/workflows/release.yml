@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GO_VERSION: '1.22'
+  GO_VERSION: '1.26'
 
 jobs:
   ci:
@@ -83,7 +83,8 @@ jobs:
 
       - name: Check Conventional Commits
         run: |
-          git log origin/main..HEAD --oneline | while read -r line; do
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)
+          git log "$LAST_TAG"..HEAD --oneline | while read -r line; do
             if ! echo "$line" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?: "; then
               echo "FAIL: Non-conventional commit: $line"
               exit 1
@@ -93,7 +94,8 @@ jobs:
 
       - name: Check no AI agent attribution
         run: |
-          if git log origin/main..HEAD --format="%B" | grep -qiE '^co[- ]authored[- ]by:'; then
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)
+          if git log "$LAST_TAG"..HEAD --format="%B" | grep -qiE '^co[- ]authored[- ]by:'; then
             echo "FAIL: Co-authored-by: footer found — blocked by CONVENTIONS.md"
             exit 1
           fi
@@ -119,15 +121,29 @@ jobs:
           go-version: '${{ env.GO_VERSION }}'
           cache: true
 
+      - name: Check tag exists
+        id: check-tag
+        run: |
+          if git describe --exact-match --tags HEAD >/dev/null 2>&1; then
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag found on this commit, proceeding with release."
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+            echo "No tag on this commit, skipping release."
+          fi
+
       - name: Build
+        if: steps.check-tag.outputs.tag_exists == 'true'
         run: make build
 
       - name: Install big-release
+        if: steps.check-tag.outputs.tag_exists == 'true'
         run: |
           sudo cp bin/big-release /usr/local/bin/
           big-release --version
 
       - name: Run big-release
+        if: steps.check-tag.outputs.tag_exists == 'true'
         run: big-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -136,6 +152,7 @@ jobs:
           CARGO_TOKEN: ${{ secrets.CARGO_TOKEN }}
 
       - name: Upload release artifacts
+        if: steps.check-tag.outputs.tag_exists == 'true'
         uses: softprops/action-gh-release@v1
         with:
           files: bin/big-release-*
