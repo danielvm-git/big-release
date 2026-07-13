@@ -93,7 +93,7 @@ func shellSplit(line string) []string {
 		switch {
 		case r == '"':
 			inQuotes = !inQuotes
-		case r == ' ' && !inQuotes:
+		case (r == ' ' || r == '\t') && !inQuotes:
 			if current.Len() > 0 {
 				parts = append(parts, current.String())
 				current.Reset()

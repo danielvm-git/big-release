@@ -209,21 +209,24 @@ func TestGitPluginPublish(t *testing.T) {
 			t.Fatalf("Prepare failed: %v", err)
 		}
 
-		// Publish (tag creation succeeds; push fails without remote — expected)
+		// Publish (creates tag, push fails without remote, tag cleaned up)
 		_, err := p.Publish(ctx)
 		if err == nil {
 			t.Error("expected error from push without remote, got nil")
 		}
+		if !strings.Contains(err.Error(), "removed") {
+			t.Errorf("expected tag cleanup message, got: %v", err)
+		}
 		if !strings.Contains(err.Error(), "git push") {
-			t.Errorf("expected 'git push' error, got: %v", err)
+			t.Errorf("expected underlying 'git push' error, got: %v", err)
 		}
 
-		// Check tag exists
+		// Verify tag was cleaned up after failed push
 		tagCmd := exec.Command("git", "tag", "-l", "1.0.0")
 		tagCmd.Dir = dir
 		tagOut, _ := tagCmd.Output()
-		if strings.TrimSpace(string(tagOut)) != "1.0.0" {
-			t.Errorf("expected tag 1.0.0 to exist, got: %s", string(tagOut))
+		if strings.TrimSpace(string(tagOut)) != "" {
+			t.Errorf("expected tag 1.0.0 to be cleaned up, got: %s", string(tagOut))
 		}
 	})
 }

@@ -133,9 +133,18 @@ func (p *GitPlugin) Publish(ctx *algorithm.Context) (*algorithm.Release, error) 
 		return nil, err
 	}
 	if err := p.pushRefs(); err != nil {
-		return nil, err
+		_ = p.deleteTag(ctx.NextRelease.Version)
+		return nil, fmt.Errorf("push failed, local tag %s removed: %w", ctx.NextRelease.Version, err)
 	}
 	return nil, nil
+}
+
+func (p *GitPlugin) deleteTag(version string) error {
+	cmd := p.gitCommand("tag", "-d", version)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git tag -d failed: %w\noutput: %s", err, string(out))
+	}
+	return nil
 }
 
 // Success is called after a successful release.
