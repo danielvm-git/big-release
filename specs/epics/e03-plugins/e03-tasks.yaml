@@ -1,0 +1,68 @@
+tasks:
+  - id: e03s01-impl
+    story: e03s01
+    description: Implement and test git plugin
+    risk: P2
+    security: medium
+    status: todo
+    steps:
+      - step: 1
+        description: "Create GitPlugin struct implementing Plugin interface with Name(), VerifyConditions(), AnalyzeCommits(), GenerateNotes(), Prepare(), Publish(), Success(), Fail()"
+        verify: "go build ./internal/plugins/..."
+      - step: 2
+        description: "Write unit tests for GitPlugin (Name, VerifyConditions, Prepare: git add/commit, Publish: git tag/push, dry-run mode)"
+        verify: "go test -count=1 -run 'TestGit' ./internal/plugins/..."
+      - step: 3
+        description: "Write integration tests for GitPlugin (exec mocking for git commands: success, failure, dry-run)"
+        verify: "go test -count=1 -run 'TestGit' -v ./internal/plugins/..."
+
+  - id: e03s02-impl
+    story: e03s02
+    description: Implement and test GitHub plugin
+    risk: P1
+    security: high
+    status: todo
+    steps:
+      - step: 1
+        description: "Create GitHubPlugin struct implementing Plugin interface with Name(), VerifyConditions() (GITHUB_TOKEN check), Publish() (create release via API)"
+        verify: "go build ./internal/plugins/..."
+      - step: 2
+        description: "Write unit tests for GitHubPlugin (Name, VerifyConditions env validation, auto-registration)"
+        verify: "go test -count=1 -run 'TestGitHub' ./internal/plugins/..."
+      - step: 3
+        description: "Write integration tests for GitHubPlugin (HTTP mocks: 201, 401, 5xx, 429 retry, dry-run)"
+        verify: "go test -count=1 -run 'TestGitHub' -v ./internal/plugins/..."
+
+  - id: e03s03-impl
+    story: e03s03
+    description: Implement and test exec plugin
+    risk: P2
+    security: high
+    status: todo
+    steps:
+      - step: 1
+        description: "Create ExecPlugin struct implementing Plugin interface with Name(), VerifyConditions(), Prepare() (run exec commands from config)"
+        verify: "go build ./internal/plugins/..."
+      - step: 2
+        description: "Write unit tests for ExecPlugin (Name, VerifyConditions, Prepare with mock exec, dry-run, command parsing)"
+        verify: "go test -count=1 -run 'TestExec' ./internal/plugins/..."
+      - step: 3
+        description: "Write integration tests for ExecPlugin (shell command mocking: success, failure, timeout, dry-run)"
+        verify: "go test -count=1 -run 'TestExec' -v ./internal/plugins/..."
+
+  - id: e03s04-impl
+    story: e03s04
+    description: Enhance changelog plugin with tests
+    risk: P3
+    security: none
+    status: todo
+    steps:
+      - step: 1
+        description: "Refactor ChangelogPlugin: improve CHANGELOG.md formatting, date handling, notes generation"
+        verify: "go build ./internal/plugins/..."
+      - step: 2
+        description: "Write unit tests for ChangelogPlugin (Name, Prepare with mock ctx, file I/O, dry-run)"
+        verify: "go test -count=1 -run 'TestChangelog' ./internal/plugins/..."
+      - step: 3
+        description: "Add GenerateNotes integration: verify proper markdown output format"
+        verify: "go test -count=1 -run 'TestChangelog' -v ./internal/plugins/..."

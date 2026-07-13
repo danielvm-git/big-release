@@ -1,6 +1,6 @@
 workflow_mode: solo-git
-active_flow: null
-active_epic: e02
+active_flow: build_epic
+active_epic: e03
 active_story: null
 bug_id: null
 bigpowers_version: 2.76.1
