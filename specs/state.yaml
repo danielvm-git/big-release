@@ -1,14 +1,15 @@
 workflow_mode: solo-git
-active_flow: build_epic
+active_flow: null
 active_epic: e02
 active_story: null
 bug_id: null
 bigpowers_version: 2.76.1
 bug_cycle: null
 epic_cycle:
-  step: 1
+  step: 8
   epic: e02
   steps: [0, 1, 2, 3, 4, 5, 6, 7, 8]
+  status: complete
 environment:
   go: 1.26.3
   golangci-lint: 2.12.2
