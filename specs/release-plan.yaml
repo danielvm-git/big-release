@@ -4,11 +4,11 @@ release_plan:
     - epic: e01
       title: Core Algorithm Implementation
       priority: P0
-      status: in-progress
+      status: complete
     - epic: e02
       title: Publishers
       priority: P1
-      status: planned
+      status: complete
     - epic: e03
       title: Plugins
       priority: P2
