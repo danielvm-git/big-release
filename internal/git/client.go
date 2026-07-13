@@ -261,28 +261,3 @@ func (c *Client) GetLastRelease(tagFormat string) (*algorithm.Release, error) {
 func GetCurrentTime() string {
 	return time.Now().Format("2006-01-02 15:04:05 -0700")
 }
-
-// validateRefName validates a git ref name against injection attacks.
-// Empty refs are allowed (treated as default by git). Refs starting with a
-// dash, containing "..", ":", newlines, or carriage returns are rejected.
-func validateRefName(ref string) error {
-	if ref == "" {
-		return nil
-	}
-	if ref[0] == '-' {
-		return fmt.Errorf("git: ref %q starts with dash, possible flag injection", ref)
-	}
-	if strings.Contains(ref, "..") {
-		return fmt.Errorf("git: ref %q contains '..', possible path traversal", ref)
-	}
-	if strings.Contains(ref, ":") {
-		return fmt.Errorf("git: ref %q contains ':', possible refspec injection", ref)
-	}
-	if strings.Contains(ref, "\n") {
-		return fmt.Errorf("git: ref %q contains newline", ref)
-	}
-	if strings.Contains(ref, "\r") {
-		return fmt.Errorf("git: ref %q contains carriage return", ref)
-	}
-	return nil
-}
