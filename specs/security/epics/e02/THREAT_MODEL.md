@@ -12,15 +12,12 @@
 
 | Severity | Count | CWE Coverage |
 |----------|-------|--------------|
-<<<<<<< Updated upstream
-| HIGH     | 3     | CWE-522     |
-| MEDIUM   | 8     | CWE-201, CWE-532, CWE-88 |
-| LOW      | 5     | CWE-400     |
-=======
+| HIGH     | 5     | CWE-522     |
+| MEDIUM   | 12    | CWE-201, CWE-532, CWE-88 |
+| LOW      | 7     | CWE-400     |
 | HIGH     | 4     | CWE-522     |
 | MEDIUM   | 10    | CWE-201, CWE-532, CWE-88 |
 | LOW      | 6     | CWE-400     |
->>>>>>> Stashed changes
 
 ---
 
@@ -223,28 +220,22 @@ if len(body) > maxResponseSize {
 | Package name injection in Verify URL (E02-CRATES-03) | MEDIUM | 7/10 | CWE-532 | Small (validate name format) |
 | Unbounded response body (E02-CRATES-04) | LOW | 5/10 | CWE-400 | Trivial (add LimitReader) |
 || Git tag injection via version string (E02-GOPROXY-01) | MEDIUM | 7/10 | CWE-88 | Small (version validation) |
-<<<<<<< Updated upstream
 || Unbounded response body (E02-GOPROXY-02) | LOW | 6/10 | CWE-400 | Trivial (add LimitReader) |
 || Module name injection in Verify URL (E02-GOPROXY-03) | LOW | 5/10 | CWE-88 | Small (validate module path) |
 ||| Token exposure via env/logs (E02-MAVEN-01) | HIGH | 9/10 | CWE-522 | Small (redact logs, opaque errors) |
 ||| Missing token validation before HTTP call (E02-MAVEN-02) | MEDIUM | 8/10 | CWE-201 | Small (validate in Prepare) |
 ||| POM group/artifact injection in Verify URL (E02-MAVEN-03) | MEDIUM | 7/10 | CWE-88 | Small (validate group/artifact/version) |
 ||| Unbounded response body (E02-MAVEN-04) | LOW | 5/10 | CWE-400 | Trivial (add LimitReader) |
-=======
 || Token exposure via env/logs (E02-PACKAGIST-01) | HIGH | 9/10 | CWE-522 | Small (redact logs, opaque errors) |
 || Missing token validation before HTTP call (E02-PACKAGIST-02) | MEDIUM | 8/10 | CWE-201 | Small (validate in Prepare) |
 || Package name injection in Verify URL (E02-PACKAGIST-03) | MEDIUM | 7/10 | CWE-532 | Small (validate name format) |
 || Unbounded response body (E02-PACKAGIST-04) | LOW | 5/10 | CWE-400 | Trivial (add LimitReader) |
 || Git tag injection via version string (E02-SWIFT-01) | MEDIUM | 7/10 | CWE-88 | Small (version validation) |
->>>>>>> Stashed changes
 || Token exposure via env/logs (E02-GODOT-01) | HIGH | 9/10 | CWE-522 | Small (redact logs, opaque errors) |
 || Missing token validation before HTTP call (E02-GODOT-02) | MEDIUM | 8/10 | CWE-201 | Small (validate in Prepare) |
 || Owner/repo injection in GitHub API URL (E02-GODOT-03) | MEDIUM | 7/10 | CWE-88 | Small (validate owner/repo) |
 || Unbounded response body (E02-GODOT-04) | LOW | 5/10 | CWE-400 | Trivial (add LimitReader) |
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 
 ---
 
@@ -563,8 +554,6 @@ func isValidModulePath(path string) bool {
 
 ---
 
-<<<<<<< Updated upstream
-=======
 ## e02s04 — Packagist Publisher
 
 > **Risk Tier:** P3  
@@ -821,7 +810,6 @@ if len(body) > maxResponseSize {
 >
 > ---
 
->>>>>>> Stashed changes
 ## e02s07 — Godot Publisher
 
 > **Risk Tier:** P3  
@@ -1005,8 +993,6 @@ if len(body) > maxResponseSize {
     return fmt.Errorf("godot: response body too large")
 }
 ```
-<<<<<<< Updated upstream
-=======
 
 ---
 ---
@@ -1188,5 +1174,4 @@ body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize+1))
 if len(body) > maxResponseSize {
     return fmt.Errorf("maven: response body too large")
 }
->>>>>>> Stashed changes
 ```

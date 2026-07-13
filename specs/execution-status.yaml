@@ -1,6 +1,6 @@
 execution_status:
   last_updated: "2026-07-13"
   current_epic: e02
-  current_story: e02s06
+  current_story: e02s05
   blocked: false
-  notes: "e02s06 (Swift publisher) completed and landed to main. Next: e02s04 (Packagist)."
+  notes: "e02s04 (Packagist publisher) completed and landed to main. Next: e02s05 (Maven)."

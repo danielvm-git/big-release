@@ -55,7 +55,7 @@ tasks:
     description: Implement and test Packagist publisher
     risk: P3
     security: low
-    status: todo
+    status: done
     steps:
       - step: 1
         description: "Create Packagist publisher struct with Name(), Detect(), Prepare(), Publish(), Verify()"
@@ -106,7 +106,7 @@ tasks:
     description: Implement and test Godot publisher
     risk: P3
     security: low
-    status: todo
+    status: done
     steps:
       - step: 1
         description: "Create Godot publisher struct with Name(), Detect(), Prepare(), Publish(), Verify()"
