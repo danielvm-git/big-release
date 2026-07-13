@@ -16,5 +16,5 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'E02 (Publishers) complete: 7 language-specific publishers built across ~1,800 lines of Go. All preflight green (0 lint, vet, 350+ tests). Threat model at specs/security/epics/e02/THREAT_MODEL.md with 25 findings across 7 publisher surfaces. Side fixes: incrementPrerelease bug in calculator.go, missing validateRefName in git/client.go. Next: begin E03 (Plugins) — plugin discovery, lifecycle, and SDK.'
-  next_skill: survey-context
+  context: 'Request-review Round 2 complete (Dual-Blind AND-gate: PASS). Both reviewers scored 100%, zero findings. npm publisher (e02s07) passes all gates: story tags, CONVENTIONS.md compliance, 31 tests, 0 lint, 0 vet. Ready for commit.'
+  next_skill: commit-message

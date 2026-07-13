@@ -1,6 +1,9 @@
+// story: e02s07
+
 package npm
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,12 +14,19 @@ import (
 	"github.com/danielvm-git/big-release/internal/publishers"
 )
 
-// Publisher publishes to npm
-type Publisher struct{}
+// Publisher publishes to npm.
+type Publisher struct {
+	// DryRun, when true, skips actual npm publish and npm view calls.
+	DryRun bool
+	// ExecCommand is the function used to run external commands. Defaults to exec.Command.
+	ExecCommand func(name string, arg ...string) *exec.Cmd
+}
 
-// NewPublisher creates a new Publisher
+// NewPublisher creates a new Publisher with default settings.
 func NewPublisher() *Publisher {
-	return &Publisher{}
+	return &Publisher{
+		ExecCommand: exec.Command,
+	}
 }
 
 // Name returns the publisher name
@@ -30,79 +40,63 @@ func (p *Publisher) Detect() bool {
 	return err == nil
 }
 
-// Prepare prepares the package for publishing
+// Prepare prepares the package for publishing.
 func (p *Publisher) Prepare(version string) error {
-	// Read package.json
-	data, err := os.ReadFile("package.json")
+	pkg, err := readPackageJSON()
 	if err != nil {
-		return fmt.Errorf("failed to read package.json: %w", err)
+		return err
 	}
 
-	// Parse package.json
-	var pkg map[string]interface{}
-	if err := json.Unmarshal(data, &pkg); err != nil {
-		return fmt.Errorf("failed to parse package.json: %w", err)
-	}
-
-	// Update version
 	pkg["version"] = version
 
-	// Write back
-	data, err = json.MarshalIndent(pkg, "", "  ")
+	data, err := json.MarshalIndent(pkg, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal package.json: %w", err)
+		return fmt.Errorf("npm: failed to marshal package.json: %w", err)
 	}
 
 	if err := os.WriteFile("package.json", data, 0644); err != nil {
-		return fmt.Errorf("failed to write package.json: %w", err)
+		return fmt.Errorf("npm: failed to write package.json: %w", err)
 	}
 
 	return nil
 }
 
-// Publish publishes the package
+// Publish publishes the package.
 func (p *Publisher) Publish(version string) error {
-	cmd := exec.Command("npm", "publish")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	if p.DryRun {
+		return nil
+	}
+
+	cmd := p.ExecCommand("npm", "publish")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to publish to npm: %w", err)
+		return fmt.Errorf("npm: publish failed: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 
 	return nil
 }
 
-// Verify verifies the publication
+// Verify verifies the publication.
 func (p *Publisher) Verify(version string) error {
-	// Read package.json to get package name
-	data, err := os.ReadFile("package.json")
+	name, err := readPackageName()
 	if err != nil {
-		return fmt.Errorf("failed to read package.json: %w", err)
+		return err
 	}
 
-	var pkg map[string]interface{}
-	if err := json.Unmarshal(data, &pkg); err != nil {
-		return fmt.Errorf("failed to parse package.json: %w", err)
+	if p.DryRun {
+		return nil
 	}
 
-	name, ok := pkg["name"].(string)
-	if !ok || name == "" {
-		return fmt.Errorf("package name not found in package.json")
-	}
-	if !isValidPackageName(name) {
-		return fmt.Errorf("invalid package name %q in package.json", name)
-	}
-
-	// Check if version exists on npm
-	cmd := exec.Command("npm", "view", "--", name, "version")
+	cmd := p.ExecCommand("npm", "view", "--", name, "version")
 	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("failed to verify publication: %w", err)
+		return fmt.Errorf("npm: failed to verify publication: %w", err)
 	}
 
 	publishedVersion := strings.TrimSpace(string(output))
 	if publishedVersion != version {
-		return fmt.Errorf("published version %s does not match expected version %s", publishedVersion, version)
+		return fmt.Errorf("npm: published version %s does not match expected version %s", publishedVersion, version)
 	}
 
 	return nil
@@ -126,7 +120,6 @@ func isValidPackageName(name string) bool {
 	if len(name) == 0 || len(name) > 214 {
 		return false
 	}
-	// Scoped packages: @scope/name
 	if name[0] == '@' {
 		if !strings.Contains(name, "/") {
 			return false
@@ -143,4 +136,37 @@ func isValidPackageName(name string) bool {
 		return npmNamePattern.MatchString(rest)
 	}
 	return npmNamePattern.MatchString(name)
+}
+
+// readPackageJSON reads and parses the package.json file in the working directory.
+func readPackageJSON() (map[string]interface{}, error) {
+	data, err := os.ReadFile("package.json")
+	if err != nil {
+		return nil, fmt.Errorf("npm: failed to read package.json: %w", err)
+	}
+
+	var pkg map[string]interface{}
+	if err := json.Unmarshal(data, &pkg); err != nil {
+		return nil, fmt.Errorf("npm: failed to parse package.json: %w", err)
+	}
+
+	return pkg, nil
+}
+
+// readPackageName reads and validates the package name from package.json.
+func readPackageName() (string, error) {
+	pkg, err := readPackageJSON()
+	if err != nil {
+		return "", err
+	}
+
+	name, ok := pkg["name"].(string)
+	if !ok || name == "" {
+		return "", fmt.Errorf("npm: package name not found or not a string in package.json")
+	}
+	if !isValidPackageName(name) {
+		return "", fmt.Errorf("npm: invalid package name %q in package.json", name)
+	}
+
+	return name, nil
 }
