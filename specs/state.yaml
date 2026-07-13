@@ -1,15 +1,19 @@
 workflow_mode: solo-git
-active_flow: null
-active_epic: null
+active_flow: build_epic
+active_epic: e02
 active_story: null
 bug_id: null
 bigpowers_version: 2.76.1
 bug_cycle: null
+epic_cycle:
+  step: 1
+  epic: e02
+  steps: [0, 1, 2, 3, 4, 5, 6, 7, 8]
 environment:
   go: 1.26.3
   golangci-lint: 2.12.2
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: Project initialized with core algorithm, git operations, config loading, plugin system, and npm publisher. Build passes. Lint has 8 code quality issues (errcheck, staticcheck). Ready for testing and expansion.
-  next_skill: develop-tdd
+  context: 'E02 (Publishers) complete: 7 language-specific publishers built across ~1,800 lines of Go. All preflight green (0 lint, vet, 350+ tests). Threat model at specs/security/epics/e02/THREAT_MODEL.md with 25 findings across 7 publisher surfaces. Side fixes: incrementPrerelease bug in calculator.go, missing validateRefName in git/client.go. Next: begin E03 (Plugins) — plugin discovery, lifecycle, and SDK.'
+  next_skill: survey-context
