@@ -38,7 +38,7 @@ tasks:
     description: Implement and test Go Proxy publisher
     risk: P2
     security: none
-    status: todo
+    status: done
     steps:
       - step: 1
         description: "Create Go Proxy publisher struct with Name(), Detect(), Prepare(), Publish(), Verify()"

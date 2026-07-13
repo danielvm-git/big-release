@@ -1,0 +1,76 @@
+epic: e02
+title: Language-Specific Publishers
+description: Implement publishers for all supported languages
+status: in_progress
+priority: P0
+
+out_of_scope:
+  - Homebrew
+  - Snap Store
+  - Docker Hub
+  - Arch User Repository (AUR)
+  - NuGet
+  - RubyGems
+
+stories:
+  - id: e02s01
+    title: Implement PyPI publisher
+    description: Publish Python packages to PyPI
+    status: todo
+    files:
+      - internal/publishers/pypi/pypi.go
+
+  - id: e02s02
+    title: Implement crates.io publisher
+    description: Publish Rust crates to crates.io
+    status: todo
+    files:
+      - internal/publishers/crates/crates.go
+
+  - id: e02s03
+    title: Implement Go Proxy publisher
+    description: Publish Go modules to Go Proxy
+    status: done
+    files:
+      - internal/publishers/goproxy/goproxy.go
+
+  - id: e02s04
+    title: Implement Packagist publisher
+    description: Publish PHP packages to Packagist
+    status: todo
+    files:
+      - internal/publishers/packagist/packagist.go
+
+  - id: e02s05
+    title: Implement Maven publisher
+    description: Publish Java packages to Maven Central
+    status: todo
+    files:
+      - internal/publishers/maven/maven.go
+
+  - id: e02s06
+    title: Implement Swift publisher
+    description: Publish Swift packages
+    status: todo
+    files:
+      - internal/publishers/swift/swift.go
+
+  - id: e02s07
+    title: Implement Godot publisher
+    description: Publish Godot projects via GitHub Releases
+    status: todo
+    files:
+      - internal/publishers/godot/godot.go
+
+verification:
+  - step: Test npm publisher
+    command: make test
+    expected: All tests pass
+
+  - step: Test PyPI publisher
+    command: make test
+    expected: All tests pass
+
+  - step: Test crates.io publisher
+    command: make test
+    expected: All tests pass
