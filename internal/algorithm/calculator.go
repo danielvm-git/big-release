@@ -126,7 +126,7 @@ func (c *Calculator) incrementPrerelease(version *semver.Version) *semver.Versio
 	var num int
 	_, _ = fmt.Sscanf(parts[1], "%d", &num)
 
-	return semver.MustParse(fmt.Sprintf("%s-%s.%d", version.Original(), preid, num+1))
+	return semver.MustParse(fmt.Sprintf("%d.%d.%d-%s.%d", version.Major(), version.Minor(), version.Patch(), preid, num+1))
 }
 
 // splitPrerelease splits a prerelease string like "alpha.1" into ["alpha", "1"]
