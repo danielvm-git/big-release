@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/danielvm-git/big-release/internal/publishers"
 )
@@ -85,18 +86,21 @@ func (p *Publisher) Verify(version string) error {
 	}
 
 	name, ok := pkg["name"].(string)
-	if !ok {
+	if !ok || name == "" {
 		return fmt.Errorf("package name not found in package.json")
+	}
+	if !isValidPackageName(name) {
+		return fmt.Errorf("invalid package name %q in package.json", name)
 	}
 
 	// Check if version exists on npm
-	cmd := exec.Command("npm", "view", name, "version")
+	cmd := exec.Command("npm", "view", "--", name, "version")
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to verify publication: %w", err)
 	}
 
-	publishedVersion := filepath.Base(string(output))
+	publishedVersion := strings.TrimSpace(string(output))
 	if publishedVersion != version {
 		return fmt.Errorf("published version %s does not match expected version %s", publishedVersion, version)
 	}
@@ -106,4 +110,37 @@ func (p *Publisher) Verify(version string) error {
 
 func init() {
 	publishers.Register(NewPublisher())
+}
+
+// npmNamePattern matches valid npm package names per the npm registry spec.
+// Does not include scope prefix; for scoped names use isValidPackageName.
+var npmNamePattern = regexp.MustCompile(`^[a-z0-9][-a-z0-9._]*$`)
+
+// npmScopePattern matches valid npm scope names (after the initial @ and before /).
+var npmScopePattern = regexp.MustCompile(`^@[a-z0-9][-a-z0-9._]*$`)
+
+// isValidPackageName validates an npm package name.
+// Supports both unscoped ("my-package") and scoped ("@scope/my-package") formats.
+// Enforces npm's name rules to prevent flag injection via crafted names.
+func isValidPackageName(name string) bool {
+	if len(name) == 0 || len(name) > 214 {
+		return false
+	}
+	// Scoped packages: @scope/name
+	if name[0] == '@' {
+		if !strings.Contains(name, "/") {
+			return false
+		}
+		scopeEnd := strings.Index(name, "/")
+		scope := name[:scopeEnd]
+		if !npmScopePattern.MatchString(scope) {
+			return false
+		}
+		rest := name[scopeEnd+1:]
+		if len(rest) == 0 {
+			return false
+		}
+		return npmNamePattern.MatchString(rest)
+	}
+	return npmNamePattern.MatchString(name)
 }
