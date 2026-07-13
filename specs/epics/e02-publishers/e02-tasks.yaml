@@ -89,7 +89,7 @@ tasks:
     description: Implement and test Swift publisher
     risk: P3
     security: none
-    status: todo
+    status: done
     steps:
       - step: 1
         description: "Create Swift publisher struct with Name(), Detect(), Prepare(), Publish(), Verify()"
