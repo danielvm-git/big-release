@@ -2,6 +2,7 @@
 package plugins
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -134,10 +135,18 @@ func mergeIntoExisting(sb *strings.Builder, existingContent string) {
 		sb.WriteString(strings.Join(lines[startIdx:], "\n"))
 		return
 	}
-	if !strings.HasPrefix(lines[0], "# ") {
-		sb.WriteString(newFileChangelog())
+	firstLine := ""
+	if len(lines) > 0 {
+		firstLine = lines[0]
 	}
-	sb.WriteString(existingContent)
+	if strings.HasPrefix(firstLine, "# ") {
+		sb.WriteString(existingContent)
+	} else {
+		sb.WriteString(newFileChangelog())
+		if firstLine != "" {
+			sb.WriteString(existingContent)
+		}
+	}
 }
 
 func mergeChangelogContent(lastRelease string, existingContent string) string {
@@ -160,11 +169,15 @@ func (p *ChangelogPlugin) resolveNotes(ctx *algorithm.Context) (string, error) {
 	return p.GenerateNotes(ctx)
 }
 
-func (p *ChangelogPlugin) readChangelogFile() string {
-	if data, err := os.ReadFile("CHANGELOG.md"); err == nil {
-		return string(data)
+func (p *ChangelogPlugin) readChangelogFile() (string, error) {
+	data, err := os.ReadFile("CHANGELOG.md")
+	if err == nil {
+		return string(data), nil
 	}
-	return ""
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	return "", fmt.Errorf("failed to read CHANGELOG.md: %w", err)
 }
 
 // Prepare writes the release notes to CHANGELOG.md.
@@ -176,7 +189,11 @@ func (p *ChangelogPlugin) Prepare(ctx *algorithm.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to generate release notes: %w", err)
 	}
-	merged := mergeChangelogContent(notes, p.readChangelogFile())
+	existing, err := p.readChangelogFile()
+	if err != nil {
+		return err
+	}
+	merged := mergeChangelogContent(notes, existing)
 	trimmed := strings.TrimSpace(merged) + "\n"
 	if err := os.WriteFile("CHANGELOG.md", []byte(trimmed), 0644); err != nil {
 		return fmt.Errorf("failed to write CHANGELOG.md: %w", err)

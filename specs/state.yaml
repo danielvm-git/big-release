@@ -17,8 +17,8 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'E03 fully released. CI green, audit PASS, 93 plugin tests pass. Plugins: git, github, exec, changelog. Ready for next epic.'
-  next_skill: survey-context
+  context: 'E03 fully released. CI green, audit PASS, 93 plugin tests pass. Plugins: git, github, exec, changelog. Ready for request-review.'
+  next_skill: request-review
 release:
   commit_landed: true
   ci_verified: true

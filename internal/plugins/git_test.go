@@ -209,8 +209,14 @@ func TestGitPluginPublish(t *testing.T) {
 			t.Fatalf("Prepare failed: %v", err)
 		}
 
-		// Publish (tag creation, push will fail since no remote, but tag should work)
+		// Publish (tag creation succeeds; push fails without remote — expected)
 		_, err := p.Publish(ctx)
+		if err == nil {
+			t.Error("expected error from push without remote, got nil")
+		}
+		if !strings.Contains(err.Error(), "git push") {
+			t.Errorf("expected 'git push' error, got: %v", err)
+		}
 
 		// Check tag exists
 		tagCmd := exec.Command("git", "tag", "-l", "1.0.0")
@@ -219,7 +225,6 @@ func TestGitPluginPublish(t *testing.T) {
 		if strings.TrimSpace(string(tagOut)) != "1.0.0" {
 			t.Errorf("expected tag 1.0.0 to exist, got: %s", string(tagOut))
 		}
-		_ = err
 	})
 }
 

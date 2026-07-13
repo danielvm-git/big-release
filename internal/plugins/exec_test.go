@@ -176,6 +176,39 @@ func TestExecPluginPrepare(t *testing.T) {
 			t.Errorf("expected [hello world], got %v", capturedArgs)
 		}
 	})
+	t.Run("SC-e03s03-P1-13b: Prepare respects double-quoted arguments", func(t *testing.T) {
+		var capturedArgs []string
+		p := &ExecPlugin{runner: &mockCommandRunner{
+			runFunc: func(_ string, args ...string) (string, error) {
+				capturedArgs = args
+				return "output", nil
+			},
+		}}
+		ctx := &algorithm.Context{
+			Config: &algorithm.Config{
+				Publishers: map[string]algorithm.PublisherConfig{
+					"exec": {Options: map[string]string{
+						"commands": "git commit -m \"release v1.0.0\"",
+					}},
+				},
+			},
+		}
+		if err := p.Prepare(ctx); err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+		if len(capturedArgs) != 3 {
+			t.Fatalf("expected 3 args, got %d: %v", len(capturedArgs), capturedArgs)
+		}
+		if capturedArgs[0] != "commit" {
+			t.Errorf("expected 'commit', got %q", capturedArgs[0])
+		}
+		if capturedArgs[1] != "-m" {
+			t.Errorf("expected '-m', got %q", capturedArgs[1])
+		}
+		if capturedArgs[2] != "release v1.0.0" {
+			t.Errorf("expected 'release v1.0.0', got %q", capturedArgs[2])
+		}
+	})
 }
 
 func TestExecPluginLifecycle(t *testing.T) {

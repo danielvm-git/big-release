@@ -84,8 +84,32 @@ func (p *ExecPlugin) parseCommands(ctx *algorithm.Context) []string {
 	return cmds
 }
 
+// shellSplit splits a command line into tokens respecting double-quoted arguments.
+func shellSplit(line string) []string {
+	var parts []string
+	var current strings.Builder
+	inQuotes := false
+	for _, r := range line {
+		switch {
+		case r == '"':
+			inQuotes = !inQuotes
+		case r == ' ' && !inQuotes:
+			if current.Len() > 0 {
+				parts = append(parts, current.String())
+				current.Reset()
+			}
+		default:
+			current.WriteRune(r)
+		}
+	}
+	if current.Len() > 0 {
+		parts = append(parts, current.String())
+	}
+	return parts
+}
+
 func (p *ExecPlugin) runCommand(line string, idx int) error {
-	parts := strings.Fields(line)
+	parts := shellSplit(line)
 	out, err := p.runner.Run(parts[0], parts[1:]...)
 	if err != nil {
 		return fmt.Errorf("command %d (%s) failed: %w", idx+1, line, err)
