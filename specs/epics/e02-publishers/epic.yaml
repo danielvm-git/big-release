@@ -16,14 +16,14 @@ stories:
   - id: e02s01
     title: Implement PyPI publisher
     description: Publish Python packages to PyPI
-    status: todo
+    status: done
     files:
       - internal/publishers/pypi/pypi.go
 
   - id: e02s02
     title: Implement crates.io publisher
     description: Publish Rust crates to crates.io
-    status: todo
+    status: done
     files:
       - internal/publishers/crates/crates.go
 
@@ -37,21 +37,21 @@ stories:
   - id: e02s04
     title: Implement Packagist publisher
     description: Publish PHP packages to Packagist
-    status: todo
+    status: done
     files:
       - internal/publishers/packagist/packagist.go
 
   - id: e02s05
     title: Implement Maven publisher
     description: Publish Java packages to Maven Central
-    status: todo
+    status: done
     files:
       - internal/publishers/maven/maven.go
 
   - id: e02s06
     title: Implement Swift publisher
     description: Publish Swift packages
-    status: todo
+    status: done
     files:
       - internal/publishers/swift/swift.go
 

@@ -72,7 +72,7 @@ tasks:
     description: Implement and test Maven publisher
     risk: P2
     security: low
-    status: todo
+    status: done
     steps:
       - step: 1
         description: "Create Maven publisher struct with Name(), Detect(), Prepare(), Publish(), Verify()"
