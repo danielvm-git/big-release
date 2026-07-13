@@ -17,7 +17,7 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'E03 fully released. CI green, Release green, 94 tests pass, audit PASS, dual-blind review PASS. Plugins: git, github, exec, changelog. Epic capsule archived. Ready for e04 or next initiative.'
+  context: 'CLI hardening bug fixes released. Fixes: pkg/release orchestrator created (was compile blocker), error output now printed to stderr before os.Exit, --dry-run flag wired through 8 publishers + GitHub plugin. 279 tests pass, CI+Release green, commit 0491dcb on main. Ready for next initiative.'
   next_skill: run-planning
 release:
   commit_landed: true
