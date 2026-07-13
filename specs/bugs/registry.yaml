@@ -1,1 +1,27 @@
-bugs: []
+bugs:
+  - id: BUG-cli-hardening
+    status: fixed
+    severity: high
+    scope: cmd
+    title: Three CLI hardening bugs (compile blocker, swallowed errors, dry-run dead)
+    approach: |
+      Created missing pkg/release package with full orchestrator.
+      Added error printing before os.Exit(1) in main.go.
+      Added SetDryRun to Publisher interface and implemented on all 8 publishers.
+    risk_level: low
+    files_changed:
+      - cmd/big-release/main.go
+      - go.mod
+      - internal/plugins/github.go
+      - internal/publishers/base.go
+      - internal/publishers/crates/crates.go
+      - internal/publishers/godot/godot.go
+      - internal/publishers/goproxy/goproxy.go
+      - internal/publishers/maven/maven.go
+      - internal/publishers/npm/npm.go
+      - internal/publishers/packagist/packagist.go
+      - internal/publishers/pypi/pypi.go
+      - internal/publishers/swift/swift.go
+      - pkg/release/release.go
+      - pkg/release/release_test.go
+    commit_message: "fix(cmd): harden CLI error handling, publisher dry-run, and missing orchestrator package"

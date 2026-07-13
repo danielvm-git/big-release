@@ -190,6 +190,11 @@ func (p *Publisher) Verify(version string) error {
 	return nil
 }
 
+// SetDryRun sets the dry-run mode.
+func (p *Publisher) SetDryRun(dryRun bool) {
+	p.DryRun = dryRun
+}
+
 func init() {
 	publishers.Register(NewPublisher())
 }

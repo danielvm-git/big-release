@@ -38,6 +38,10 @@ func (p *GitHubPlugin) Name() string {
 
 // VerifyConditions checks that required environment variables are set.
 func (p *GitHubPlugin) VerifyConditions(ctx *algorithm.Context) error {
+	// Skip credential checks in dry-run mode — we won't be publishing.
+	if ctx.DryRun {
+		return nil
+	}
 	if os.Getenv("GITHUB_TOKEN") == "" {
 		return fmt.Errorf("GITHUB_TOKEN environment variable is required")
 	}

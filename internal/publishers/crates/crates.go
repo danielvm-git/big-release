@@ -198,6 +198,11 @@ func (p *Publisher) Verify(version string) error {
 	return fmt.Errorf("crates: version %q not found in published versions", version)
 }
 
+// SetDryRun sets the dry-run mode.
+func (p *Publisher) SetDryRun(dryRun bool) {
+	p.DryRun = dryRun
+}
+
 func init() {
 	publishers.Register(NewPublisher())
 }

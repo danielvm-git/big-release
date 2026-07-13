@@ -20,6 +20,9 @@ type Publisher interface {
 
 	// Verify verifies the publication
 	Verify(version string) error
+
+	// SetDryRun sets the dry-run mode on the publisher
+	SetDryRun(dryRun bool)
 }
 
 // Registry manages publishers
