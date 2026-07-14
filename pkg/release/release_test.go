@@ -11,6 +11,7 @@ import (
 	"github.com/danielvm-git/big-release/internal/algorithm"
 	"github.com/danielvm-git/big-release/internal/git"
 	"github.com/danielvm-git/big-release/internal/plugins"
+	"github.com/danielvm-git/big-release/internal/publishers"
 )
 
 // versionTestPlugin is a minimal plugin for testing version calculation.
@@ -95,10 +96,16 @@ func TestRun_DryRunCompletesWithoutSideEffects(t *testing.T) {
 		t.Skip("skipping: not in a git repo")
 	}
 
+	currentBranch, err := gitClient.GetCurrentBranch()
+	if err != nil {
+		t.Skipf("skipping: cannot get current branch: %v", err)
+	}
+
 	ctx := &Context{
 		Config: &algorithm.Config{
 			Branches: []algorithm.BranchConfig{
 				{Name: "main"},
+				{Name: currentBranch},
 			},
 			TagFormat: "v${version}",
 			Plugins:   []string{"changelog", "git"},
@@ -351,5 +358,181 @@ func TestNew_PreservesContextReference(t *testing.T) {
 	}
 	if len(r.ctx.Config.Plugins) == 0 || r.ctx.Config.Plugins[0] != "git" {
 		t.Error("Plugins field not accessible through context")
+	}
+}
+
+// --- Bug 1: BUG-branch-config-dead ---
+
+func TestBuildAlgoContext_PropagatesBranchConfig(t *testing.T) {
+	// buildAlgoContext should copy Type, Channel, and Prerelease from the
+	// matching BranchConfig into the algorithm.Branch — not just Name.
+	gitClient, err := git.NewClient()
+	if err != nil {
+		t.Skipf("skipping: cannot create git client: %v", err)
+	}
+	if !gitClient.IsGitRepo() {
+		t.Skip("skipping: not in a git repo")
+	}
+
+	branchName, err := gitClient.GetCurrentBranch()
+	if err != nil {
+		t.Skipf("skipping: cannot get current branch: %v", err)
+	}
+
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches: []algorithm.BranchConfig{
+				{
+					Name:       branchName,
+					Type:       "prerelease",
+					Channel:    "beta",
+					Prerelease: "beta",
+				},
+			},
+			TagFormat: "v${version}",
+			Plugins:   []string{},
+		},
+		Git:    gitClient,
+		Logger: zap.NewNop(),
+		DryRun: true,
+	}
+
+	r := New(ctx)
+	algoCtx, err := r.buildAlgoContext()
+	if err != nil {
+		t.Fatalf("buildAlgoContext failed: %v", err)
+	}
+
+	if algoCtx.Branch.Name != branchName {
+		t.Errorf("expected branch name %q, got %q", branchName, algoCtx.Branch.Name)
+	}
+	if algoCtx.Branch.Type != algorithm.BranchTypePrerelease {
+		t.Errorf("expected branch type %q, got %q", algorithm.BranchTypePrerelease, algoCtx.Branch.Type)
+	}
+	if algoCtx.Branch.Channel != "beta" {
+		t.Errorf("expected channel %q, got %q", "beta", algoCtx.Branch.Channel)
+	}
+	if algoCtx.Branch.Prerelease != "beta" {
+		t.Errorf("expected prerelease %q, got %q", "beta", algoCtx.Branch.Prerelease)
+	}
+}
+
+func TestBuildAlgoContext_PropagatesMaintenanceBranchConfig(t *testing.T) {
+	gitClient, err := git.NewClient()
+	if err != nil {
+		t.Skipf("skipping: cannot create git client: %v", err)
+	}
+	if !gitClient.IsGitRepo() {
+		t.Skip("skipping: not in a git repo")
+	}
+
+	branchName, err := gitClient.GetCurrentBranch()
+	if err != nil {
+		t.Skipf("skipping: cannot get current branch: %v", err)
+	}
+
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches: []algorithm.BranchConfig{
+				{
+					Name:    branchName,
+					Type:    "maintenance",
+					Channel: "lts",
+				},
+			},
+			TagFormat: "v${version}",
+			Plugins:   []string{},
+		},
+		Git:    gitClient,
+		Logger: zap.NewNop(),
+		DryRun: true,
+	}
+
+	r := New(ctx)
+	algoCtx, err := r.buildAlgoContext()
+	if err != nil {
+		t.Fatalf("buildAlgoContext failed: %v", err)
+	}
+
+	if algoCtx.Branch.Type != algorithm.BranchTypeMaintenance {
+		t.Errorf("expected branch type %q, got %q", algorithm.BranchTypeMaintenance, algoCtx.Branch.Type)
+	}
+	if algoCtx.Branch.Channel != "lts" {
+		t.Errorf("expected channel %q, got %q", "lts", algoCtx.Branch.Channel)
+	}
+}
+
+// --- Bug 2: BUG-publishers-config-ignored ---
+
+// stubPublisher is a minimal publisher for testing config filtering.
+type stubPublisher struct {
+	name   string
+	dryRun bool
+	ran    bool
+}
+
+func (p *stubPublisher) Name() string           { return p.name }
+func (p *stubPublisher) Detect() bool           { return true }
+func (p *stubPublisher) Prepare(_ string) error { p.ran = true; return nil }
+func (p *stubPublisher) Publish(_ string) error { return nil }
+func (p *stubPublisher) Verify(_ string) error  { return nil }
+func (p *stubPublisher) SetDryRun(dryRun bool)  { p.dryRun = dryRun }
+
+func TestRunPublishers_SkipsDisabledPublishers(t *testing.T) {
+	// Publishers with enabled: false in config should be skipped.
+	// Detected publishers not in config map should still run (backward compatible).
+	gitClient, err := git.NewClient()
+	if err != nil {
+		t.Skipf("skipping: cannot create git client: %v", err)
+	}
+	if !gitClient.IsGitRepo() {
+		t.Skip("skipping: not in a git repo")
+	}
+
+	npmPub := &stubPublisher{name: "npm"}
+	goPub := &stubPublisher{name: "goproxy"}
+
+	// Register stub publishers
+	publishers.Register(npmPub)
+	publishers.Register(goPub)
+	t.Cleanup(func() {
+		// Reset global registry after test
+		*publishers.NewRegistry() = publishers.Registry{}
+	})
+
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches: []algorithm.BranchConfig{
+				{Name: "main"},
+			},
+			TagFormat: "v${version}",
+			Plugins:   []string{},
+			Publishers: map[string]algorithm.PublisherConfig{
+				"npm":     {Enabled: true},
+				"goproxy": {Enabled: false},
+			},
+		},
+		Git:    gitClient,
+		Logger: zap.NewNop(),
+		DryRun: false,
+	}
+
+	r := New(ctx)
+	algoCtx := &algorithm.Context{
+		Config: ctx.Config,
+		Branch: &algorithm.Branch{Name: "main"},
+		DryRun: false,
+	}
+
+	err = r.runPublishers(algoCtx)
+	if err != nil {
+		t.Fatalf("runPublishers failed: %v", err)
+	}
+
+	if !npmPub.ran {
+		t.Error("expected npm publisher to run (enabled: true)")
+	}
+	if goPub.ran {
+		t.Error("expected goproxy publisher to be skipped (enabled: false)")
 	}
 }
