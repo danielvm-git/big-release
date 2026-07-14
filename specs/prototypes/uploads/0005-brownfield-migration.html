@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 5: Brownfield Migration</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Brownfield Migration</h1>
+    
+    <p>Adding big-release to an existing project requires handling existing tags and history. This lesson covers the migration process.</p>
+    
+    <h2>Before you start</h2>
+    
+    <p>Check your existing tags:</p>
+    
+    <pre><code># List all tags
+git tag --list
+
+# Show latest version
+git tag --list --sort=-v:refname | head -1</code></pre>
+    
+    <aside>
+      <p><strong>Important:</strong> big-release finds the latest tag matching your <code>tagFormat</code> and analyzes commits since that tag. Existing tags are compatible as long as they follow SemVer.</p>
+    </aside>
+    
+    <h2>Step 1: Add big-release</h2>
+    
+    <pre><code># Install big-release
+go install github.com/danielvm-git/big-release/cmd/big-release@latest
+
+# Create configuration
+cat > .big-release.yml << EOF
+branches:
+  - name: main
+tagFormat: "v\${version}"
+plugins:
+  - changelog
+  - git
+publishers:
+  npm:
+    enabled: true
+EOF</code></pre>
+    
+    <h2>Step 2: Verify tag detection</h2>
+    
+    <pre><code># Dry run — shows what version would be released
+big-release --dry-run
+
+# If it shows the wrong version, check your tagFormat
+# matches your existing tags</code></pre>
+    
+    <h2>Step 3: Handle existing changelog</h2>
+    
+    <p>If you have an existing CHANGELOG.md, big-release will append to it. If you want to start fresh:</p>
+    
+    <pre><code># Backup existing changelog
+mv CHANGELOG.md CHANGELOG.md.bak
+
+# big-release will create a new one</code></pre>
+    
+    <h2>Step 4: Migrate from semantic-release</h2>
+    
+    <p>If migrating from semantic-release:</p>
+    
+    <pre><code># 1. Remove semantic-release config
+rm .releaserc release.config.js
+
+# 2. Remove semantic-release from devDependencies
+npm uninstall semantic-release @semantic-release/*
+
+# 3. Add big-release config
+# (see Step 1 above)
+
+# 4. Update scripts
+# Remove: "release": "semantic-release"
+# Add: "release": "big-release"
+
+# 5. Test
+big-release --dry-run</code></pre>
+    
+    <h2>Step 5: Update CI/CD</h2>
+    
+    <p>Update your CI configuration to use big-release:</p>
+    
+    <pre><code># GitHub Actions example
+- name: Release
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+  run: npx big-release</code></pre>
+    
+    <div class="quiz" data-answer="git tag --list" data-correct-message="Correct! git tag --list shows all existing tags." data-incorrect-message="Not quite. Use git tag --list to see all existing tags.">
+      <h3>Quick check</h3>
+      <p>How do you check existing tags before migration?</p>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="git log --oneline">git log --oneline</button>
+        <button class="quiz-option" data-value="git tag --list">git tag --list</button>
+        <button class="quiz-option" data-value="big-release --list">big-release --list</button>
+        <button class="quiz-option" data-value="git status">git status</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+    
+    <h2>Common issues</h2>
+    
+    <table>
+      <thead>
+        <tr>
+          <th>Issue</th>
+          <th>Cause</th>
+          <th>Fix</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Wrong version calculated</td>
+          <td>tagFormat does not match existing tags</td>
+          <td>Update tagFormat to match</td>
+        </tr>
+        <tr>
+          <td>No release triggered</td>
+          <td>No feat/fix commits since last tag</td>
+          <td>Add a feat: or fix: commit</td>
+        </tr>
+        <tr>
+          <td>Publish fails</td>
+          <td>Token not set</td>
+          <td>Set NPM_TOKEN or GITHUB_TOKEN</td>
+        </tr>
+      </tbody>
+    </table>
+    
+    <div class="lesson-nav">
+      <a href="0004-greenfield-setup.html">← Greenfield Setup</a>
+      <a href="0006-publishing.html">Next: Publishing →</a>
+    </div>
+  </div>
+  
+  <script src="../assets/quiz.js"></script>
+</body>
+</html>

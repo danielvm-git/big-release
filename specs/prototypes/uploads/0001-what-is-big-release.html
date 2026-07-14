@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 1: What is big-release?</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>What is big-release?</h1>
+    
+    <p>big-release is a unified release tool that automates three things for any project:</p>
+    
+    <ol>
+      <li><strong>Version calculation</strong> — determines the next version based on your commit history</li>
+      <li><strong>Changelog generation</strong> — creates a human-readable changelog from commits</li>
+      <li><strong>Package publishing</strong> — publishes to npm, PyPI, crates.io, or Go Proxy</li>
+    </ol>
+    
+    <aside>
+      <p><strong>Why not just use semantic-release?</strong> semantic-release is excellent but only supports Node.js. big-release brings the same workflow to Go, Python, Rust, and any ecosystem with a package registry.</p>
+    </aside>
+
+    <h2>How it works</h2>
+    
+    <p>big-release reads your git history, analyzes commit messages following the <a href="0002-conventional-commits.html">Conventional Commits</a> specification, and calculates the next version using <a href="0003-versioning.html">Semantic Versioning</a>.</p>
+    
+    <pre><code>$ big-release
+
+$ big-release --verbose
+{"level":"info","msg":"Analyzing commits..."}
+{"level":"info","msg":"The next release version is 1.2.0"}
+{"level":"info","msg":"Generating changelog..."}
+{"level":"info","msg":"Publishing to npm..."}
+{"level":"info","msg":"Released 1.2.0"}</code></pre>
+    
+    <h2>Quick setup</h2>
+    
+    <p>Install big-release:</p>
+    
+    <pre><code>go install github.com/danielvm-git/big-release/cmd/big-release@latest</code></pre>
+    
+    <p>Create a configuration file:</p>
+    
+    <pre><code># .big-release.yml
+branches:
+  - name: main
+tagFormat: "v${version}"
+plugins:
+  - changelog
+  - git
+publishers:
+  npm:
+    enabled: true</code></pre>
+    
+    <p>Add a release script to your <code>package.json</code>:</p>
+    
+    <pre><code>{
+  "scripts": {
+    "release": "big-release"
+  }
+}</code></pre>
+
+    <div class="quiz" data-answer="feat" data-correct-message="Correct! feat: indicates a new feature, which triggers a MINOR version bump." data-incorrect-message="Not quite. feat: indicates a new feature, which triggers a MINOR version bump.">
+      <h3>Quick check</h3>
+      <p>Which commit type triggers a MINOR version bump?</p>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="fix">fix</button>
+        <button class="quiz-option" data-value="feat">feat</button>
+        <button class="quiz-option" data-value="docs">docs</button>
+        <button class="quiz-option" data-value="chore">chore</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <h2>What you will learn</h2>
+    
+    <p>In the following lessons, you will learn:</p>
+    
+    <ul>
+      <li><a href="0002-conventional-commits.html">Conventional Commits</a> — the commit format that drives version calculation</li>
+      <li><a href="0003-versioning.html">Versioning</a> — how SemVer works and how big-release calculates versions</li>
+      <li><a href="0004-greenfield-setup.html">Greenfield setup</a> — starting a new project with big-release</li>
+      <li><a href="0005-brownfield-migration.html">Brownfield migration</a> — adding big-release to an existing project</li>
+      <li><a href="0006-publishing.html">Publishing</a> — publishing to package registries</li>
+    </ul>
+    
+    <aside>
+      <p><strong>Questions?</strong> Ask your AI assistant anything about big-release. They can help you set up your project, troubleshoot issues, or explain any concept in more detail.</p>
+    </aside>
+    
+    <div class="lesson-nav">
+      <span></span>
+      <a href="0002-conventional-commits.html">Next: Conventional Commits →</a>
+    </div>
+  </div>
+  
+  <script src="../assets/quiz.js"></script>
+</body>
+</html>

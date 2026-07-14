@@ -61,6 +61,24 @@ func (r *Release) validateBranch(branchName string) error {
 	return fmt.Errorf("branch %q not in release branches, skipping", branchName)
 }
 
+// mapBranchConfig finds the BranchConfig matching branchName and maps it to an
+// algorithm.Branch, propagating Type, Channel, and Prerelease fields.
+// Returns a default Branch with only Name set if no config matches.
+func mapBranchConfig(branchName string, configs []algorithm.BranchConfig) *algorithm.Branch {
+	branch := &algorithm.Branch{Name: branchName}
+	for _, bc := range configs {
+		if bc.Name == branchName {
+			if bc.Type != "" {
+				branch.Type = algorithm.BranchType(bc.Type)
+			}
+			branch.Channel = bc.Channel
+			branch.Prerelease = bc.Prerelease
+			break
+		}
+	}
+	return branch
+}
+
 // buildAlgoContext gathers git state and constructs the algorithm context.
 func (r *Release) buildAlgoContext() (*algorithm.Context, error) {
 	branchName, err := r.ctx.Git.GetCurrentBranch()
@@ -89,7 +107,7 @@ func (r *Release) buildAlgoContext() (*algorithm.Context, error) {
 
 	return &algorithm.Context{
 		Config:        r.ctx.Config,
-		Branch:        &algorithm.Branch{Name: branchName},
+		Branch:        mapBranchConfig(branchName, r.ctx.Config.Branches),
 		LastRelease:   lastRelease,
 		NextRelease:   nil,
 		Commits:       commits,
@@ -248,7 +266,18 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 func (r *Release) runPublishers(ctx *algorithm.Context) error {
 	detected := publishers.Detect()
 
+	// Filter detected publishers against config. Skip publishers with enabled: false.
+	// Detected publishers not in the config map still run (backward compatible).
+	filtered := make([]publishers.Publisher, 0, len(detected))
 	for _, p := range detected {
+		if pc, exists := r.ctx.Config.Publishers[p.Name()]; exists && !pc.Enabled {
+			r.ctx.Logger.Info("Publisher disabled by config, skipping", zap.String("publisher", p.Name()))
+			continue
+		}
+		filtered = append(filtered, p)
+	}
+
+	for _, p := range filtered {
 		if setter, ok := p.(interface{ SetDryRun(bool) }); ok {
 			setter.SetDryRun(r.ctx.DryRun)
 		}
@@ -264,19 +293,19 @@ func (r *Release) runPublishers(ctx *algorithm.Context) error {
 		version = ctx.NextRelease.Version
 	}
 
-	for _, pub := range detected {
+	for _, pub := range filtered {
 		if err := pub.Prepare(version); err != nil {
 			return fmt.Errorf("publisher %q prepare failed: %w", pub.Name(), err)
 		}
 	}
 
-	for _, pub := range detected {
+	for _, pub := range filtered {
 		if err := pub.Publish(version); err != nil {
 			return fmt.Errorf("publisher %q publish failed: %w", pub.Name(), err)
 		}
 	}
 
-	for _, pub := range detected {
+	for _, pub := range filtered {
 		if err := pub.Verify(version); err != nil {
 			return fmt.Errorf("publisher %q verify failed: %w", pub.Name(), err)
 		}

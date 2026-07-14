@@ -132,6 +132,14 @@ func ValidateConfig(c *algorithm.Config) error {
 		return fmt.Errorf("maximum 3 release branches allowed, got %d", releaseCount)
 	}
 
+	// Validate branch types
+	validTypes := map[string]bool{"": true, "release": true, "maintenance": true, "prerelease": true}
+	for _, branch := range c.Branches {
+		if !validTypes[branch.Type] {
+			return fmt.Errorf("invalid branch type %q for branch %q: must be one of release, maintenance, prerelease, or empty", branch.Type, branch.Name)
+		}
+	}
+
 	// Validate maintenance branches
 	for _, branch := range c.Branches {
 		if branch.Type == "maintenance" {
