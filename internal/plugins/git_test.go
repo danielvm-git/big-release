@@ -69,18 +69,20 @@ func TestGitPluginName(t *testing.T) {
 func TestGitPluginVerifyConditions(t *testing.T) {
 	t.Run("SC-e03s01-P1-02: VerifyConditions passes in a git repo", func(t *testing.T) {
 		p := NewGitPlugin(&fakeGit{isRepo: true})
-		ctx := &algorithm.Context{}
+		ctx := &algorithm.ReadOnlyContext{}
+		state := &algorithm.MutableState{}
 
-		if err := p.VerifyConditions(ctx); err != nil {
+		if err := p.VerifyConditions(ctx, state); err != nil {
 			t.Errorf("expected no error in git repo, got: %v", err)
 		}
 	})
 
 	t.Run("SC-e03s01-P1-03: VerifyConditions fails outside git repo", func(t *testing.T) {
 		p := NewGitPlugin(&fakeGit{isRepo: false})
-		ctx := &algorithm.Context{}
+		ctx := &algorithm.ReadOnlyContext{}
+		state := &algorithm.MutableState{}
 
-		if err := p.VerifyConditions(ctx); err == nil {
+		if err := p.VerifyConditions(ctx, state); err == nil {
 			t.Error("expected error outside git repo, got nil")
 		}
 	})
@@ -89,8 +91,9 @@ func TestGitPluginVerifyConditions(t *testing.T) {
 func TestGitPluginAnalyzeCommits(t *testing.T) {
 	t.Run("SC-e03s01-P1-04: AnalyzeCommits returns empty release type", func(t *testing.T) {
 		p := NewGitPlugin(&fakeGit{isRepo: true})
-		ctx := &algorithm.Context{}
-		rt, err := p.AnalyzeCommits(ctx)
+		ctx := &algorithm.ReadOnlyContext{}
+		state := &algorithm.MutableState{}
+		rt, err := p.AnalyzeCommits(ctx, state)
 		if err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
@@ -103,8 +106,9 @@ func TestGitPluginAnalyzeCommits(t *testing.T) {
 func TestGitPluginGenerateNotes(t *testing.T) {
 	t.Run("SC-e03s01-P1-05: GenerateNotes returns empty string", func(t *testing.T) {
 		p := NewGitPlugin(&fakeGit{isRepo: true})
-		ctx := &algorithm.Context{}
-		notes, err := p.GenerateNotes(ctx)
+		ctx := &algorithm.ReadOnlyContext{}
+		state := &algorithm.MutableState{}
+		notes, err := p.GenerateNotes(ctx, state)
 		if err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
@@ -117,8 +121,9 @@ func TestGitPluginGenerateNotes(t *testing.T) {
 func TestGitPluginPrepare(t *testing.T) {
 	t.Run("SC-e03s01-P1-06: Prepare does nothing in dry-run mode", func(t *testing.T) {
 		p := NewGitPlugin(&fakeGit{isRepo: true})
-		ctx := &algorithm.Context{DryRun: true}
-		if err := p.Prepare(ctx); err != nil {
+		ctx := &algorithm.ReadOnlyContext{DryRun: true}
+		state := &algorithm.MutableState{}
+		if err := p.Prepare(ctx, state); err != nil {
 			t.Errorf("expected no error in dry-run, got: %v", err)
 		}
 	})
@@ -141,12 +146,14 @@ func TestGitPluginPrepare(t *testing.T) {
 		}
 		_ = realClient
 		p := NewGitPlugin(&fakeGit{isRepo: true})
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{
+			DryRun: false,
+		}
+		state := &algorithm.MutableState{
 			NextRelease: &algorithm.Release{Version: "1.0.0"},
-			DryRun:      false,
 		}
 
-		if err := p.Prepare(ctx); err != nil {
+		if err := p.Prepare(ctx, state); err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}
 
@@ -163,12 +170,14 @@ func TestGitPluginPrepare(t *testing.T) {
 		execInDir(t, dir, "git", "commit", "-m", "initial commit")
 
 		p := NewGitPlugin(&fakeGit{isRepo: true})
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{
+			DryRun: false,
+		}
+		state := &algorithm.MutableState{
 			NextRelease: &algorithm.Release{Version: "1.0.0"},
-			DryRun:      false,
 		}
 
-		if err := p.Prepare(ctx); err != nil {
+		if err := p.Prepare(ctx, state); err != nil {
 			t.Errorf("expected no error with no changes, got: %v", err)
 		}
 	})
@@ -177,8 +186,9 @@ func TestGitPluginPrepare(t *testing.T) {
 func TestGitPluginPublish(t *testing.T) {
 	t.Run("SC-e03s01-P1-09: Publish does nothing in dry-run mode", func(t *testing.T) {
 		p := NewGitPlugin(&fakeGit{isRepo: true})
-		ctx := &algorithm.Context{DryRun: true}
-		release, err := p.Publish(ctx)
+		ctx := &algorithm.ReadOnlyContext{DryRun: true}
+		state := &algorithm.MutableState{}
+		release, err := p.Publish(ctx, state)
 		if err != nil {
 			t.Errorf("expected no error in dry-run, got: %v", err)
 		}
@@ -195,13 +205,15 @@ func TestGitPluginPublish(t *testing.T) {
 			createErr: nil,
 		}
 		p := NewGitPlugin(fg)
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{
+			DryRun: false,
+		}
+		state := &algorithm.MutableState{
 			NextRelease: &algorithm.Release{Version: "1.0.0"},
-			DryRun:      false,
 		}
 
 		// Publish (creates tag, push fails, tag cleaned up)
-		_, err := p.Publish(ctx)
+		_, err := p.Publish(ctx, state)
 		if err == nil {
 			t.Error("expected error from push failure, got nil")
 		}
@@ -214,7 +226,7 @@ func TestGitPluginPublish(t *testing.T) {
 func TestGitPluginSuccess(t *testing.T) {
 	t.Run("SC-e03s01-P1-11: Success returns nil", func(t *testing.T) {
 		p := NewGitPlugin(&fakeGit{isRepo: true})
-		if err := p.Success(&algorithm.Context{}); err != nil {
+		if err := p.Success(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{}); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 	})
@@ -223,7 +235,7 @@ func TestGitPluginSuccess(t *testing.T) {
 func TestGitPluginFail(t *testing.T) {
 	t.Run("SC-e03s01-P1-12: Fail returns nil", func(t *testing.T) {
 		p := NewGitPlugin(&fakeGit{isRepo: true})
-		if err := p.Fail(&algorithm.Context{}, nil); err != nil {
+		if err := p.Fail(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{}, nil); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 	})

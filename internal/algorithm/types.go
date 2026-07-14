@@ -94,14 +94,22 @@ type PublisherConfig struct {
 	Options map[string]string `yaml:"options,omitempty" json:"options,omitempty"`
 }
 
-// Context represents the release context
-type Context struct {
+// ReadOnlyContext holds immutable inputs to the release pipeline.
+// Constructed once and never modified.
+type ReadOnlyContext struct {
 	Config        *Config
 	Branch        *Branch
-	LastRelease   *Release
-	NextRelease   *Release
 	Commits       []*Commit
 	Releases      []*Release
 	RepositoryURL string
 	DryRun        bool
+}
+
+// MutableState holds values written by specific pipeline stages.
+// Passed as a pointer so stages can update it.
+type MutableState struct {
+	LastRelease *Release
+	NextRelease *Release
+	Notes       string
+	Assets      []Asset
 }

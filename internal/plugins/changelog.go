@@ -24,27 +24,27 @@ func (p *ChangelogPlugin) Name() string {
 }
 
 // VerifyConditions verifies pre-release conditions.
-func (p *ChangelogPlugin) VerifyConditions(ctx *algorithm.Context) error {
+func (p *ChangelogPlugin) VerifyConditions(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	return nil
 }
 
 // AnalyzeCommits analyzes commits and returns release type.
-func (p *ChangelogPlugin) AnalyzeCommits(ctx *algorithm.Context) (algorithm.ReleaseType, error) {
+func (p *ChangelogPlugin) AnalyzeCommits(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (algorithm.ReleaseType, error) {
 	return "", nil
 }
 
 // VerifyRelease is not applicable for the changelog plugin.
-func (p *ChangelogPlugin) VerifyRelease(ctx *algorithm.Context) error {
+func (p *ChangelogPlugin) VerifyRelease(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	return nil
 }
 
 // GenerateNotes returns release notes already computed by the algorithm
-// Generator and stored in ctx.NextRelease.Notes by the orchestrator.
-func (p *ChangelogPlugin) GenerateNotes(ctx *algorithm.Context) (string, error) {
-	if ctx.NextRelease == nil {
+// Generator and stored in state.NextRelease.Notes by the orchestrator.
+func (p *ChangelogPlugin) GenerateNotes(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (string, error) {
+	if state.NextRelease == nil {
 		return "", nil
 	}
-	return ctx.NextRelease.Notes, nil
+	return state.NextRelease.Notes, nil
 }
 
 // findContentStartIdx scans existing changelog lines for the first "## " header after line 0.
@@ -95,11 +95,11 @@ func mergeChangelogContent(lastRelease string, existingContent string) string {
 	return sb.String()
 }
 
-func (p *ChangelogPlugin) resolveNotes(ctx *algorithm.Context) (string, error) {
-	if ctx.NextRelease.Notes != "" {
-		return ctx.NextRelease.Notes, nil
+func (p *ChangelogPlugin) resolveNotes(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (string, error) {
+	if state.NextRelease.Notes != "" {
+		return state.NextRelease.Notes, nil
 	}
-	return p.GenerateNotes(ctx)
+	return p.GenerateNotes(ctx, state)
 }
 
 func (p *ChangelogPlugin) readChangelogFile() (string, error) {
@@ -114,11 +114,11 @@ func (p *ChangelogPlugin) readChangelogFile() (string, error) {
 }
 
 // Prepare writes the release notes to CHANGELOG.md.
-func (p *ChangelogPlugin) Prepare(ctx *algorithm.Context) error {
+func (p *ChangelogPlugin) Prepare(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	if ctx.DryRun {
 		return nil
 	}
-	notes, err := p.resolveNotes(ctx)
+	notes, err := p.resolveNotes(ctx, state)
 	if err != nil {
 		return fmt.Errorf("failed to generate release notes: %w", err)
 	}
@@ -135,17 +135,17 @@ func (p *ChangelogPlugin) Prepare(ctx *algorithm.Context) error {
 }
 
 // Publish publishes the release.
-func (p *ChangelogPlugin) Publish(ctx *algorithm.Context) (*algorithm.Release, error) {
+func (p *ChangelogPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (*algorithm.Release, error) {
 	return nil, nil
 }
 
 // Success is called after successful release.
-func (p *ChangelogPlugin) Success(ctx *algorithm.Context) error {
+func (p *ChangelogPlugin) Success(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	return nil
 }
 
 // Fail is called on release failure.
-func (p *ChangelogPlugin) Fail(ctx *algorithm.Context, err error) error {
+func (p *ChangelogPlugin) Fail(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState, err error) error {
 	return nil
 }
 

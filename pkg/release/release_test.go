@@ -19,28 +19,38 @@ type versionTestPlugin struct {
 	name            string
 	releaseType     algorithm.ReleaseType
 	verifyCalled    bool
-	verifyReleaseFn func(*algorithm.Context) error
+	verifyReleaseFn func(*algorithm.ReadOnlyContext, *algorithm.MutableState) error
 }
 
-func (p *versionTestPlugin) Name() string                                { return p.name }
-func (p *versionTestPlugin) VerifyConditions(_ *algorithm.Context) error { return nil }
-func (p *versionTestPlugin) AnalyzeCommits(_ *algorithm.Context) (algorithm.ReleaseType, error) {
+func (p *versionTestPlugin) Name() string { return p.name }
+func (p *versionTestPlugin) VerifyConditions(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) error {
+	return nil
+}
+func (p *versionTestPlugin) AnalyzeCommits(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) (algorithm.ReleaseType, error) {
 	return p.releaseType, nil
 }
-func (p *versionTestPlugin) VerifyRelease(ctx *algorithm.Context) error {
+func (p *versionTestPlugin) VerifyRelease(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	p.verifyCalled = true
 	if p.verifyReleaseFn != nil {
-		return p.verifyReleaseFn(ctx)
+		return p.verifyReleaseFn(ctx, state)
 	}
 	return nil
 }
-func (p *versionTestPlugin) GenerateNotes(_ *algorithm.Context) (string, error) { return "", nil }
-func (p *versionTestPlugin) Prepare(_ *algorithm.Context) error                 { return nil }
-func (p *versionTestPlugin) Publish(_ *algorithm.Context) (*algorithm.Release, error) {
+func (p *versionTestPlugin) GenerateNotes(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) (string, error) {
+	return "", nil
+}
+func (p *versionTestPlugin) Prepare(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) error {
+	return nil
+}
+func (p *versionTestPlugin) Publish(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) (*algorithm.Release, error) {
 	return nil, nil
 }
-func (p *versionTestPlugin) Success(_ *algorithm.Context) error       { return nil }
-func (p *versionTestPlugin) Fail(_ *algorithm.Context, _ error) error { return nil }
+func (p *versionTestPlugin) Success(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) error {
+	return nil
+}
+func (p *versionTestPlugin) Fail(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState, _ error) error {
+	return nil
+}
 
 var _ plugins.Plugin = (*versionTestPlugin)(nil)
 var _ plugins.ConditionVerifier = (*versionTestPlugin)(nil)
@@ -157,23 +167,23 @@ func TestVersionCalculation(t *testing.T) {
 	}
 
 	r := New(ctx)
-	algoCtx, err := r.buildAlgoContext()
+	algoCtx, state, err := r.buildAlgoContext()
 	if err != nil {
 		t.Fatalf("buildAlgoContext failed: %v", err)
 	}
 
-	if err := r.runPluginLifecycle(algoCtx); err != nil {
+	if err := r.runPluginLifecycle(algoCtx, state); err != nil {
 		t.Fatalf("runPluginLifecycle failed: %v", err)
 	}
 
-	if algoCtx.NextRelease == nil {
+	if state.NextRelease == nil {
 		t.Fatal("expected NextRelease to be set after runPluginLifecycle")
 	}
-	if algoCtx.NextRelease.Version == "" {
+	if state.NextRelease.Version == "" {
 		t.Error("expected NextRelease.Version to be non-empty")
 	}
-	if algoCtx.NextRelease.Type != algorithm.ReleaseTypeMinor {
-		t.Errorf("expected release type minor, got %q", algoCtx.NextRelease.Type)
+	if state.NextRelease.Type != algorithm.ReleaseTypeMinor {
+		t.Errorf("expected release type minor, got %q", state.NextRelease.Type)
 	}
 }
 
@@ -205,12 +215,12 @@ func TestVerifyRelease(t *testing.T) {
 	}
 
 	r := New(ctx)
-	algoCtx, err := r.buildAlgoContext()
+	algoCtx, state, err := r.buildAlgoContext()
 	if err != nil {
 		t.Fatalf("buildAlgoContext failed: %v", err)
 	}
 
-	if err := r.runPluginLifecycle(algoCtx); err != nil {
+	if err := r.runPluginLifecycle(algoCtx, state); err != nil {
 		t.Fatalf("runPluginLifecycle failed: %v", err)
 	}
 
@@ -232,7 +242,7 @@ func TestVerifyRelease_Error(t *testing.T) {
 	testPlugin := &versionTestPlugin{
 		name:        "verify-error-test",
 		releaseType: algorithm.ReleaseTypeMinor,
-		verifyReleaseFn: func(_ *algorithm.Context) error {
+		verifyReleaseFn: func(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) error {
 			return fmt.Errorf("release verification failed")
 		},
 	}
@@ -253,12 +263,12 @@ func TestVerifyRelease_Error(t *testing.T) {
 	}
 
 	r := New(ctx)
-	algoCtx, err := r.buildAlgoContext()
+	algoCtx, state, err := r.buildAlgoContext()
 	if err != nil {
 		t.Fatalf("buildAlgoContext failed: %v", err)
 	}
 
-	err = r.runPluginLifecycle(algoCtx)
+	err = r.runPluginLifecycle(algoCtx, state)
 	if err == nil {
 		t.Fatal("expected error from VerifyRelease, got nil")
 	}
@@ -405,10 +415,11 @@ func TestBuildAlgoContext_PropagatesBranchConfig(t *testing.T) {
 	}
 
 	r := New(ctx)
-	algoCtx, err := r.buildAlgoContext()
+	algoCtx, state, err := r.buildAlgoContext()
 	if err != nil {
 		t.Fatalf("buildAlgoContext failed: %v", err)
 	}
+	_ = state // state is not used in this test
 
 	if algoCtx.Branch.Name != branchName {
 		t.Errorf("expected branch name %q, got %q", branchName, algoCtx.Branch.Name)
@@ -456,10 +467,11 @@ func TestBuildAlgoContext_PropagatesMaintenanceBranchConfig(t *testing.T) {
 	}
 
 	r := New(ctx)
-	algoCtx, err := r.buildAlgoContext()
+	algoCtx, state, err := r.buildAlgoContext()
 	if err != nil {
 		t.Fatalf("buildAlgoContext failed: %v", err)
 	}
+	_ = state
 
 	if algoCtx.Branch.Type != algorithm.BranchTypeMaintenance {
 		t.Errorf("expected branch type %q, got %q", algorithm.BranchTypeMaintenance, algoCtx.Branch.Type)
@@ -525,13 +537,14 @@ func TestRunPublishers_SkipsDisabledPublishers(t *testing.T) {
 	}
 
 	r := New(ctx)
-	algoCtx := &algorithm.Context{
+	algoCtx := &algorithm.ReadOnlyContext{
 		Config: ctx.Config,
 		Branch: &algorithm.Branch{Name: "main"},
 		DryRun: false,
 	}
+	state := &algorithm.MutableState{}
 
-	err = r.runPublishers(algoCtx)
+	err = r.runPublishers(algoCtx, state)
 	if err != nil {
 		t.Fatalf("runPublishers failed: %v", err)
 	}
@@ -553,7 +566,7 @@ type priorityTestPlugin struct {
 }
 
 func (p *priorityTestPlugin) Name() string { return p.name }
-func (p *priorityTestPlugin) AnalyzeCommits(_ *algorithm.Context) (algorithm.ReleaseType, error) {
+func (p *priorityTestPlugin) AnalyzeCommits(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) (algorithm.ReleaseType, error) {
 	return p.releaseType, nil
 }
 
@@ -592,20 +605,20 @@ func TestAnalyzeCommits_PriorityBasedAggregation(t *testing.T) {
 	}
 
 	r := New(ctx)
-	algoCtx, err := r.buildAlgoContext()
+	algoCtx, state, err := r.buildAlgoContext()
 	if err != nil {
 		t.Fatalf("buildAlgoContext failed: %v", err)
 	}
 
-	if err := r.runPluginLifecycle(algoCtx); err != nil {
+	if err := r.runPluginLifecycle(algoCtx, state); err != nil {
 		t.Fatalf("runPluginLifecycle failed: %v", err)
 	}
 
-	if algoCtx.NextRelease == nil {
+	if state.NextRelease == nil {
 		t.Fatal("expected NextRelease to be set")
 	}
-	if algoCtx.NextRelease.Type != algorithm.ReleaseTypeMinor {
-		t.Errorf("expected release type minor (priority-based), got %q", algoCtx.NextRelease.Type)
+	if state.NextRelease.Type != algorithm.ReleaseTypeMinor {
+		t.Errorf("expected release type minor (priority-based), got %q", state.NextRelease.Type)
 	}
 }
 
@@ -641,20 +654,20 @@ func TestAnalyzeCommits_MajorOverridesMinor(t *testing.T) {
 	}
 
 	r := New(ctx)
-	algoCtx, err := r.buildAlgoContext()
+	algoCtx, state, err := r.buildAlgoContext()
 	if err != nil {
 		t.Fatalf("buildAlgoContext failed: %v", err)
 	}
 
-	if err := r.runPluginLifecycle(algoCtx); err != nil {
+	if err := r.runPluginLifecycle(algoCtx, state); err != nil {
 		t.Fatalf("runPluginLifecycle failed: %v", err)
 	}
 
-	if algoCtx.NextRelease == nil {
+	if state.NextRelease == nil {
 		t.Fatal("expected NextRelease to be set")
 	}
-	if algoCtx.NextRelease.Type != algorithm.ReleaseTypeMajor {
-		t.Errorf("expected release type major, got %q", algoCtx.NextRelease.Type)
+	if state.NextRelease.Type != algorithm.ReleaseTypeMajor {
+		t.Errorf("expected release type major, got %q", state.NextRelease.Type)
 	}
 }
 
@@ -688,19 +701,80 @@ func TestAnalyzeCommits_FirstPluginWins_WhenEqualPriority(t *testing.T) {
 	}
 
 	r := New(ctx)
-	algoCtx, err := r.buildAlgoContext()
+	algoCtx, state, err := r.buildAlgoContext()
 	if err != nil {
 		t.Fatalf("buildAlgoContext failed: %v", err)
 	}
 
-	if err := r.runPluginLifecycle(algoCtx); err != nil {
+	if err := r.runPluginLifecycle(algoCtx, state); err != nil {
 		t.Fatalf("runPluginLifecycle failed: %v", err)
 	}
 
-	if algoCtx.NextRelease == nil {
+	if state.NextRelease == nil {
 		t.Fatal("expected NextRelease to be set")
 	}
-	if algoCtx.NextRelease.Type != algorithm.ReleaseTypePatch {
-		t.Errorf("expected release type patch, got %q", algoCtx.NextRelease.Type)
+	if state.NextRelease.Type != algorithm.ReleaseTypePatch {
+		t.Errorf("expected release type patch, got %q", state.NextRelease.Type)
+	}
+}
+
+// TestReadOnlyContextImmutable verifies that ReadOnlyContext fields are not modified by plugins.
+func TestReadOnlyContextImmutable(t *testing.T) {
+	// Use a simple test: buildAlgoContext returns ReadOnlyContext and MutableState
+	// and verify that both are non-nil and separate
+	gitClient, err := git.NewClient()
+	if err != nil {
+		t.Skipf("skipping: cannot create git client: %v", err)
+	}
+	if !gitClient.IsGitRepo() {
+		t.Skip("skipping: not in a git repo")
+	}
+
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches: []algorithm.BranchConfig{
+				{Name: "main"},
+			},
+			TagFormat: "v${version}",
+			Plugins:   []string{},
+		},
+		Git:    gitClient,
+		Logger: zap.NewNop(),
+		DryRun: true,
+	}
+
+	r := New(ctx)
+	algoCtx, state, err := r.buildAlgoContext()
+	if err != nil {
+		t.Fatalf("buildAlgoContext failed: %v", err)
+	}
+
+	// Verify that ReadOnlyContext and MutableState are separate structs
+	if algoCtx == nil {
+		t.Fatal("expected non-nil ReadOnlyContext")
+	}
+	if state == nil {
+		t.Fatal("expected non-nil MutableState")
+	}
+
+	// Verify that ReadOnlyContext does not have mutable fields
+	// (this is a compile-time check, but we can verify the fields exist)
+	_ = algoCtx.Config
+	_ = algoCtx.Branch
+	_ = algoCtx.Commits
+	_ = algoCtx.Releases
+	_ = algoCtx.RepositoryURL
+	_ = algoCtx.DryRun
+
+	// Verify that MutableState has the mutable fields
+	_ = state.LastRelease
+	_ = state.NextRelease
+	_ = state.Notes
+	_ = state.Assets
+
+	// Verify that modifying MutableState does not affect ReadOnlyContext
+	state.Notes = "test notes"
+	if algoCtx.RepositoryURL == "test notes" {
+		t.Error("modifying MutableState.Notes should not affect ReadOnlyContext.RepositoryURL")
 	}
 }

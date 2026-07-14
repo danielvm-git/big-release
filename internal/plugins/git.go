@@ -26,7 +26,7 @@ func (p *GitPlugin) Name() string {
 }
 
 // VerifyConditions checks that git is installed and the working directory is a git repository.
-func (p *GitPlugin) VerifyConditions(ctx *algorithm.Context) error {
+func (p *GitPlugin) VerifyConditions(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	if _, err := exec.LookPath("git"); err != nil {
 		return fmt.Errorf("git not found in PATH: %w", err)
 	}
@@ -37,17 +37,17 @@ func (p *GitPlugin) VerifyConditions(ctx *algorithm.Context) error {
 }
 
 // AnalyzeCommits is not applicable for the git plugin.
-func (p *GitPlugin) AnalyzeCommits(ctx *algorithm.Context) (algorithm.ReleaseType, error) {
+func (p *GitPlugin) AnalyzeCommits(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (algorithm.ReleaseType, error) {
 	return "", nil
 }
 
 // VerifyRelease is not applicable for the git plugin.
-func (p *GitPlugin) VerifyRelease(ctx *algorithm.Context) error {
+func (p *GitPlugin) VerifyRelease(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	return nil
 }
 
 // GenerateNotes is not applicable for the git plugin.
-func (p *GitPlugin) GenerateNotes(ctx *algorithm.Context) (string, error) {
+func (p *GitPlugin) GenerateNotes(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (string, error) {
 	return "", nil
 }
 
@@ -65,7 +65,7 @@ func (p *GitPlugin) commitRelease(version string) error {
 }
 
 // Prepare stages all changes and commits them with the release version.
-func (p *GitPlugin) Prepare(ctx *algorithm.Context) error {
+func (p *GitPlugin) Prepare(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	if ctx.DryRun {
 		return nil
 	}
@@ -79,7 +79,7 @@ func (p *GitPlugin) Prepare(ctx *algorithm.Context) error {
 	if !hasChanges {
 		return nil
 	}
-	return p.commitRelease(ctx.NextRelease.Version)
+	return p.commitRelease(state.NextRelease.Version)
 }
 
 func (p *GitPlugin) createTag(version string) error {
@@ -94,16 +94,16 @@ func (p *GitPlugin) pushRefs() error {
 }
 
 // Publish creates a git tag and pushes changes and tags to the remote.
-func (p *GitPlugin) Publish(ctx *algorithm.Context) (*algorithm.Release, error) {
+func (p *GitPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (*algorithm.Release, error) {
 	if ctx.DryRun {
 		return nil, nil
 	}
-	if err := p.createTag(ctx.NextRelease.Version); err != nil {
+	if err := p.createTag(state.NextRelease.Version); err != nil {
 		return nil, err
 	}
 	if err := p.pushRefs(); err != nil {
-		_ = p.deleteTag(ctx.NextRelease.Version)
-		return nil, fmt.Errorf("push failed, local tag %s removed: %w", ctx.NextRelease.Version, err)
+		_ = p.deleteTag(state.NextRelease.Version)
+		return nil, fmt.Errorf("push failed, local tag %s removed: %w", state.NextRelease.Version, err)
 	}
 	return nil, nil
 }
@@ -113,11 +113,11 @@ func (p *GitPlugin) deleteTag(version string) error {
 }
 
 // Success is called after a successful release.
-func (p *GitPlugin) Success(ctx *algorithm.Context) error {
+func (p *GitPlugin) Success(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	return nil
 }
 
 // Fail is called on release failure.
-func (p *GitPlugin) Fail(ctx *algorithm.Context, err error) error {
+func (p *GitPlugin) Fail(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState, err error) error {
 	return nil
 }

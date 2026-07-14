@@ -79,16 +79,16 @@ func mapBranchConfig(branchName string, configs []algorithm.BranchConfig) *algor
 	return branch
 }
 
-// buildAlgoContext gathers git state and constructs the algorithm context.
-func (r *Release) buildAlgoContext() (*algorithm.Context, error) {
+// buildAlgoContext gathers git state and constructs ReadOnlyContext and MutableState.
+func (r *Release) buildAlgoContext() (*algorithm.ReadOnlyContext, *algorithm.MutableState, error) {
 	branchName, err := r.ctx.Git.GetCurrentBranch()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get current branch: %w", err)
+		return nil, nil, fmt.Errorf("failed to get current branch: %w", err)
 	}
 
 	lastRelease, err := r.ctx.Git.GetLastRelease(r.ctx.Config.TagFormat)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get last release: %w", err)
+		return nil, nil, fmt.Errorf("failed to get last release: %w", err)
 	}
 
 	from := ""
@@ -97,30 +97,33 @@ func (r *Release) buildAlgoContext() (*algorithm.Context, error) {
 	}
 	commits, err := r.ctx.Git.GetCommits(from, "HEAD")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get commits: %w", err)
+		return nil, nil, fmt.Errorf("failed to get commits: %w", err)
 	}
 
 	repoURL, err := r.ctx.Git.GetRepositoryURL()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get repository URL: %w", err)
+		return nil, nil, fmt.Errorf("failed to get repository URL: %w", err)
 	}
 
-	return &algorithm.Context{
+	readOnly := &algorithm.ReadOnlyContext{
 		Config:        r.ctx.Config,
 		Branch:        mapBranchConfig(branchName, r.ctx.Config.Branches),
-		LastRelease:   lastRelease,
-		NextRelease:   nil,
 		Commits:       commits,
 		Releases:      nil,
 		RepositoryURL: repoURL,
 		DryRun:        r.ctx.DryRun,
-	}, nil
+	}
+	state := &algorithm.MutableState{
+		LastRelease: lastRelease,
+		NextRelease: nil,
+	}
+	return readOnly, state, nil
 }
 
 func (r *Release) Run() error {
 	r.detectCI()
 
-	algoCtx, err := r.buildAlgoContext()
+	algoCtx, state, err := r.buildAlgoContext()
 	if err != nil {
 		return err
 	}
@@ -129,24 +132,24 @@ func (r *Release) Run() error {
 		return err
 	}
 
-	if err := r.runPluginLifecycle(algoCtx); err != nil {
-		r.callFailHooks(algoCtx, err)
+	if err := r.runPluginLifecycle(algoCtx, state); err != nil {
+		r.callFailHooks(algoCtx, state, err)
 		return err
 	}
 
-	if err := r.runPublishers(algoCtx); err != nil {
-		r.callFailHooks(algoCtx, err)
+	if err := r.runPublishers(algoCtx, state); err != nil {
+		r.callFailHooks(algoCtx, state, err)
 		return err
 	}
 
 	if !r.ctx.DryRun {
-		r.callSuccessHooks(algoCtx)
+		r.callSuccessHooks(algoCtx, state)
 	}
 
 	return nil
 }
 
-func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
+func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	pluginNames := r.ctx.Config.Plugins
 
 	// Register GitPlugin with the GitAPI from the context
@@ -159,7 +162,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
 		if cv, ok := p.(plugins.ConditionVerifier); ok {
-			if err := cv.VerifyConditions(ctx); err != nil {
+			if err := cv.VerifyConditions(ctx, state); err != nil {
 				return fmt.Errorf("plugin %q verify conditions failed: %w", name, err)
 			}
 		}
@@ -173,7 +176,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
 		if ca, ok := p.(plugins.CommitAnalyzer); ok {
-			rt, err := ca.AnalyzeCommits(ctx)
+			rt, err := ca.AnalyzeCommits(ctx, state)
 			if err != nil {
 				return fmt.Errorf("plugin %q analyze commits failed: %w", name, err)
 			}
@@ -187,17 +190,17 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 
 	// Phase 2.5: Generate notes using the single algorithm Generator
 	gen := algorithm.NewGenerator()
-	notes := gen.GenerateNotes(ctx.Commits, ctx.LastRelease, ctx.NextRelease)
+	notes := gen.GenerateNotes(ctx.Commits, state.LastRelease, state.NextRelease)
 
 	if releaseType != "" || notes != "" {
-		if ctx.NextRelease == nil {
-			ctx.NextRelease = &algorithm.Release{}
+		if state.NextRelease == nil {
+			state.NextRelease = &algorithm.Release{}
 		}
 		if releaseType != "" {
-			ctx.NextRelease.Type = releaseType
+			state.NextRelease.Type = releaseType
 		}
 		if notes != "" {
-			ctx.NextRelease.Notes = notes
+			state.NextRelease.Notes = notes
 		}
 	}
 
@@ -208,26 +211,26 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
 		if ng, ok := p.(plugins.NotesGenerator); ok {
-			n, err := ng.GenerateNotes(ctx)
+			n, err := ng.GenerateNotes(ctx, state)
 			if err != nil {
 				return fmt.Errorf("plugin %q generate notes failed: %w", name, err)
 			}
-			if n != "" && ctx.NextRelease != nil && n != ctx.NextRelease.Notes {
-				ctx.NextRelease.Notes += "\n" + n
+			if n != "" && state.NextRelease != nil && n != state.NextRelease.Notes {
+				state.NextRelease.Notes += "\n" + n
 			}
 		}
 	}
 
 	// Phase 3.5: CalculateNextVersion
-	if ctx.NextRelease != nil && releaseType != "" {
+	if state.NextRelease != nil && releaseType != "" {
 		calc := algorithm.NewCalculator()
 		version, err := calc.CalculateNextVersion(
-			ctx.LastRelease, releaseType, ctx.Branch, ctx.Config.InitialVersion,
+			state.LastRelease, releaseType, ctx.Branch, ctx.Config.InitialVersion,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to calculate next version: %w", err)
 		}
-		ctx.NextRelease.Version = version
+		state.NextRelease.Version = version
 	}
 
 	// Phase 4: VerifyRelease
@@ -237,7 +240,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
 		if rv, ok := p.(plugins.ReleaseVerifier); ok {
-			if err := rv.VerifyRelease(ctx); err != nil {
+			if err := rv.VerifyRelease(ctx, state); err != nil {
 				return fmt.Errorf("plugin %q verify release failed: %w", name, err)
 			}
 		}
@@ -255,7 +258,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
 		if prep, ok := p.(plugins.Preparer); ok {
-			if err := prep.Prepare(ctx); err != nil {
+			if err := prep.Prepare(ctx, state); err != nil {
 				return fmt.Errorf("plugin %q prepare failed: %w", name, err)
 			}
 		}
@@ -267,12 +270,12 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
 		if pub, ok := p.(plugins.Publisher); ok {
-			rel, err := pub.Publish(ctx)
+			rel, err := pub.Publish(ctx, state)
 			if err != nil {
 				return fmt.Errorf("plugin %q publish failed: %w", name, err)
 			}
 			if rel != nil {
-				ctx.NextRelease = rel
+				state.NextRelease = rel
 			}
 		}
 	}
@@ -280,7 +283,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 	return nil
 }
 
-func (r *Release) runPublishers(ctx *algorithm.Context) error {
+func (r *Release) runPublishers(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	detected := publishers.Detect()
 
 	// Filter detected publishers against config. Skip publishers with enabled: false.
@@ -306,8 +309,8 @@ func (r *Release) runPublishers(ctx *algorithm.Context) error {
 	}
 
 	version := ""
-	if ctx.NextRelease != nil {
-		version = ctx.NextRelease.Version
+	if state.NextRelease != nil {
+		version = state.NextRelease.Version
 	}
 
 	for _, pub := range filtered {
@@ -331,7 +334,7 @@ func (r *Release) runPublishers(ctx *algorithm.Context) error {
 	return nil
 }
 
-func (r *Release) callFailHooks(ctx *algorithm.Context, originalErr error) {
+func (r *Release) callFailHooks(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState, originalErr error) {
 	r.ctx.Logger.Error("Release failed, running fail hooks", zap.Error(originalErr))
 	for _, name := range plugins.List() {
 		p, err := plugins.Get(name)
@@ -339,21 +342,21 @@ func (r *Release) callFailHooks(ctx *algorithm.Context, originalErr error) {
 			continue
 		}
 		if lh, ok := p.(plugins.LifecycleHook); ok {
-			if err := lh.Fail(ctx, originalErr); err != nil {
+			if err := lh.Fail(ctx, state, originalErr); err != nil {
 				r.ctx.Logger.Error("Fail hook failed", zap.String("plugin", name), zap.Error(err))
 			}
 		}
 	}
 }
 
-func (r *Release) callSuccessHooks(ctx *algorithm.Context) {
+func (r *Release) callSuccessHooks(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) {
 	for _, name := range plugins.List() {
 		p, err := plugins.Get(name)
 		if err != nil {
 			continue
 		}
 		if lh, ok := p.(plugins.LifecycleHook); ok {
-			if err := lh.Success(ctx); err != nil {
+			if err := lh.Success(ctx, state); err != nil {
 				r.ctx.Logger.Error("Success hook failed", zap.String("plugin", name), zap.Error(err))
 			}
 		}

@@ -20,7 +20,7 @@ func TestChangelogPluginName(t *testing.T) {
 
 func TestChangelogPluginVerifyConditions(t *testing.T) {
 	t.Run("SC-e03s04-P1-02: VerifyConditions returns nil", func(t *testing.T) {
-		if err := NewChangelogPlugin().VerifyConditions(&algorithm.Context{}); err != nil {
+		if err := NewChangelogPlugin().VerifyConditions(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{}); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 	})
@@ -28,7 +28,7 @@ func TestChangelogPluginVerifyConditions(t *testing.T) {
 
 func TestChangelogPluginAnalyzeCommits(t *testing.T) {
 	t.Run("SC-e03s04-P1-03: AnalyzeCommits returns empty", func(t *testing.T) {
-		rt, err := NewChangelogPlugin().AnalyzeCommits(&algorithm.Context{})
+		rt, err := NewChangelogPlugin().AnalyzeCommits(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{})
 		if err != nil || rt != "" {
 			t.Errorf("expected empty, got err=%v rt=%q", err, rt)
 		}
@@ -38,18 +38,19 @@ func TestChangelogPluginAnalyzeCommits(t *testing.T) {
 func TestChangelogPluginGenerateNotes(t *testing.T) {
 	p := NewChangelogPlugin()
 	t.Run("SC-e03s04-P1-04: returns empty with nil NextRelease", func(t *testing.T) {
-		notes, err := p.GenerateNotes(&algorithm.Context{NextRelease: nil})
+		notes, err := p.GenerateNotes(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{NextRelease: nil})
 		if err != nil || notes != "" {
 			t.Errorf("expected empty, got err=%v notes=%q", err, notes)
 		}
 	})
 	t.Run("delegates to ctx.NextRelease.Notes", func(t *testing.T) {
 		expectedNotes := "## 2.0.0\n\n### Features\n\n- feat: add login"
-		notes, err := p.GenerateNotes(&algorithm.Context{
-			NextRelease: &algorithm.Release{Version: "2.0.0", Notes: expectedNotes},
+		notes, err := p.GenerateNotes(&algorithm.ReadOnlyContext{
 			Commits: []*algorithm.Commit{
 				{Type: "feat", Subject: "add login"},
 			},
+		}, &algorithm.MutableState{
+			NextRelease: &algorithm.Release{Version: "2.0.0", Notes: expectedNotes},
 		})
 		if err != nil {
 			t.Errorf("expected no error, got: %v", err)
@@ -59,9 +60,10 @@ func TestChangelogPluginGenerateNotes(t *testing.T) {
 		}
 	})
 	t.Run("returns empty when Notes is empty", func(t *testing.T) {
-		notes, err := p.GenerateNotes(&algorithm.Context{
+		notes, err := p.GenerateNotes(&algorithm.ReadOnlyContext{
+			Commits: []*algorithm.Commit{},
+		}, &algorithm.MutableState{
 			NextRelease: &algorithm.Release{Version: "1.0.0", Notes: ""},
-			Commits:     []*algorithm.Commit{},
 		})
 		if err != nil {
 			t.Errorf("expected no error, got: %v", err)
@@ -75,17 +77,19 @@ func TestChangelogPluginGenerateNotes(t *testing.T) {
 func TestChangelogPluginPrepare(t *testing.T) {
 	p := NewChangelogPlugin()
 	t.Run("SC-e03s04-P1-10: does nothing in dry-run mode", func(t *testing.T) {
-		ctx := &algorithm.Context{DryRun: true, NextRelease: &algorithm.Release{Version: "1.0.0", Notes: "test"}}
-		if err := p.Prepare(ctx); err != nil {
+		ctx := &algorithm.ReadOnlyContext{DryRun: true}
+		state := &algorithm.MutableState{NextRelease: &algorithm.Release{Version: "1.0.0", Notes: "test"}}
+		if err := p.Prepare(ctx, state); err != nil {
 			t.Errorf("expected no error in dry-run, got: %v", err)
 		}
 	})
 	t.Run("SC-e03s04-P1-11: creates new CHANGELOG.md when none exists", func(t *testing.T) {
 		defer chdirTempDir(t)()
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{}
+		state := &algorithm.MutableState{
 			NextRelease: &algorithm.Release{Version: "1.0.0", Notes: "## 1.0.0 (2024-01-15)\n\n### Features\n\n- feat: initial release\n"},
 		}
-		if err := p.Prepare(ctx); err != nil {
+		if err := p.Prepare(ctx, state); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		data, _ := os.ReadFile("CHANGELOG.md")
@@ -97,10 +101,11 @@ func TestChangelogPluginPrepare(t *testing.T) {
 	t.Run("SC-e03s04-P1-12: appends to existing CHANGELOG.md", func(t *testing.T) {
 		defer chdirTempDir(t)()
 		_ = os.WriteFile("CHANGELOG.md", []byte("# Changelog\n\nAll notable changes.\n\n## 0.9.0 (2024-01-01)\n\n### Features\n\n- feat: initial\n"), 0644)
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{}
+		state := &algorithm.MutableState{
 			NextRelease: &algorithm.Release{Version: "1.0.0", Notes: "## 1.0.0 (2024-06-15)\n\n### Features\n\n- feat: major release\n"},
 		}
-		if err := p.Prepare(ctx); err != nil {
+		if err := p.Prepare(ctx, state); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		data, _ := os.ReadFile("CHANGELOG.md")
@@ -111,13 +116,14 @@ func TestChangelogPluginPrepare(t *testing.T) {
 	})
 	t.Run("SC-e03s04-P1-13: uses pre-computed notes from orchestrator", func(t *testing.T) {
 		defer chdirTempDir(t)()
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{}
+		state := &algorithm.MutableState{
 			NextRelease: &algorithm.Release{
 				Version: "1.0.0",
 				Notes:   "## 1.0.0\n\n### Features\n\n- feat: new feature",
 			},
 		}
-		if err := p.Prepare(ctx); err != nil {
+		if err := p.Prepare(ctx, state); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		data, _ := os.ReadFile("CHANGELOG.md")
@@ -131,18 +137,18 @@ func TestChangelogPluginPrepare(t *testing.T) {
 func TestChangelogPluginLifecycle(t *testing.T) {
 	p := NewChangelogPlugin()
 	t.Run("SC-e03s04-P1-14: Publish returns nil", func(t *testing.T) {
-		release, err := p.Publish(&algorithm.Context{})
+		release, err := p.Publish(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{})
 		if err != nil || release != nil {
 			t.Errorf("expected nil, got err=%v release=%v", err, release)
 		}
 	})
 	t.Run("SC-e03s04-P1-15: Success returns nil", func(t *testing.T) {
-		if err := p.Success(&algorithm.Context{}); err != nil {
+		if err := p.Success(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{}); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 	})
 	t.Run("SC-e03s04-P1-16: Fail returns nil", func(t *testing.T) {
-		if err := p.Fail(&algorithm.Context{}, nil); err != nil {
+		if err := p.Fail(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{}, nil); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 	})

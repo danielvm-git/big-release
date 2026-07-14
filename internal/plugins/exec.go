@@ -45,7 +45,7 @@ func (p *ExecPlugin) Name() string {
 }
 
 // VerifyConditions verifies that exec commands are configured.
-func (p *ExecPlugin) VerifyConditions(ctx *algorithm.Context) error {
+func (p *ExecPlugin) VerifyConditions(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	if ctx.Config == nil {
 		return fmt.Errorf("config is nil")
 	}
@@ -61,21 +61,21 @@ func (p *ExecPlugin) VerifyConditions(ctx *algorithm.Context) error {
 }
 
 // AnalyzeCommits is not applicable for the exec plugin.
-func (p *ExecPlugin) AnalyzeCommits(ctx *algorithm.Context) (algorithm.ReleaseType, error) {
+func (p *ExecPlugin) AnalyzeCommits(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (algorithm.ReleaseType, error) {
 	return "", nil
 }
 
 // VerifyRelease is not applicable for the exec plugin.
-func (p *ExecPlugin) VerifyRelease(ctx *algorithm.Context) error {
+func (p *ExecPlugin) VerifyRelease(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	return nil
 }
 
 // GenerateNotes is not applicable for the exec plugin.
-func (p *ExecPlugin) GenerateNotes(ctx *algorithm.Context) (string, error) {
+func (p *ExecPlugin) GenerateNotes(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (string, error) {
 	return "", nil
 }
 
-func (p *ExecPlugin) parseCommands(ctx *algorithm.Context) []string {
+func (p *ExecPlugin) parseCommands(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) []string {
 	publisher := ctx.Config.Publishers["exec"]
 	commands := publisher.Options["commands"]
 	lines := strings.Split(commands, "\n")
@@ -124,11 +124,11 @@ func (p *ExecPlugin) runCommand(line string, idx int) error {
 }
 
 // Prepare runs all configured exec commands.
-func (p *ExecPlugin) Prepare(ctx *algorithm.Context) error {
+func (p *ExecPlugin) Prepare(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	if ctx.DryRun {
 		return nil
 	}
-	commands := p.parseCommands(ctx)
+	commands := p.parseCommands(ctx, state)
 	for i, line := range commands {
 		if err := p.runCommand(line, i); err != nil {
 			return err
@@ -138,17 +138,17 @@ func (p *ExecPlugin) Prepare(ctx *algorithm.Context) error {
 }
 
 // Publish is not applicable for the exec plugin.
-func (p *ExecPlugin) Publish(ctx *algorithm.Context) (*algorithm.Release, error) {
+func (p *ExecPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (*algorithm.Release, error) {
 	return nil, nil
 }
 
 // Success is called after a successful release.
-func (p *ExecPlugin) Success(ctx *algorithm.Context) error {
+func (p *ExecPlugin) Success(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	return nil
 }
 
 // Fail is called on release failure.
-func (p *ExecPlugin) Fail(ctx *algorithm.Context, err error) error {
+func (p *ExecPlugin) Fail(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState, err error) error {
 	return nil
 }
 
