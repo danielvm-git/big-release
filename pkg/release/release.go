@@ -179,24 +179,9 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 		}
 	}
 
-	// Phase 3: GenerateNotes — collect release notes from plugins
-	var notes string
-	for _, name := range pluginNames {
-		p, err := plugins.Get(name)
-		if err != nil {
-			return fmt.Errorf("plugin %q not found: %w", name, err)
-		}
-		n, err := p.GenerateNotes(ctx)
-		if err != nil {
-			return fmt.Errorf("plugin %q generate notes failed: %w", name, err)
-		}
-		if n != "" {
-			if notes != "" {
-				notes += "\n"
-			}
-			notes += n
-		}
-	}
+	// Phase 2.5: Generate notes using the single algorithm Generator
+	gen := algorithm.NewGenerator()
+	notes := gen.GenerateNotes(ctx.Commits, ctx.LastRelease, ctx.NextRelease)
 
 	if releaseType != "" || notes != "" {
 		if ctx.NextRelease == nil {
@@ -207,6 +192,21 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 		}
 		if notes != "" {
 			ctx.NextRelease.Notes = notes
+		}
+	}
+
+	// Phase 3: Let plugins contribute additional notes (e.g. ChangelogPlugin)
+	for _, name := range pluginNames {
+		p, err := plugins.Get(name)
+		if err != nil {
+			return fmt.Errorf("plugin %q not found: %w", name, err)
+		}
+		n, err := p.GenerateNotes(ctx)
+		if err != nil {
+			return fmt.Errorf("plugin %q generate notes failed: %w", name, err)
+		}
+		if n != "" && ctx.NextRelease != nil && n != ctx.NextRelease.Notes {
+			ctx.NextRelease.Notes += "\n" + n
 		}
 	}
 

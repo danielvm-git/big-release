@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/danielvm-git/big-release/internal/algorithm"
 )
@@ -39,84 +38,13 @@ func (p *ChangelogPlugin) VerifyRelease(ctx *algorithm.Context) error {
 	return nil
 }
 
-// filterCommits returns non-breaking commits matching the given type.
-func filterCommits(commits []*algorithm.Commit, commitType string) []*algorithm.Commit {
-	var result []*algorithm.Commit
-	for _, c := range commits {
-		if c.Type == commitType && !c.Breaking {
-			result = append(result, c)
-		}
-	}
-	return result
-}
-
-type commitCategory struct {
-	title   string
-	commits []*algorithm.Commit
-}
-
-func (p *ChangelogPlugin) writeCategorySection(sb *strings.Builder, cat commitCategory) {
-	if len(cat.commits) == 0 {
-		return
-	}
-	fmt.Fprintf(sb, "### %s\n\n", cat.title)
-	for _, c := range cat.commits {
-		scope := ""
-		if c.Scope != "" {
-			scope = fmt.Sprintf(" **%s**", c.Scope)
-		}
-		fmt.Fprintf(sb, "- %s%s: %s\n", c.Type, scope, c.Subject)
-	}
-	sb.WriteString("\n")
-}
-
-func (p *ChangelogPlugin) writeBreakingChanges(sb *strings.Builder, commits []*algorithm.Commit) {
-	var breaking []*algorithm.Commit
-	for _, c := range commits {
-		if c.Breaking {
-			breaking = append(breaking, c)
-		}
-	}
-	if len(breaking) == 0 {
-		return
-	}
-	sb.WriteString("### BREAKING CHANGES\n\n")
-	for _, c := range breaking {
-		fmt.Fprintf(sb, "- %s: %s\n", c.Subject, c.Body)
-	}
-	sb.WriteString("\n")
-}
-
-func defaultCategories(commits []*algorithm.Commit) []commitCategory {
-	return []commitCategory{
-		{title: "Features", commits: filterCommits(commits, "feat")},
-		{title: "Bug Fixes", commits: filterCommits(commits, "fix")},
-		{title: "Performance Improvements", commits: filterCommits(commits, "perf")},
-		{title: "Documentation", commits: filterCommits(commits, "docs")},
-		{title: "Refactoring", commits: filterCommits(commits, "refactor")},
-		{title: "Chores", commits: filterCommits(commits, "chore")},
-		{title: "Style", commits: filterCommits(commits, "style")},
-		{title: "Tests", commits: filterCommits(commits, "test")},
-	}
-}
-
-// GenerateNotes generates release notes from commits grouped by type.
+// GenerateNotes returns release notes already computed by the algorithm
+// Generator and stored in ctx.NextRelease.Notes by the orchestrator.
 func (p *ChangelogPlugin) GenerateNotes(ctx *algorithm.Context) (string, error) {
 	if ctx.NextRelease == nil {
 		return "", nil
 	}
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "## %s (%s)\n\n", ctx.NextRelease.Version, time.Now().Format("2006-01-02"))
-
-	if len(ctx.Commits) == 0 {
-		sb.WriteString("No significant changes.\n")
-		return sb.String(), nil
-	}
-	for _, cat := range defaultCategories(ctx.Commits) {
-		p.writeCategorySection(&sb, cat)
-	}
-	p.writeBreakingChanges(&sb, ctx.Commits)
-	return strings.TrimSpace(sb.String()), nil
+	return ctx.NextRelease.Notes, nil
 }
 
 // findContentStartIdx scans existing changelog lines for the first "## " header after line 0.

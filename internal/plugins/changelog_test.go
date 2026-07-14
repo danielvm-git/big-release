@@ -43,73 +43,31 @@ func TestChangelogPluginGenerateNotes(t *testing.T) {
 			t.Errorf("expected empty, got err=%v notes=%q", err, notes)
 		}
 	})
-	t.Run("SC-e03s04-P1-05: with no commits", func(t *testing.T) {
+	t.Run("delegates to ctx.NextRelease.Notes", func(t *testing.T) {
+		expectedNotes := "## 2.0.0\n\n### Features\n\n- feat: add login"
 		notes, err := p.GenerateNotes(&algorithm.Context{
-			NextRelease: &algorithm.Release{Version: "1.0.0"},
+			NextRelease: &algorithm.Release{Version: "2.0.0", Notes: expectedNotes},
+			Commits: []*algorithm.Commit{
+				{Type: "feat", Subject: "add login"},
+			},
+		})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+		if notes != expectedNotes {
+			t.Errorf("expected notes to equal ctx.NextRelease.Notes, got:\n%s", notes)
+		}
+	})
+	t.Run("returns empty when Notes is empty", func(t *testing.T) {
+		notes, err := p.GenerateNotes(&algorithm.Context{
+			NextRelease: &algorithm.Release{Version: "1.0.0", Notes: ""},
 			Commits:     []*algorithm.Commit{},
 		})
 		if err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
-		if !strings.Contains(notes, "No significant changes") {
-			t.Errorf("expected 'No significant changes', got: %s", notes)
-		}
-	})
-	t.Run("SC-e03s04-P1-06: groups commits by type", func(t *testing.T) {
-		notes, err := p.GenerateNotes(&algorithm.Context{
-			NextRelease: &algorithm.Release{Version: "2.0.0"},
-			Commits: []*algorithm.Commit{
-				{Type: "feat", Subject: "add user login", Scope: "auth"},
-				{Type: "fix", Subject: "fix nil pointer", Scope: "core"},
-				{Type: "docs", Subject: "update readme"},
-			},
-		})
-		if err != nil {
-			t.Errorf("expected no error, got: %v", err)
-		}
-		for _, want := range []string{"### Features", "### Bug Fixes", "### Documentation", "add user login", "fix nil pointer"} {
-			if !strings.Contains(notes, want) {
-				t.Errorf("expected %q in notes", want)
-			}
-		}
-	})
-	t.Run("SC-e03s04-P1-07: includes breaking changes section", func(t *testing.T) {
-		notes, err := p.GenerateNotes(&algorithm.Context{
-			NextRelease: &algorithm.Release{Version: "3.0.0"},
-			Commits: []*algorithm.Commit{
-				{Type: "feat", Subject: "add new API", Breaking: true, Body: "Removes old v1"},
-				{Type: "fix", Subject: "fix timeout"},
-			},
-		})
-		if err != nil {
-			t.Errorf("expected no error, got: %v", err)
-		}
-		if !strings.Contains(notes, "BREAKING CHANGES") || !strings.Contains(notes, "Removes old v1") {
-			t.Errorf("expected BREAKING CHANGES section, got:\n%s", notes)
-		}
-	})
-	t.Run("SC-e03s04-P1-08: includes version and date", func(t *testing.T) {
-		notes, err := p.GenerateNotes(&algorithm.Context{
-			NextRelease: &algorithm.Release{Version: "1.5.0"},
-			Commits:     []*algorithm.Commit{{Type: "feat", Subject: "new feature"}},
-		})
-		if err != nil || !strings.Contains(notes, "1.5.0") {
-			t.Errorf("expected version 1.5.0 in notes, got err=%v notes=%s", err, notes)
-		}
-	})
-	t.Run("SC-e03s04-P1-09: excludes breaking commits from regular sections", func(t *testing.T) {
-		notes, err := p.GenerateNotes(&algorithm.Context{
-			NextRelease: &algorithm.Release{Version: "4.0.0"},
-			Commits: []*algorithm.Commit{
-				{Type: "feat", Subject: "normal"},
-				{Type: "feat", Subject: "breaking", Breaking: true},
-			},
-		})
-		if err != nil {
-			t.Errorf("expected no error, got: %v", err)
-		}
-		if !strings.Contains(notes, "BREAKING CHANGES") {
-			t.Errorf("expected BREAKING CHANGES section, got:\n%s", notes)
+		if notes != "" {
+			t.Errorf("expected empty notes, got: %s", notes)
 		}
 	})
 }
@@ -151,11 +109,13 @@ func TestChangelogPluginPrepare(t *testing.T) {
 			t.Errorf("expected both versions in changelog, got: %s", content)
 		}
 	})
-	t.Run("SC-e03s04-P1-13: generates notes when Notes is empty", func(t *testing.T) {
+	t.Run("SC-e03s04-P1-13: uses pre-computed notes from orchestrator", func(t *testing.T) {
 		defer chdirTempDir(t)()
 		ctx := &algorithm.Context{
-			NextRelease: &algorithm.Release{Version: "1.0.0", Notes: ""},
-			Commits:     []*algorithm.Commit{{Type: "feat", Subject: "new feature"}},
+			NextRelease: &algorithm.Release{
+				Version: "1.0.0",
+				Notes:   "## 1.0.0\n\n### Features\n\n- feat: new feature",
+			},
 		}
 		if err := p.Prepare(ctx); err != nil {
 			t.Fatalf("unexpected error: %v", err)
