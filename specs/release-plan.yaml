@@ -17,3 +17,15 @@ release_plan:
       title: Semantic Release Parity
       priority: P0
       status: complete
+    - epic: e05
+      title: Publisher & Git Hardening
+      priority: P1
+      status: planning
+    - epic: e06
+      title: Algorithm & Plugin Unification
+      priority: P1
+      status: planning
+    - epic: e07
+      title: Context Discipline
+      priority: P2
+      status: planning

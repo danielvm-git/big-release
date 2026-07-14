@@ -1,6 +1,11 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/danielvm-git/big-release/internal/algorithm"
+)
 
 func TestDefaultConfig_InitialVersion(t *testing.T) {
 	cfg := DefaultConfig()
@@ -20,5 +25,37 @@ func TestDefaultConfig_TagFormat(t *testing.T) {
 	cfg := DefaultConfig()
 	if cfg.TagFormat != "v${version}" {
 		t.Errorf("expected tag format v${version}, got %q", cfg.TagFormat)
+	}
+}
+
+func TestValidateConfig_RejectsInvalidBranchType(t *testing.T) {
+	cfg := &algorithm.Config{
+		Branches: []algorithm.BranchConfig{
+			{Name: "main", Type: "invalid-type"},
+		},
+		TagFormat: "v${version}",
+	}
+	err := ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected error for invalid branch type, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid branch type") {
+		t.Errorf("expected 'invalid branch type' error, got: %v", err)
+	}
+}
+
+func TestValidateConfig_AcceptsValidBranchTypes(t *testing.T) {
+	validTypes := []string{"", "release", "maintenance", "prerelease"}
+	for _, bt := range validTypes {
+		cfg := &algorithm.Config{
+			Branches: []algorithm.BranchConfig{
+				{Name: "main", Type: bt},
+			},
+			TagFormat: "v${version}",
+		}
+		err := ValidateConfig(cfg)
+		if err != nil {
+			t.Errorf("expected no error for branch type %q, got: %v", bt, err)
+		}
 	}
 }

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 2: Conventional Commits</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Conventional Commits</h1>
+    
+    <p>Conventional Commits is a specification for commit messages that allows automated tools to determine the next version. Every commit message follows a simple format:</p>
+    
+    <pre><code>type(scope): description
+
+[optional body]
+
+[optional footer(s)]</code></pre>
+    
+    <h2>Commit types</h2>
+    
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Version bump</th>
+          <th>Example</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>feat</code></td>
+          <td>A new feature</td>
+          <td>MINOR</td>
+          <td><code>feat(auth): add login with Google</code></td>
+        </tr>
+        <tr>
+          <td><code>fix</code></td>
+          <td>A bug fix</td>
+          <td>PATCH</td>
+          <td><code>fix(api): handle empty response</code></td>
+        </tr>
+        <tr>
+          <td><code>docs</code></td>
+          <td>Documentation changes</td>
+          <td>None</td>
+          <td><code>docs: update README</code></td>
+        </tr>
+        <tr>
+          <td><code>style</code></td>
+          <td>Code style changes</td>
+          <td>None</td>
+          <td><code>style: format with prettier</code></td>
+        </tr>
+        <tr>
+          <td><code>refactor</code></td>
+          <td>Code refactoring</td>
+          <td>None</td>
+          <td><code>refactor: extract auth module</code></td>
+        </tr>
+        <tr>
+          <td><code>perf</code></td>
+          <td>Performance improvements</td>
+          <td>PATCH</td>
+          <td><code>perf: optimize database queries</code></td>
+        </tr>
+        <tr>
+          <td><code>test</code></td>
+          <td>Adding tests</td>
+          <td>None</td>
+          <td><code>test: add auth unit tests</code></td>
+        </tr>
+        <tr>
+          <td><code>build</code></td>
+          <td>Build system changes</td>
+          <td>None</td>
+          <td><code>build: upgrade webpack</code></td>
+        </tr>
+        <tr>
+          <td><code>ci</code></td>
+          <td>CI configuration</td>
+          <td>None</td>
+          <td><code>ci: add GitHub Actions</code></td>
+        </tr>
+        <tr>
+          <td><code>chore</code></td>
+          <td>Maintenance tasks</td>
+          <td>None</td>
+          <td><code>chore: update dependencies</code></td>
+        </tr>
+        <tr>
+          <td><code>revert</code></td>
+          <td>Revert a commit</td>
+          <td>PATCH</td>
+          <td><code>revert: feat(auth): add login</code></td>
+        </tr>
+      </tbody>
+    </table>
+    
+    <h2>Breaking changes</h2>
+    
+    <p>A breaking change triggers a MAJOR version bump. Mark it with <code>!</code> after the type or a <code>BREAKING CHANGE:</code> footer:</p>
+    
+    <pre><code># Option 1: ! suffix
+feat(api)!: change response format
+
+# Option 2: footer
+feat(api): change response format
+
+BREAKING CHANGE: response is now { data: [], meta: {} }</code></pre>
+    
+    <h2>Scope</h2>
+    
+    <p>The scope is optional and provides context about the change. It should be the module, component, or feature affected:</p>
+    
+    <pre><code>feat(auth): add OAuth2 support
+fix(payment): handle currency conversion
+docs(readme): add installation guide</code></pre>
+    
+    <div class="quiz" data-answer="MINOR" data-correct-message="Correct! feat: indicates a new feature, which bumps MINOR." data-incorrect-message="Not quite. feat: indicates a new feature, which bumps MINOR. fix: would bump PATCH.">
+      <h3>Quick check</h3>
+      <p>What version bump does <code>feat(auth): add OAuth2</code> trigger?</p>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="MAJOR">MAJOR</button>
+        <button class="quiz-option" data-value="MINOR">MINOR</button>
+        <button class="quiz-option" data-value="PATCH">PATCH</button>
+        <button class="quiz-option" data-value="None">None</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+    
+    <div class="quiz" data-answer="MAJOR" data-correct-message="Correct! The BREAKING CHANGE footer triggers a MAJOR bump." data-incorrect-message="Not quite. BREAKING CHANGE footer triggers a MAJOR bump regardless of the type.">
+      <h3>Quick check</h3>
+      <p>What version bump does this commit trigger?</p>
+      <pre><code>fix(api): handle null values
+
+BREAKING CHANGE: removes deprecated v1 endpoint</code></pre>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="MAJOR">MAJOR</button>
+        <button class="quiz-option" data-value="MINOR">MINOR</button>
+        <button class="quiz-option" data-value="PATCH">PATCH</button>
+        <button class="quiz-option" data-value="None">None</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+    
+    <aside>
+      <p><strong>Remember:</strong> big-release reads these commit messages to calculate versions. The format is not just for humans — it is machine-readable. Follow it consistently for accurate versioning.</p>
+    </aside>
+    
+    <div class="lesson-nav">
+      <a href="0001-what-is-big-release.html">← What is big-release?</a>
+      <a href="0003-versioning.html">Next: Versioning →</a>
+    </div>
+  </div>
+  
+  <script src="../assets/quiz.js"></script>
+</body>
+</html>

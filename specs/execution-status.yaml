@@ -20,4 +20,11 @@ execution_status:
     e04s03: done
     e04s04: done
     e04s05: done
-  notes: "E04 (Semantic Release Parity) complete. 5 stories done. 2 bugs fixed (BUG-version-calc, BUG-branch-validation). 290 tests pass, CI green."
+    e05s01: todo
+    e05s02: todo
+    e05s03: todo
+    e06s01: todo
+    e06s02: todo
+    e06s03: todo
+    e07s01: todo
+  notes: "E04 complete. E05/E06/E07 planned. 2 bugs open (BUG-branch-config-dead, BUG-publishers-config-ignored)."

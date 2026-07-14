@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/bigbase-design-system-502492b2-4dcc-4024-9e7a-26baa7943ca7/colors_and_type.css">
+  <link rel="stylesheet" href="_ds/bigbase-design-system-502492b2-4dcc-4024-9e7a-26baa7943ca7/components.css">
+  <script src="_ds/bigbase-design-system-502492b2-4dcc-4024-9e7a-26baa7943ca7/_ds_bundle.js"></script>
+  <style>
+    body { margin: 0; }
+    a { color: var(--fg-accent); }
+    a:hover { color: var(--bg-accent-hover); }
+  </style>
+</helmet>
+
+<div class="layout" style="background:var(--bg-default);min-height:calc(100vh - 46px);">
+  <aside class="sidebar" style="position:sticky;top:0;height:100vh;overflow-y:auto;">
+    <a href="landing.dc.html" class="sidebar-logo" style="text-decoration:none;">
+      <img src="assets/bigbase-logo.svg" class="sidebar-logo-mark" alt="">
+      <span class="sidebar-logo-text">big-release</span>
+    </a>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Course</div>
+      <ul class="sidebar-nav">
+        <li style="display:contents;"><a href="lesson-1-what-is-big-release.dc.html">1. What is big-release?</a></li>
+        <li style="display:contents;"><a href="lesson-2-conventional-commits.dc.html">2. Conventional Commits</a></li>
+        <li style="display:contents;"><a href="lesson-3-versioning.dc.html" class="active">3. Versioning</a></li>
+        <li style="display:contents;"><a href="lesson-4-greenfield-setup.dc.html">4. Greenfield Setup</a></li>
+        <li style="display:contents;"><a href="lesson-5-brownfield-migration.dc.html">5. Brownfield Migration</a></li>
+        <li style="display:contents;"><a href="lesson-6-publishing.dc.html">6. Publishing</a></li>
+      </ul>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Reference</div>
+      <ul class="sidebar-nav">
+        <li style="display:contents;"><a href="cheat-sheet.dc.html">Cheat Sheet</a></li>
+      </ul>
+    </div>
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-footer">
+      <a href="landing.dc.html" style="display:flex;align-items:center;gap:8px;padding:6px 4px;color:var(--fg-tertiary);font-size:13px;text-decoration:none;">&larr; Back to home</a>
+    </div>
+  </aside>
+
+  <main class="content" style="padding-bottom:100px;">
+    <div class="breadcrumb" style="justify-content:space-between;">
+      <div style="display:flex;align-items:center;">
+        <a href="landing.dc.html">Home</a>
+        <span class="breadcrumb-sep">/</span>
+        <span>Lesson 3</span>
+      </div>
+      <button class="btn btn-secondary btn-sm" onClick="{{ copyMarkdown }}" style="display:flex;align-items:center;gap:6px;">
+        <x-import component-from-global-scope="Icon" from="./assets/icons.jsx" name="copy" size="14" hint-size="14px,14px"></x-import>
+        {{ copyLabel }}
+      </button>
+    </div>
+
+    <h1 class="page-title" style="font-size:32px;margin-bottom:20px;">Versioning</h1>
+
+    <p class="ds-body-lg" style="margin-bottom:16px;">big-release uses <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning (SemVer)</a> to communicate changes to your users:</p>
+    <div class="code-output" style="margin-bottom:32px;"><pre>MAJOR.MINOR.PATCH</pre></div>
+
+    <h2 class="ds-h2" style="margin-bottom:14px;">Version numbers</h2>
+    <div class="table-wrap" style="margin-bottom:32px;">
+      <table>
+        <thead><tr><th>Component</th><th>When to bump</th><th>Example</th></tr></thead>
+        <tbody>
+          <tr><td><strong>MAJOR</strong></td><td style="white-space:normal;">Breaking changes (incompatible API changes)</td><td class="mono">2.0.0</td></tr>
+          <tr><td><strong>MINOR</strong></td><td style="white-space:normal;">New features (backward-compatible)</td><td class="mono">1.3.0</td></tr>
+          <tr><td><strong>PATCH</strong></td><td style="white-space:normal;">Bug fixes (backward-compatible)</td><td class="mono">1.2.1</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 class="ds-h2" style="margin-bottom:14px;">How big-release calculates versions</h2>
+    <p class="ds-body-lg" style="margin-bottom:16px;">big-release analyzes all commits since the last release and applies these rules:</p>
+    <ol style="display:flex;flex-direction:column;gap:8px;margin:0 0 32px;padding-left:20px;font-size:15px;line-height:1.6;">
+      <li>If any commit has <code>BREAKING CHANGE</code> or <code>feat!</code> &rarr; bump <strong>MAJOR</strong></li>
+      <li>Else if any commit is <code>feat:</code> &rarr; bump <strong>MINOR</strong></li>
+      <li>Else if any commit is <code>fix:</code> or <code>perf:</code> &rarr; bump <strong>PATCH</strong></li>
+      <li>Else &rarr; no release</li>
+    </ol>
+
+    <h2 class="ds-h2" style="margin-bottom:14px;">First release</h2>
+    <p class="ds-body-lg" style="margin-bottom:16px;">For the first release, big-release uses the <code>initialVersion</code> from your configuration. If not set, it defaults to <code>1.0.0</code>.</p>
+    <div class="code-output" style="margin-bottom:20px;"><pre># .big-release.yml
+initialVersion: "0.1.0"</pre></div>
+
+    <div class="card" style="background:var(--bg-subtle);border-style:dashed;margin-bottom:32px;">
+      <p class="ds-body" style="margin:0;"><strong>Tip:</strong> Start at <code>0.1.0</code> for new projects. This signals that the project is still in development and the API may change.</p>
+    </div>
+
+    <h2 class="ds-h2" style="margin-bottom:14px;">Prereleases</h2>
+    <p class="ds-body-lg" style="margin-bottom:16px;">big-release supports prerelease versions for testing before stable releases:</p>
+    <div class="code-output" style="margin-bottom:32px;"><pre># First prerelease: 1.0.0-alpha.0
+# Second prerelease: 1.0.0-alpha.1
+# Stable release: 1.0.0</pre></div>
+
+    <div class="card" style="margin:32px 0;">
+      <div class="ds-overline" style="margin-bottom:10px;">Quick check</div>
+      <p class="ds-body" style="font-weight:500;margin-bottom:16px;">If the current version is 1.3.2 and you push a commit with <code>BREAKING CHANGE</code>, what is the next version?</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button class="btn btn-secondary mono" style="{{ q1.o1_4_0Style }}" onClick="{{ q1.o1_4_0On }}" disabled="{{ q1.disabled }}">1.4.0</button>
+        <button class="btn btn-secondary mono" style="{{ q1.o1_3_3Style }}" onClick="{{ q1.o1_3_3On }}" disabled="{{ q1.disabled }}">1.3.3</button>
+        <button class="btn btn-secondary mono" style="{{ q1.o2_0_0Style }}" onClick="{{ q1.o2_0_0On }}" disabled="{{ q1.disabled }}">2.0.0</button>
+        <button class="btn btn-secondary mono" style="{{ q1.o2_0_1Style }}" onClick="{{ q1.o2_0_1On }}" disabled="{{ q1.disabled }}">2.0.1</button>
+      </div>
+      <sc-if value="{{ q1.feedbackVisible }}" hint-placeholder-val="{{ false }}">
+        <div style="{{ q1.feedbackStyle }}margin-top:14px;padding:10px 14px;border-radius:8px;font-size:14px;">{{ q1.feedbackText }}</div>
+      </sc-if>
+    </div>
+
+    <h2 class="ds-h2" style="margin-bottom:14px;">Version calculation examples</h2>
+    <div class="code-output" style="margin-bottom:16px;"><pre># Commits since last release:
+feat(auth): add OAuth2
+fix(api): handle null
+docs: update readme
+
+# Calculated version: 1.1.0 (feat takes precedence over fix)
+# docs: does not trigger a release</pre></div>
+    <div class="code-output" style="margin-bottom:40px;"><pre># Commits since last release:
+fix(api): handle timeout
+chore: update deps
+
+# Calculated version: 1.0.1 (fix triggers PATCH)
+# chore: does not trigger a release</pre></div>
+
+  </main>
+
+  <footer class="app-footer" style="position:fixed;left:0;right:0;bottom:0;z-index:50;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;">
+    <div class="app-footer-brand">
+      <span class="app-footer-logo">B</span>
+      <span>&copy; 2026 big-release &middot; <a href="https://github.com/danielvm-git/big-release/blob/main/LICENSE">MIT License</a></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;justify-self:center;">
+      <a href="lesson-2-conventional-commits.dc.html" class="btn btn-secondary btn-sm" style="flex-shrink:0;">&larr; Conventional Commits</a>
+      <a href="lesson-4-greenfield-setup.dc.html" class="btn btn-primary btn-sm" style="flex-shrink:0;color:#fff;">Next: Greenfield Setup &rarr;</a>
+    </div>
+    <div class="app-footer-meta" style="justify-self:end;">
+      <span>v0.1.0</span>
+      <span class="app-footer-sep"></span>
+      <span>Built with BigPowers by <a href="https://github.com/danielvm-git">danielvm-git</a></span>
+      <span class="app-footer-sep"></span>
+      <a href="https://github.com/danielvm-git/big-release">GitHub</a>
+      <span class="app-footer-sep"></span>
+      <a href="https://github.com/danielvm-git/big-release/releases">Changelog</a>
+    </div>
+  </footer>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { quiz: {}, copied: false };
+
+  markdown = `# Versioning
+
+big-release uses Semantic Versioning (SemVer) to communicate changes to your users:
+
+\`\`\`
+MAJOR.MINOR.PATCH
+\`\`\`
+
+## Version numbers
+
+| Component | When to bump | Example |
+|---|---|---|
+| MAJOR | Breaking changes (incompatible API changes) | 2.0.0 |
+| MINOR | New features (backward-compatible) | 1.3.0 |
+| PATCH | Bug fixes (backward-compatible) | 1.2.1 |
+
+## How big-release calculates versions
+
+big-release analyzes all commits since the last release and applies these rules:
+
+1. If any commit has \`BREAKING CHANGE\` or \`feat!\` → bump MAJOR
+2. Else if any commit is \`feat:\` → bump MINOR
+3. Else if any commit is \`fix:\` or \`perf:\` → bump PATCH
+4. Else → no release
+
+## First release
+
+For the first release, big-release uses the \`initialVersion\` from your configuration. If not set, it defaults to \`1.0.0\`.
+
+\`\`\`yaml
+# .big-release.yml
+initialVersion: "0.1.0"
+\`\`\`
+
+> **Tip:** Start at 0.1.0 for new projects. This signals that the project is still in development and the API may change.
+
+## Prereleases
+
+big-release supports prerelease versions for testing before stable releases:
+
+\`\`\`
+# First prerelease: 1.0.0-alpha.0
+# Second prerelease: 1.0.0-alpha.1
+# Stable release: 1.0.0
+\`\`\`
+
+## Version calculation examples
+
+\`\`\`
+# Commits since last release:
+feat(auth): add OAuth2
+fix(api): handle null
+docs: update readme
+
+# Calculated version: 1.1.0 (feat takes precedence over fix)
+# docs: does not trigger a release
+\`\`\`
+
+\`\`\`
+# Commits since last release:
+fix(api): handle timeout
+chore: update deps
+
+# Calculated version: 1.0.1 (fix triggers PATCH)
+# chore: does not trigger a release
+\`\`\`
+`;
+
+  copyMarkdown = () => {
+    const done = () => {
+      this.setState({ copied: true });
+      setTimeout(() => this.setState({ copied: false }), 1500);
+    };
+    const fallback = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = this.markdown;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        done();
+      } catch (e) { /* no-op */ }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(this.markdown).then(done).catch(fallback);
+    } else {
+      fallback();
+    }
+  };
+
+  slug(v) { return 'o' + String(v).replace(/[^a-zA-Z0-9]/g, '_'); }
+
+  answerQuiz(qid, value) {
+    this.setState(s => ({ quiz: { ...s.quiz, [qid]: value } }));
+  }
+
+  buildQuiz(qid, options, correct, correctMsg, incorrectMsg) {
+    const sel = this.state.quiz[qid];
+    const answered = sel != null;
+    const obj = { disabled: answered, feedbackVisible: answered };
+    options.forEach(v => {
+      let style = '';
+      if (answered) {
+        if (v === correct) style = 'border-color:var(--success);background:var(--success-bg);color:var(--success-fg);';
+        else if (v === sel) style = 'border-color:var(--error);background:var(--error-bg);color:var(--error-fg);';
+        else style = 'opacity:0.5;';
+      }
+      obj[this.slug(v) + 'Style'] = style;
+      obj[this.slug(v) + 'On'] = () => this.answerQuiz(qid, v);
+    });
+    if (answered) {
+      const isCorrect = sel === correct;
+      obj.feedbackText = isCorrect ? correctMsg : incorrectMsg;
+      obj.feedbackStyle = isCorrect
+        ? 'background:var(--success-bg);color:var(--success-fg);border:1px solid var(--success);'
+        : 'background:var(--error-bg);color:var(--error-fg);border:1px solid var(--error);';
+    }
+    return obj;
+  }
+
+  renderVals() {
+    return {
+      copyMarkdown: this.copyMarkdown,
+      copyLabel: this.state.copied ? 'Copied!' : 'Copy as Markdown',
+      q1: this.buildQuiz('q1', ['1.4.0', '1.3.3', '2.0.0', '2.0.1'], '2.0.0',
+        'Correct! A breaking change bumps MAJOR, resetting MINOR and PATCH to 0.',
+        'Not quite. A breaking change bumps MAJOR, resetting MINOR and PATCH to 0.'),
+    };
+  }
+}
+</script>
+</body>
+</html>

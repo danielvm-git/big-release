@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/bigbase-design-system-502492b2-4dcc-4024-9e7a-26baa7943ca7/colors_and_type.css">
+  <link rel="stylesheet" href="_ds/bigbase-design-system-502492b2-4dcc-4024-9e7a-26baa7943ca7/components.css">
+  <script src="_ds/bigbase-design-system-502492b2-4dcc-4024-9e7a-26baa7943ca7/_ds_bundle.js"></script>
+  <style>
+    body { margin: 0; }
+    a { color: var(--fg-accent); }
+    a:hover { color: var(--bg-accent-hover); }
+  </style>
+</helmet>
+
+<div class="layout" style="background:var(--bg-default);min-height:calc(100vh - 46px);">
+  <aside class="sidebar" style="position:sticky;top:0;height:100vh;overflow-y:auto;">
+    <a href="landing.dc.html" class="sidebar-logo" style="text-decoration:none;">
+      <img src="assets/bigbase-logo.svg" class="sidebar-logo-mark" alt="">
+      <span class="sidebar-logo-text">big-release</span>
+    </a>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Course</div>
+      <ul class="sidebar-nav">
+        <li style="display:contents;"><a href="lesson-1-what-is-big-release.dc.html">1. What is big-release?</a></li>
+        <li style="display:contents;"><a href="lesson-2-conventional-commits.dc.html">2. Conventional Commits</a></li>
+        <li style="display:contents;"><a href="lesson-3-versioning.dc.html">3. Versioning</a></li>
+        <li style="display:contents;"><a href="lesson-4-greenfield-setup.dc.html">4. Greenfield Setup</a></li>
+        <li style="display:contents;"><a href="lesson-5-brownfield-migration.dc.html">5. Brownfield Migration</a></li>
+        <li style="display:contents;"><a href="lesson-6-publishing.dc.html" class="active">6. Publishing</a></li>
+      </ul>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Reference</div>
+      <ul class="sidebar-nav">
+        <li style="display:contents;"><a href="cheat-sheet.dc.html">Cheat Sheet</a></li>
+      </ul>
+    </div>
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-footer">
+      <a href="landing.dc.html" style="display:flex;align-items:center;gap:8px;padding:6px 4px;color:var(--fg-tertiary);font-size:13px;text-decoration:none;">&larr; Back to home</a>
+    </div>
+  </aside>
+
+  <main class="content" style="padding-bottom:100px;">
+    <div class="breadcrumb" style="justify-content:space-between;">
+      <div style="display:flex;align-items:center;">
+        <a href="landing.dc.html">Home</a>
+        <span class="breadcrumb-sep">/</span>
+        <span>Lesson 6</span>
+      </div>
+      <button class="btn btn-secondary btn-sm" onClick="{{ copyMarkdown }}" style="display:flex;align-items:center;gap:6px;">
+        <x-import component-from-global-scope="Icon" from="./assets/icons.jsx" name="copy" size="14" hint-size="14px,14px"></x-import>
+        {{ copyLabel }}
+      </button>
+    </div>
+
+    <h1 class="page-title" style="font-size:32px;margin-bottom:20px;">Publishing</h1>
+    <p class="ds-body-lg" style="margin-bottom:32px;">big-release publishes to multiple registries. This lesson covers setting up each publisher.</p>
+
+    <h2 class="ds-h2" style="margin-bottom:14px;">npm</h2>
+    <h3 class="ds-h3" style="margin-bottom:10px;">Setup</h3>
+    <div class="code-output" style="margin-bottom:20px;"><pre># 1. Create npm token
+# Go to https://www.npmjs.com/settings/tokens
+# Create a "Publish" token
+
+# 2. Set environment variable
+export NPM_TOKEN="your-npm-token"
+
+# 3. Configure .big-release.yml
+publishers:
+  npm:
+    enabled: true
+
+# 4. Ensure package.json has publishConfig
+{
+  "publishConfig": {
+    "access": "public"
+  }
+}</pre></div>
+
+    <h3 class="ds-h3" style="margin-bottom:10px;">Scoped packages</h3>
+    <p class="ds-body" style="margin-bottom:10px;">For scoped packages (<code>@scope/package</code>), set access to public:</p>
+    <div class="code-output" style="margin-bottom:32px;"><pre>{
+  "name": "@danielvm-git/my-package",
+  "publishConfig": {
+    "access": "public"
+  }
+}</pre></div>
+
+    <h2 class="ds-h2" style="margin-bottom:14px;">PyPI</h2>
+    <h3 class="ds-h3" style="margin-bottom:10px;">Setup</h3>
+    <div class="code-output" style="margin-bottom:32px;"><pre># 1. Create PyPI token
+# Go to https://pypi.org/manage/account/token/
+
+# 2. Set environment variable
+export PYPI_TOKEN="your-pypi-token"
+
+# 3. Configure .big-release.yml
+publishers:
+  pypi:
+    enabled: true
+
+# 4. Ensure pyproject.toml has build system
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"</pre></div>
+
+    <h2 class="ds-h2" style="margin-bottom:14px;">crates.io</h2>
+    <h3 class="ds-h3" style="margin-bottom:10px;">Setup</h3>
+    <div class="code-output" style="margin-bottom:32px;"><pre># 1. Create crates.io token
+# Go to https://crates.io/settings/tokens
+
+# 2. Set environment variable
+export CRATES_TOKEN="your-crates-token"
+
+# 3. Configure .big-release.yml
+publishers:
+  crates:
+    enabled: true
+
+# 4. Ensure Cargo.toml has required fields
+[package]
+name = "my-crate"
+version = "0.1.0"
+description = "A short description"
+license = "MIT"</pre></div>
+
+    <h2 class="ds-h2" style="margin-bottom:14px;">Go Proxy</h2>
+    <h3 class="ds-h3" style="margin-bottom:10px;">Setup</h3>
+    <div class="code-output" style="margin-bottom:20px;"><pre># 1. Configure .big-release.yml
+publishers:
+  goproxy:
+    enabled: true
+
+# 2. Ensure go.mod exists
+module github.com/yourname/yourmodule
+
+# 3. Tag-based publishing
+# big-release creates a tag like v1.0.0
+# Go Proxy automatically picks it up</pre></div>
+
+    <div class="card" style="background:var(--bg-subtle);border-style:dashed;margin-bottom:32px;">
+      <p class="ds-body" style="margin:0;"><strong>Note:</strong> Go Proxy does not require a token. Publishing happens automatically when you push a SemVer tag to GitHub.</p>
+    </div>
+
+    <h2 class="ds-h2" style="margin-bottom:14px;">Dry-run mode</h2>
+    <p class="ds-body-lg" style="margin-bottom:16px;">Always test before publishing:</p>
+    <div class="code-output" style="margin-bottom:32px;"><pre># Dry run — calculates version without publishing
+big-release --dry-run
+
+# Output shows what would happen:
+# - Version to be released
+# - Changelog to be generated
+# - Packages to be published</pre></div>
+
+    <h2 class="ds-h2" style="margin-bottom:14px;">Multiple publishers</h2>
+    <p class="ds-body-lg" style="margin-bottom:16px;">Enable multiple publishers in one configuration:</p>
+    <div class="code-output" style="margin-bottom:32px;"><pre># .big-release.yml
+publishers:
+  npm:
+    enabled: true
+  pypi:
+    enabled: true
+  crates:
+    enabled: false  # Not all projects need all registries</pre></div>
+
+    <div class="card" style="margin:32px 0;">
+      <div class="ds-overline" style="margin-bottom:10px;">Quick check</div>
+      <p class="ds-body" style="font-weight:500;margin-bottom:16px;">How do you test a release without publishing?</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button class="btn btn-secondary mono" style="{{ q1.__dry_runStyle }}" onClick="{{ q1.__dry_runOn }}" disabled="{{ q1.disabled }}">--dry-run</button>
+        <button class="btn btn-secondary mono" style="{{ q1.__testStyle }}" onClick="{{ q1.__testOn }}" disabled="{{ q1.disabled }}">--test</button>
+        <button class="btn btn-secondary mono" style="{{ q1.__previewStyle }}" onClick="{{ q1.__previewOn }}" disabled="{{ q1.disabled }}">--preview</button>
+        <button class="btn btn-secondary mono" style="{{ q1.__validateStyle }}" onClick="{{ q1.__validateOn }}" disabled="{{ q1.disabled }}">--validate</button>
+      </div>
+      <sc-if value="{{ q1.feedbackVisible }}" hint-placeholder-val="{{ false }}">
+        <div style="{{ q1.feedbackStyle }}margin-top:14px;padding:10px 14px;border-radius:8px;font-size:14px;">{{ q1.feedbackText }}</div>
+      </sc-if>
+    </div>
+
+    <h2 class="ds-h2" style="margin-bottom:14px;">Verification</h2>
+    <p class="ds-body-lg" style="margin-bottom:16px;">After publishing, verify the release:</p>
+    <div class="code-output" style="margin-bottom:40px;"><pre># Check npm
+npm view @danielvm-git/my-package version
+
+# Check PyPI
+pip index versions my-package
+
+# Check crates.io
+cargo search my-crate
+
+# Check Go Proxy
+go list -m -versions github.com/yourname/yourmodule</pre></div>
+
+  </main>
+
+  <footer class="app-footer" style="position:fixed;left:0;right:0;bottom:0;z-index:50;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;">
+    <div class="app-footer-brand">
+      <span class="app-footer-logo">B</span>
+      <span>&copy; 2026 big-release &middot; <a href="https://github.com/danielvm-git/big-release/blob/main/LICENSE">MIT License</a></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;justify-self:center;">
+      <a href="lesson-5-brownfield-migration.dc.html" class="btn btn-secondary btn-sm" style="flex-shrink:0;">&larr; Brownfield Migration</a>
+      <a href="cheat-sheet.dc.html" class="btn btn-primary btn-sm" style="flex-shrink:0;color:#fff;">Next: Cheat Sheet &rarr;</a>
+    </div>
+    <div class="app-footer-meta" style="justify-self:end;">
+      <span>v0.1.0</span>
+      <span class="app-footer-sep"></span>
+      <span>Built with BigPowers by <a href="https://github.com/danielvm-git">danielvm-git</a></span>
+      <span class="app-footer-sep"></span>
+      <a href="https://github.com/danielvm-git/big-release">GitHub</a>
+      <span class="app-footer-sep"></span>
+      <a href="https://github.com/danielvm-git/big-release/releases">Changelog</a>
+    </div>
+  </footer>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { quiz: {}, copied: false };
+
+  markdown = `# Publishing
+
+big-release publishes to multiple registries. This lesson covers setting up each publisher.
+
+## npm
+
+\`\`\`
+export NPM_TOKEN="your-npm-token"
+\`\`\`
+
+\`\`\`yaml
+publishers:
+  npm:
+    enabled: true
+\`\`\`
+
+Scoped packages need \`"publishConfig": { "access": "public" }\` in package.json.
+
+## PyPI
+
+\`\`\`
+export PYPI_TOKEN="your-pypi-token"
+\`\`\`
+
+\`\`\`yaml
+publishers:
+  pypi:
+    enabled: true
+\`\`\`
+
+## crates.io
+
+\`\`\`
+export CRATES_TOKEN="your-crates-token"
+\`\`\`
+
+\`\`\`yaml
+publishers:
+  crates:
+    enabled: true
+\`\`\`
+
+## Go Proxy
+
+\`\`\`yaml
+publishers:
+  goproxy:
+    enabled: true
+\`\`\`
+
+> **Note:** Go Proxy does not require a token. Publishing happens automatically when you push a SemVer tag to GitHub.
+
+## Dry-run mode
+
+\`\`\`
+big-release --dry-run
+\`\`\`
+
+## Multiple publishers
+
+\`\`\`yaml
+publishers:
+  npm:
+    enabled: true
+  pypi:
+    enabled: true
+  crates:
+    enabled: false
+\`\`\`
+
+## Verification
+
+\`\`\`
+npm view @danielvm-git/my-package version
+pip index versions my-package
+cargo search my-crate
+go list -m -versions github.com/yourname/yourmodule
+\`\`\`
+`;
+
+  copyMarkdown = () => {
+    const done = () => {
+      this.setState({ copied: true });
+      setTimeout(() => this.setState({ copied: false }), 1500);
+    };
+    const fallback = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = this.markdown;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        done();
+      } catch (e) { /* no-op */ }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(this.markdown).then(done).catch(fallback);
+    } else {
+      fallback();
+    }
+  };
+
+  slug(v) { return String(v).replace(/[^a-zA-Z0-9]/g, '_'); }
+
+  answerQuiz(qid, value) {
+    this.setState(s => ({ quiz: { ...s.quiz, [qid]: value } }));
+  }
+
+  buildQuiz(qid, options, correct, correctMsg, incorrectMsg) {
+    const sel = this.state.quiz[qid];
+    const answered = sel != null;
+    const obj = { disabled: answered, feedbackVisible: answered };
+    options.forEach(v => {
+      let style = '';
+      if (answered) {
+        if (v === correct) style = 'border-color:var(--success);background:var(--success-bg);color:var(--success-fg);';
+        else if (v === sel) style = 'border-color:var(--error);background:var(--error-bg);color:var(--error-fg);';
+        else style = 'opacity:0.5;';
+      }
+      obj[this.slug(v) + 'Style'] = style;
+      obj[this.slug(v) + 'On'] = () => this.answerQuiz(qid, v);
+    });
+    if (answered) {
+      const isCorrect = sel === correct;
+      obj.feedbackText = isCorrect ? correctMsg : incorrectMsg;
+      obj.feedbackStyle = isCorrect
+        ? 'background:var(--success-bg);color:var(--success-fg);border:1px solid var(--success);'
+        : 'background:var(--error-bg);color:var(--error-fg);border:1px solid var(--error);';
+    }
+    return obj;
+  }
+
+  renderVals() {
+    return {
+      copyMarkdown: this.copyMarkdown,
+      copyLabel: this.state.copied ? 'Copied!' : 'Copy as Markdown',
+      q1: this.buildQuiz('q1', ['--dry-run', '--test', '--preview', '--validate'], '--dry-run',
+        'Correct! Always test with --dry-run before publishing.',
+        'Not quite. Use --dry-run to test without publishing.'),
+    };
+  }
+}
+</script>
+</body>
+</html>
