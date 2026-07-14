@@ -6,33 +6,45 @@ import (
 	"github.com/danielvm-git/big-release/internal/algorithm"
 )
 
-// Plugin defines the interface for plugins
+// Plugin is the minimal interface every plugin must implement.
+// Capability checks are done via type assertions to the interfaces below.
 type Plugin interface {
-	// Name returns the plugin name
 	Name() string
+}
 
-	// VerifyConditions verifies pre-release conditions
+// ConditionVerifier verifies pre-release conditions.
+type ConditionVerifier interface {
 	VerifyConditions(ctx *algorithm.Context) error
+}
 
-	// AnalyzeCommits analyzes commits and returns release type
+// CommitAnalyzer analyzes commits and returns a release type.
+type CommitAnalyzer interface {
 	AnalyzeCommits(ctx *algorithm.Context) (algorithm.ReleaseType, error)
+}
 
-	// VerifyRelease verifies the calculated release before proceeding
+// ReleaseVerifier verifies the calculated release before proceeding.
+type ReleaseVerifier interface {
 	VerifyRelease(ctx *algorithm.Context) error
+}
 
-	// GenerateNotes generates release notes
+// NotesGenerator generates release notes.
+type NotesGenerator interface {
 	GenerateNotes(ctx *algorithm.Context) (string, error)
+}
 
-	// Prepare prepares the release
+// Preparer prepares the release (stages changes, runs hooks, etc.).
+type Preparer interface {
 	Prepare(ctx *algorithm.Context) error
+}
 
-	// Publish publishes the release
+// Publisher publishes the release (creates tags, GitHub releases, etc.).
+type Publisher interface {
 	Publish(ctx *algorithm.Context) (*algorithm.Release, error)
+}
 
-	// Success is called after successful release
+// LifecycleHook is called after success or on failure.
+type LifecycleHook interface {
 	Success(ctx *algorithm.Context) error
-
-	// Fail is called on release failure
 	Fail(ctx *algorithm.Context, err error) error
 }
 
@@ -69,21 +81,6 @@ func (r *Registry) List() []string {
 		names = append(names, name)
 	}
 	return names
-}
-
-// RunPlugins runs all plugins in order
-func (r *Registry) RunPlugins(ctx *algorithm.Context, pluginNames []string, fn func(Plugin) error) error {
-	for _, name := range pluginNames {
-		plugin, err := r.Get(name)
-		if err != nil {
-			return fmt.Errorf("failed to get plugin %q: %w", name, err)
-		}
-
-		if err := fn(plugin); err != nil {
-			return fmt.Errorf("plugin %q failed: %w", name, err)
-		}
-	}
-	return nil
 }
 
 // Global registry instance

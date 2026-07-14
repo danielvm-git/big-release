@@ -43,6 +43,13 @@ func (p *versionTestPlugin) Success(_ *algorithm.Context) error       { return n
 func (p *versionTestPlugin) Fail(_ *algorithm.Context, _ error) error { return nil }
 
 var _ plugins.Plugin = (*versionTestPlugin)(nil)
+var _ plugins.ConditionVerifier = (*versionTestPlugin)(nil)
+var _ plugins.CommitAnalyzer = (*versionTestPlugin)(nil)
+var _ plugins.ReleaseVerifier = (*versionTestPlugin)(nil)
+var _ plugins.NotesGenerator = (*versionTestPlugin)(nil)
+var _ plugins.Preparer = (*versionTestPlugin)(nil)
+var _ plugins.Publisher = (*versionTestPlugin)(nil)
+var _ plugins.LifecycleHook = (*versionTestPlugin)(nil)
 
 func TestNew_ReturnsRelease(t *testing.T) {
 	ctx := &Context{}

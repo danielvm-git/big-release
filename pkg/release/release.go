@@ -158,8 +158,10 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 		if err != nil {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
-		if err := p.VerifyConditions(ctx); err != nil {
-			return fmt.Errorf("plugin %q verify conditions failed: %w", name, err)
+		if cv, ok := p.(plugins.ConditionVerifier); ok {
+			if err := cv.VerifyConditions(ctx); err != nil {
+				return fmt.Errorf("plugin %q verify conditions failed: %w", name, err)
+			}
 		}
 	}
 
@@ -170,12 +172,14 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 		if err != nil {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
-		rt, err := p.AnalyzeCommits(ctx)
-		if err != nil {
-			return fmt.Errorf("plugin %q analyze commits failed: %w", name, err)
-		}
-		if rt != "" {
-			releaseType = rt
+		if ca, ok := p.(plugins.CommitAnalyzer); ok {
+			rt, err := ca.AnalyzeCommits(ctx)
+			if err != nil {
+				return fmt.Errorf("plugin %q analyze commits failed: %w", name, err)
+			}
+			if rt != "" {
+				releaseType = rt
+			}
 		}
 	}
 
@@ -201,12 +205,14 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 		if err != nil {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
-		n, err := p.GenerateNotes(ctx)
-		if err != nil {
-			return fmt.Errorf("plugin %q generate notes failed: %w", name, err)
-		}
-		if n != "" && ctx.NextRelease != nil && n != ctx.NextRelease.Notes {
-			ctx.NextRelease.Notes += "\n" + n
+		if ng, ok := p.(plugins.NotesGenerator); ok {
+			n, err := ng.GenerateNotes(ctx)
+			if err != nil {
+				return fmt.Errorf("plugin %q generate notes failed: %w", name, err)
+			}
+			if n != "" && ctx.NextRelease != nil && n != ctx.NextRelease.Notes {
+				ctx.NextRelease.Notes += "\n" + n
+			}
 		}
 	}
 
@@ -228,8 +234,10 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 		if err != nil {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
-		if err := p.VerifyRelease(ctx); err != nil {
-			return fmt.Errorf("plugin %q verify release failed: %w", name, err)
+		if rv, ok := p.(plugins.ReleaseVerifier); ok {
+			if err := rv.VerifyRelease(ctx); err != nil {
+				return fmt.Errorf("plugin %q verify release failed: %w", name, err)
+			}
 		}
 	}
 
@@ -244,8 +252,10 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 		if err != nil {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
-		if err := p.Prepare(ctx); err != nil {
-			return fmt.Errorf("plugin %q prepare failed: %w", name, err)
+		if prep, ok := p.(plugins.Preparer); ok {
+			if err := prep.Prepare(ctx); err != nil {
+				return fmt.Errorf("plugin %q prepare failed: %w", name, err)
+			}
 		}
 	}
 
@@ -254,12 +264,14 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 		if err != nil {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
-		rel, err := p.Publish(ctx)
-		if err != nil {
-			return fmt.Errorf("plugin %q publish failed: %w", name, err)
-		}
-		if rel != nil {
-			ctx.NextRelease = rel
+		if pub, ok := p.(plugins.Publisher); ok {
+			rel, err := pub.Publish(ctx)
+			if err != nil {
+				return fmt.Errorf("plugin %q publish failed: %w", name, err)
+			}
+			if rel != nil {
+				ctx.NextRelease = rel
+			}
 		}
 	}
 
@@ -324,8 +336,10 @@ func (r *Release) callFailHooks(ctx *algorithm.Context, originalErr error) {
 		if err != nil {
 			continue
 		}
-		if err := p.Fail(ctx, originalErr); err != nil {
-			r.ctx.Logger.Error("Fail hook failed", zap.String("plugin", name), zap.Error(err))
+		if lh, ok := p.(plugins.LifecycleHook); ok {
+			if err := lh.Fail(ctx, originalErr); err != nil {
+				r.ctx.Logger.Error("Fail hook failed", zap.String("plugin", name), zap.Error(err))
+			}
 		}
 	}
 }
@@ -336,8 +350,10 @@ func (r *Release) callSuccessHooks(ctx *algorithm.Context) {
 		if err != nil {
 			continue
 		}
-		if err := p.Success(ctx); err != nil {
-			r.ctx.Logger.Error("Success hook failed", zap.String("plugin", name), zap.Error(err))
+		if lh, ok := p.(plugins.LifecycleHook); ok {
+			if err := lh.Success(ctx); err != nil {
+				r.ctx.Logger.Error("Success hook failed", zap.String("plugin", name), zap.Error(err))
+			}
 		}
 	}
 }
