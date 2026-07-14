@@ -543,3 +543,164 @@ func TestRunPublishers_SkipsDisabledPublishers(t *testing.T) {
 		t.Error("expected goproxy publisher to be skipped (enabled: false)")
 	}
 }
+
+// --- Story e06s03: Priority-based AnalyzeCommits aggregation ---
+
+// priorityTestPlugin returns a specific release type when AnalyzeCommits is called.
+type priorityTestPlugin struct {
+	name        string
+	releaseType algorithm.ReleaseType
+}
+
+func (p *priorityTestPlugin) Name() string { return p.name }
+func (p *priorityTestPlugin) AnalyzeCommits(_ *algorithm.Context) (algorithm.ReleaseType, error) {
+	return p.releaseType, nil
+}
+
+var _ plugins.Plugin = (*priorityTestPlugin)(nil)
+var _ plugins.CommitAnalyzer = (*priorityTestPlugin)(nil)
+
+func TestAnalyzeCommits_PriorityBasedAggregation(t *testing.T) {
+	// When plugin A returns patch and plugin B returns minor,
+	// the result should be minor (higher priority wins).
+	gitClient, err := git.NewClient()
+	if err != nil {
+		t.Skipf("skipping: cannot create git client: %v", err)
+	}
+	if !gitClient.IsGitRepo() {
+		t.Skip("skipping: not in a git repo")
+	}
+
+	patchPlugin := &priorityTestPlugin{name: "patch-plugin", releaseType: algorithm.ReleaseTypePatch}
+	minorPlugin := &priorityTestPlugin{name: "minor-plugin", releaseType: algorithm.ReleaseTypeMinor}
+	plugins.Register(patchPlugin)
+	plugins.Register(minorPlugin)
+
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches: []algorithm.BranchConfig{
+				{Name: "main"},
+			},
+			TagFormat:      "v${version}",
+			InitialVersion: "0.1.0",
+			// patch comes before minor in plugin order
+			Plugins: []string{"patch-plugin", "minor-plugin"},
+		},
+		Git:    gitClient,
+		Logger: zap.NewNop(),
+		DryRun: true,
+	}
+
+	r := New(ctx)
+	algoCtx, err := r.buildAlgoContext()
+	if err != nil {
+		t.Fatalf("buildAlgoContext failed: %v", err)
+	}
+
+	if err := r.runPluginLifecycle(algoCtx); err != nil {
+		t.Fatalf("runPluginLifecycle failed: %v", err)
+	}
+
+	if algoCtx.NextRelease == nil {
+		t.Fatal("expected NextRelease to be set")
+	}
+	if algoCtx.NextRelease.Type != algorithm.ReleaseTypeMinor {
+		t.Errorf("expected release type minor (priority-based), got %q", algoCtx.NextRelease.Type)
+	}
+}
+
+func TestAnalyzeCommits_MajorOverridesMinor(t *testing.T) {
+	// When plugin A returns minor and plugin B returns major,
+	// the result should be major (highest priority wins regardless of order).
+	gitClient, err := git.NewClient()
+	if err != nil {
+		t.Skipf("skipping: cannot create git client: %v", err)
+	}
+	if !gitClient.IsGitRepo() {
+		t.Skip("skipping: not in a git repo")
+	}
+
+	minorPlugin := &priorityTestPlugin{name: "minor-plugin-2", releaseType: algorithm.ReleaseTypeMinor}
+	majorPlugin := &priorityTestPlugin{name: "major-plugin", releaseType: algorithm.ReleaseTypeMajor}
+	plugins.Register(minorPlugin)
+	plugins.Register(majorPlugin)
+
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches: []algorithm.BranchConfig{
+				{Name: "main"},
+			},
+			TagFormat:      "v${version}",
+			InitialVersion: "0.1.0",
+			// minor comes before major in plugin order
+			Plugins: []string{"minor-plugin-2", "major-plugin"},
+		},
+		Git:    gitClient,
+		Logger: zap.NewNop(),
+		DryRun: true,
+	}
+
+	r := New(ctx)
+	algoCtx, err := r.buildAlgoContext()
+	if err != nil {
+		t.Fatalf("buildAlgoContext failed: %v", err)
+	}
+
+	if err := r.runPluginLifecycle(algoCtx); err != nil {
+		t.Fatalf("runPluginLifecycle failed: %v", err)
+	}
+
+	if algoCtx.NextRelease == nil {
+		t.Fatal("expected NextRelease to be set")
+	}
+	if algoCtx.NextRelease.Type != algorithm.ReleaseTypeMajor {
+		t.Errorf("expected release type major, got %q", algoCtx.NextRelease.Type)
+	}
+}
+
+func TestAnalyzeCommits_FirstPluginWins_WhenEqualPriority(t *testing.T) {
+	// When two plugins return the same priority, the first one wins (stable).
+	gitClient, err := git.NewClient()
+	if err != nil {
+		t.Skipf("skipping: cannot create git client: %v", err)
+	}
+	if !gitClient.IsGitRepo() {
+		t.Skip("skipping: not in a git repo")
+	}
+
+	patchA := &priorityTestPlugin{name: "patch-a", releaseType: algorithm.ReleaseTypePatch}
+	patchB := &priorityTestPlugin{name: "patch-b", releaseType: algorithm.ReleaseTypePatch}
+	plugins.Register(patchA)
+	plugins.Register(patchB)
+
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches: []algorithm.BranchConfig{
+				{Name: "main"},
+			},
+			TagFormat:      "v${version}",
+			InitialVersion: "0.1.0",
+			Plugins:        []string{"patch-a", "patch-b"},
+		},
+		Git:    gitClient,
+		Logger: zap.NewNop(),
+		DryRun: true,
+	}
+
+	r := New(ctx)
+	algoCtx, err := r.buildAlgoContext()
+	if err != nil {
+		t.Fatalf("buildAlgoContext failed: %v", err)
+	}
+
+	if err := r.runPluginLifecycle(algoCtx); err != nil {
+		t.Fatalf("runPluginLifecycle failed: %v", err)
+	}
+
+	if algoCtx.NextRelease == nil {
+		t.Fatal("expected NextRelease to be set")
+	}
+	if algoCtx.NextRelease.Type != algorithm.ReleaseTypePatch {
+		t.Errorf("expected release type patch, got %q", algoCtx.NextRelease.Type)
+	}
+}

@@ -165,7 +165,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 		}
 	}
 
-	// Phase 2: AnalyzeCommits — collect release type from plugins
+	// Phase 2: AnalyzeCommits — collect release type from plugins (priority-based)
 	var releaseType algorithm.ReleaseType
 	for _, name := range pluginNames {
 		p, err := plugins.Get(name)
@@ -178,7 +178,9 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 				return fmt.Errorf("plugin %q analyze commits failed: %w", name, err)
 			}
 			if rt != "" {
-				releaseType = rt
+				if releaseType == "" || algorithm.BumpPriority(rt) > algorithm.BumpPriority(releaseType) {
+					releaseType = rt
+				}
 			}
 		}
 	}
