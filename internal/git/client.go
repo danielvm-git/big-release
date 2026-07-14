@@ -103,9 +103,9 @@ func (c *Client) GetHead() (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-// CreateTag creates a git tag
-func (c *Client) CreateTag(tag, ref string) error {
-	cmd := exec.Command("git", "tag", tag, ref)
+// CreateTag creates an annotated git tag
+func (c *Client) CreateTag(tag, message string) error {
+	cmd := exec.Command("git", "tag", "-a", tag, "-m", message)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to create tag: %w", err)
 	}
@@ -113,9 +113,9 @@ func (c *Client) CreateTag(tag, ref string) error {
 	return nil
 }
 
-// Push pushes tags to remote
+// Push pushes commits to the remote
 func (c *Client) Push(remote string) error {
-	cmd := exec.Command("git", "push", "--tags", remote)
+	cmd := exec.Command("git", "push", remote)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to push: %w", err)
 	}
@@ -260,4 +260,41 @@ func (c *Client) GetLastRelease(tagFormat string) (*algorithm.Release, error) {
 // GetCurrentTime returns the current time formatted for git
 func GetCurrentTime() string {
 	return time.Now().Format("2006-01-02 15:04:05 -0700")
+}
+
+// StageChanges stages all changes in the working directory.
+func (c *Client) StageChanges() error {
+	cmd := exec.Command("git", "add", ".")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to stage changes: %w", err)
+	}
+	return nil
+}
+
+// HasChangesToCommit checks if there are any changes to commit.
+func (c *Client) HasChangesToCommit() (bool, error) {
+	cmd := exec.Command("git", "status", "--porcelain")
+	output, err := cmd.Output()
+	if err != nil {
+		return false, fmt.Errorf("failed to check status: %w", err)
+	}
+	return strings.TrimSpace(string(output)) != "", nil
+}
+
+// PushTags pushes tags to the remote.
+func (c *Client) PushTags(remote string) error {
+	cmd := exec.Command("git", "push", remote, "--tags")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to push tags: %w", err)
+	}
+	return nil
+}
+
+// DeleteTag deletes a local git tag.
+func (c *Client) DeleteTag(tag string) error {
+	cmd := exec.Command("git", "tag", "-d", tag)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to delete tag: %w", err)
+	}
+	return nil
 }
