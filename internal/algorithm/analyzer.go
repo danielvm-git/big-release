@@ -12,7 +12,7 @@ var (
 	//   fix!: remove deprecated API
 	//   perf: optimize database queries
 	conventionalCommitPattern = regexp.MustCompile(`^(?P<type>feat|fix|perf|docs|chore|style|refactor|test|build|ci|revert)(?:\((?P<scope>[^)]+)\))?(?P<breaking>!)?: (?P<description>.+)$`)
-	
+
 	// Breaking change pattern in commit body
 	breakingChangePattern = regexp.MustCompile(`BREAKING CHANGE:\s*(.+)`)
 )
@@ -94,8 +94,9 @@ func (a *Analyzer) determineBump(commit *Commit) ReleaseType {
 	}
 }
 
-// bumpPriority returns the priority of a bump type
-func bumpPriority(bump ReleaseType) int {
+// BumpPriority returns the numeric priority of a release bump type.
+// Higher values indicate greater impact: major=3, minor=2, patch=1.
+func BumpPriority(bump ReleaseType) int {
 	switch bump {
 	case ReleaseTypeMajor:
 		return 3
@@ -106,4 +107,9 @@ func bumpPriority(bump ReleaseType) int {
 	default:
 		return 0
 	}
+}
+
+// bumpPriority is an alias kept for internal use within the analyzer.
+func bumpPriority(bump ReleaseType) int {
+	return BumpPriority(bump)
 }
