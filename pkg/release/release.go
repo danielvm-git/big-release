@@ -15,7 +15,7 @@ import (
 // Context holds CLI-level inputs for the release orchestrator.
 type Context struct {
 	Config  *algorithm.Config
-	Git     *git.Client
+	Git     git.GitAPI
 	Logger  *zap.Logger
 	DryRun  bool
 	Verbose bool
@@ -148,6 +148,9 @@ func (r *Release) Run() error {
 
 func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 	pluginNames := r.ctx.Config.Plugins
+
+	// Register GitPlugin with the GitAPI from the context
+	plugins.Register(plugins.NewGitPlugin(r.ctx.Git))
 
 	// Phase 1: VerifyConditions
 	for _, name := range pluginNames {

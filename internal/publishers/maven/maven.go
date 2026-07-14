@@ -6,21 +6,18 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"os"
 	"regexp"
-	"time"
 
 	"github.com/danielvm-git/big-release/internal/publishers"
+	"github.com/danielvm-git/big-release/internal/publishers/httputil"
 )
 
 const (
 	DefaultRegistryURL = "https://central.sonatype.com/api/v1/publisher/upload"
 	DefaultVerifyURL   = "https://search.maven.org/solrsearch/select"
 
-	maxRetries      = 3
-	retryBase       = 1 * time.Second
 	envToken        = "MAVEN_TOKEN"
 	maxResponseSize = 10 * 1024 * 1024 // 10 MB
 )
@@ -38,7 +35,7 @@ type pomProject struct {
 
 type Publisher struct {
 	RegistryURL string
-	HTTPClient  *http.Client
+	Client      *httputil.RetryClient
 	DryRun      bool
 	VerifyURL   string
 }
@@ -46,7 +43,7 @@ type Publisher struct {
 func NewPublisher() *Publisher {
 	return &Publisher{
 		RegistryURL: DefaultRegistryURL,
-		HTTPClient:  http.DefaultClient,
+		Client:      httputil.NewRetryClient(http.DefaultClient),
 		VerifyURL:   DefaultVerifyURL,
 	}
 }
@@ -205,45 +202,16 @@ func (p *Publisher) Publish(version string) error {
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	var lastErr error
-	backoff := retryBase
-
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			time.Sleep(backoff)
-			backoff = time.Duration(math.Min(
-				float64(backoff)*2,
-				float64(retryBase*time.Duration(math.Pow(2, float64(maxRetries)))),
-			))
-		}
-
-		resp, doErr := p.HTTPClient.Do(req)
-		if doErr != nil {
-			lastErr = fmt.Errorf("maven: request failed: %w", doErr)
-			continue
-		}
-
-		_, _ = io.ReadAll(io.LimitReader(resp.Body, maxResponseSize+1))
-		_ = resp.Body.Close()
-
-		switch {
-		case resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated:
-			return nil
-		case resp.StatusCode == http.StatusTooManyRequests:
-			lastErr = fmt.Errorf("maven: rate limited (HTTP %d)", resp.StatusCode)
-			continue
-		case resp.StatusCode == http.StatusUnauthorized:
-			return fmt.Errorf("maven: authentication failed (HTTP %d): check MAVEN_TOKEN", resp.StatusCode)
-		case resp.StatusCode == http.StatusForbidden:
-			return fmt.Errorf("maven: forbidden (HTTP %d): insufficient permissions", resp.StatusCode)
-		case resp.StatusCode >= 500:
-			return fmt.Errorf("maven: server error (HTTP %d)", resp.StatusCode)
-		default:
-			return fmt.Errorf("maven: unexpected status (HTTP %d)", resp.StatusCode)
-		}
+	resp, err := p.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("maven: %w", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 
-	return fmt.Errorf("maven: publish failed after %d retries: %w", maxRetries, lastErr)
+	// Drain body to allow connection reuse.
+	_, _ = io.ReadAll(io.LimitReader(resp.Body, maxResponseSize+1))
+
+	return nil
 }
 
 func (p *Publisher) Verify(version string) error {
@@ -269,7 +237,7 @@ func (p *Publisher) Verify(version string) error {
 		return fmt.Errorf("maven: failed to create verify request: %w", err)
 	}
 
-	resp, err := p.HTTPClient.Do(req)
+	resp, err := p.Client.Do(req)
 	if err != nil {
 		return fmt.Errorf("maven: verify request failed: %w", err)
 	}

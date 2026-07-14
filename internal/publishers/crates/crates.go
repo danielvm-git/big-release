@@ -7,10 +7,10 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/danielvm-git/big-release/internal/publishers"
+	"github.com/danielvm-git/big-release/internal/publishers/httputil"
 )
 
 const (
@@ -20,12 +20,6 @@ const (
 	// verifyBaseURL is the base URL for crates.io's versions API.
 	verifyBaseURL = "https://crates.io/api/v1/crates"
 
-	// maxRetries is the maximum number of retry attempts on 429.
-	maxRetries = 3
-
-	// retryBase is the base backoff duration in seconds.
-	retryBase = 1 * time.Second
-
 	// envToken is the environment variable for the crates.io token.
 	envToken = "CARGO_TOKEN"
 )
@@ -34,8 +28,8 @@ const (
 type Publisher struct {
 	// RegistryURL is the crates.io upload endpoint. Defaults to DefaultRegistryURL.
 	RegistryURL string
-	// HTTPClient is the HTTP client used for API calls. Defaults to http.DefaultClient.
-	HTTPClient *http.Client
+	// Client is the retry HTTP client used for API calls.
+	Client *httputil.RetryClient
 	// DryRun, when true, skips actual HTTP requests.
 	DryRun bool
 	// VerifyURL is the base URL for crates.io's versions API. Defaults to verifyBaseURL.
@@ -46,7 +40,7 @@ type Publisher struct {
 func NewPublisher() *Publisher {
 	return &Publisher{
 		RegistryURL: DefaultRegistryURL,
-		HTTPClient:  http.DefaultClient,
+		Client:      httputil.NewRetryClient(http.DefaultClient),
 		VerifyURL:   verifyBaseURL,
 	}
 }
@@ -111,42 +105,16 @@ func (p *Publisher) Publish(version string) error {
 	}
 	req.Header.Set("Authorization", token)
 
-	var lastErr error
-	backoff := retryBase
-
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			time.Sleep(backoff)
-			backoff = time.Duration(float64(backoff) * 2)
-		}
-
-		resp, doErr := p.HTTPClient.Do(req)
-		if doErr != nil {
-			lastErr = fmt.Errorf("crates: request failed: %w", doErr)
-			continue
-		}
-
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-
-		switch {
-		case resp.StatusCode == http.StatusOK:
-			return nil
-		case resp.StatusCode == http.StatusTooManyRequests:
-			lastErr = fmt.Errorf("crates: rate limited (HTTP %d)", resp.StatusCode)
-			continue
-		case resp.StatusCode == http.StatusUnauthorized:
-			return fmt.Errorf("crates: authentication failed (HTTP %d): check CARGO_TOKEN", resp.StatusCode)
-		case resp.StatusCode == http.StatusForbidden:
-			return fmt.Errorf("crates: forbidden (HTTP %d): insufficient permissions", resp.StatusCode)
-		case resp.StatusCode >= 500:
-			return fmt.Errorf("crates: server error (HTTP %d)", resp.StatusCode)
-		default:
-			return fmt.Errorf("crates: unexpected status (HTTP %d)", resp.StatusCode)
-		}
+	resp, err := p.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("crates: %w", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 
-	return fmt.Errorf("crates: publish failed after %d retries: %w", maxRetries, lastErr)
+	// Drain body to allow connection reuse.
+	_, _ = io.Copy(io.Discard, resp.Body)
+
+	return nil
 }
 
 // Verify checks that the given version has been published to crates.io.
@@ -162,7 +130,7 @@ func (p *Publisher) Verify(version string) error {
 		return fmt.Errorf("crates: failed to create verify request: %w", err)
 	}
 
-	resp, err := p.HTTPClient.Do(req)
+	resp, err := p.Client.Do(req)
 	if err != nil {
 		return fmt.Errorf("crates: verify request failed: %w", err)
 	}

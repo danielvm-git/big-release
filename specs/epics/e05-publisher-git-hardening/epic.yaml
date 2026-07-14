@@ -4,7 +4,7 @@ description: >
   Extract shared HTTP retry logic from 6 publishers, define a GitAPI
   interface for testability, and unify the two parallel git execution
   paths (git.Client vs GitPlugin.gitCommand).
-status: planning
+status: done
 priority: P1
 bcps: 8
 
@@ -21,7 +21,7 @@ stories:
       and standard error mapping (401 to ErrUnauthorized, 403 to ErrForbidden,
       429 to retry, 500+ to ErrServerError). Replace inline retry loops in
       pypi, crates, goproxy, maven, packagist, godot publishers.
-    status: todo
+    status: done
     files:
       - internal/publishers/httputil/retry.go
       - internal/publishers/httputil/errors.go
@@ -40,7 +40,7 @@ stories:
       GetHead, GetLastRelease, GetRepositoryURL, GetCurrentBranch,
       IsGitRepo). Change release.Context.Git from *git.Client to GitAPI.
       Add fakeGit test implementation for orchestrator unit tests.
-    status: todo
+    status: done
     files:
       - internal/git/api.go
       - internal/git/client.go
@@ -53,7 +53,7 @@ stories:
       GitPlugin drops its gitCommand helper and uses the GitAPI interface
       from e05s02. Constructor receives GitAPI instead of creating its own
       exec.Command. Tag semantics unified to git tag -a.
-    status: todo
+    status: done
     files:
       - internal/plugins/git.go
       - internal/plugins/git_test.go

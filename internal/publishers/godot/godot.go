@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"os"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/danielvm-git/big-release/internal/publishers"
+	"github.com/danielvm-git/big-release/internal/publishers/httputil"
 )
 
 const (
@@ -27,12 +26,6 @@ const (
 
 	// envRepo is the environment variable for the GitHub repo.
 	envRepo = "GITHUB_REPO"
-
-	// maxRetries is the maximum number of retry attempts on 429.
-	maxRetries = 3
-
-	// retryBase is the base backoff duration in seconds.
-	retryBase = 1 * time.Second
 )
 
 // versionKeyPattern matches config/version in project.godot INI-style files.
@@ -42,8 +35,8 @@ var versionKeyPattern = regexp.MustCompile(`^(config/version\s*=\s*)"?([^"\n]+)"
 type Publisher struct {
 	// GitHubAPI is the GitHub API base URL. Defaults to DefaultGitHubAPI.
 	GitHubAPI string
-	// HTTPClient is the HTTP client used for API calls. Defaults to http.DefaultClient.
-	HTTPClient *http.Client
+	// Client is the retry HTTP client used for API calls.
+	Client *httputil.RetryClient
 	// DryRun, when true, skips actual HTTP requests.
 	DryRun bool
 }
@@ -51,8 +44,8 @@ type Publisher struct {
 // NewPublisher creates a new Godot Publisher with default settings.
 func NewPublisher() *Publisher {
 	return &Publisher{
-		GitHubAPI:  DefaultGitHubAPI,
-		HTTPClient: http.DefaultClient,
+		GitHubAPI: DefaultGitHubAPI,
+		Client:    httputil.NewRetryClient(http.DefaultClient),
 	}
 }
 
@@ -108,51 +101,23 @@ func (p *Publisher) Publish(version string) error {
 
 	url := fmt.Sprintf("%s/repos/%s/%s/releases", p.GitHubAPI, owner, repo)
 
-	var lastErr error
-	backoff := retryBase
-
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			time.Sleep(backoff)
-			backoff = time.Duration(math.Min(
-				float64(backoff)*2,
-				float64(retryBase*time.Duration(math.Pow(2, float64(maxRetries)))),
-			))
-		}
-
-		req, reqErr := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
-		if reqErr != nil {
-			lastErr = fmt.Errorf("godot: failed to create request: %w", reqErr)
-			continue
-		}
-		req.Header.Set("Authorization", "token "+token)
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, doErr := p.HTTPClient.Do(req)
-		if doErr != nil {
-			lastErr = fmt.Errorf("godot: request failed: %w", doErr)
-			continue
-		}
-
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-
-		switch {
-		case resp.StatusCode == http.StatusCreated:
-			return nil
-		case resp.StatusCode == http.StatusTooManyRequests:
-			lastErr = fmt.Errorf("godot: rate limited (HTTP %d)", resp.StatusCode)
-			continue
-		case resp.StatusCode == http.StatusUnauthorized:
-			return fmt.Errorf("godot: authentication failed (HTTP %d): check GITHUB_TOKEN", resp.StatusCode)
-		case resp.StatusCode >= 500:
-			return fmt.Errorf("godot: server error (HTTP %d)", resp.StatusCode)
-		default:
-			return fmt.Errorf("godot: unexpected status (HTTP %d)", resp.StatusCode)
-		}
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("godot: failed to create request: %w", err)
 	}
+	req.Header.Set("Authorization", "token "+token)
+	req.Header.Set("Content-Type", "application/json")
 
-	return fmt.Errorf("godot: publish failed after %d retries: %w", maxRetries, lastErr)
+	resp, err := p.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("godot: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Drain body to allow connection reuse.
+	_, _ = io.Copy(io.Discard, resp.Body)
+
+	return nil
 }
 
 // Verify checks that a GitHub Release exists for the given version tag.
@@ -174,7 +139,7 @@ func (p *Publisher) Verify(version string) error {
 		req.Header.Set("Authorization", "token "+token)
 	}
 
-	resp, err := p.HTTPClient.Do(req)
+	resp, err := p.Client.Do(req)
 	if err != nil {
 		return fmt.Errorf("godot: verify request failed: %w", err)
 	}

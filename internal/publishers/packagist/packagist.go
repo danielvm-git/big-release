@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/danielvm-git/big-release/internal/publishers"
+	"github.com/danielvm-git/big-release/internal/publishers/httputil"
 )
 
 const (
@@ -18,23 +17,19 @@ const (
 
 	updateEndpoint = "/api/update-package"
 
-	maxRetries = 3
-
-	retryBase = 1 * time.Second
-
 	envToken = "PACKAGIST_TOKEN"
 )
 
 type Publisher struct {
-	APIURL     string
-	HTTPClient *http.Client
-	DryRun     bool
+	APIURL string
+	Client *httputil.RetryClient
+	DryRun bool
 }
 
 func NewPublisher() *Publisher {
 	return &Publisher{
-		APIURL:     DefaultAPIURL,
-		HTTPClient: http.DefaultClient,
+		APIURL: DefaultAPIURL,
+		Client: httputil.NewRetryClient(http.DefaultClient),
 	}
 }
 
@@ -104,43 +99,16 @@ func (p *Publisher) Publish(version string) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "token "+token)
 
-	var lastErr error
-	backoff := retryBase
-
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			time.Sleep(backoff)
-			backoff = time.Duration(math.Min(
-				float64(backoff)*2,
-				float64(retryBase*time.Duration(math.Pow(2, float64(maxRetries)))),
-			))
-		}
-
-		resp, doErr := p.HTTPClient.Do(req)
-		if doErr != nil {
-			lastErr = fmt.Errorf("packagist: request failed: %w", doErr)
-			continue
-		}
-
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-
-		switch {
-		case resp.StatusCode == http.StatusOK:
-			return nil
-		case resp.StatusCode == http.StatusTooManyRequests:
-			lastErr = fmt.Errorf("packagist: rate limited (HTTP %d)", resp.StatusCode)
-			continue
-		case resp.StatusCode == http.StatusUnauthorized:
-			return fmt.Errorf("packagist: authentication failed (HTTP %d): check PACKAGIST_TOKEN", resp.StatusCode)
-		case resp.StatusCode >= 500:
-			return fmt.Errorf("packagist: server error (HTTP %d)", resp.StatusCode)
-		default:
-			return fmt.Errorf("packagist: unexpected status (HTTP %d)", resp.StatusCode)
-		}
+	resp, err := p.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("packagist: %w", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 
-	return fmt.Errorf("packagist: publish failed after %d retries: %w", maxRetries, lastErr)
+	// Drain body to allow connection reuse.
+	_, _ = io.Copy(io.Discard, resp.Body)
+
+	return nil
 }
 
 func (p *Publisher) Verify(version string) error {
@@ -155,7 +123,7 @@ func (p *Publisher) Verify(version string) error {
 		return fmt.Errorf("packagist: failed to create verify request: %w", err)
 	}
 
-	resp, err := p.HTTPClient.Do(req)
+	resp, err := p.Client.Do(req)
 	if err != nil {
 		return fmt.Errorf("packagist: verify request failed: %w", err)
 	}

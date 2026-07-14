@@ -5,16 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/danielvm-git/big-release/internal/publishers"
+	"github.com/danielvm-git/big-release/internal/publishers/httputil"
 )
 
 const (
@@ -23,12 +22,6 @@ const (
 
 	// verifyBaseURL is the base URL for PyPI's JSON API.
 	verifyBaseURL = "https://pypi.org/pypi"
-
-	// maxRetries is the maximum number of retry attempts on 429.
-	maxRetries = 3
-
-	// retryBase is the base backoff duration in seconds.
-	retryBase = 1 * time.Second
 
 	// envToken is the environment variable for the PyPI token.
 	envToken = "PYPI_TOKEN"
@@ -42,8 +35,8 @@ var versionLinePattern = regexp.MustCompile(`^(version\s*=\s*)["']?([^"'\s#]+)["
 type Publisher struct {
 	// RegistryURL is the PyPI upload endpoint. Defaults to DefaultRegistryURL.
 	RegistryURL string
-	// HTTPClient is the HTTP client used for API calls. Defaults to http.DefaultClient.
-	HTTPClient *http.Client
+	// Client is the retry HTTP client used for API calls.
+	Client *httputil.RetryClient
 	// DryRun, when true, skips actual HTTP requests.
 	DryRun bool
 	// VerifyURL is the base URL for PyPI's JSON API. Defaults to verifyBaseURL.
@@ -54,7 +47,7 @@ type Publisher struct {
 func NewPublisher() *Publisher {
 	return &Publisher{
 		RegistryURL: DefaultRegistryURL,
-		HTTPClient:  http.DefaultClient,
+		Client:      httputil.NewRetryClient(http.DefaultClient),
 		VerifyURL:   verifyBaseURL,
 	}
 }
@@ -152,47 +145,16 @@ func (p *Publisher) Publish(version string) error {
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	req.Header.Set("Authorization", "token "+token)
 
-	var lastErr error
-	backoff := retryBase
-
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			time.Sleep(backoff)
-			backoff = time.Duration(math.Min(
-				float64(backoff)*2,
-				float64(retryBase*time.Duration(math.Pow(2, float64(maxRetries)))),
-			))
-		}
-
-		resp, doErr := p.HTTPClient.Do(req)
-		if doErr != nil {
-			lastErr = fmt.Errorf("pypi: request failed: %w", doErr)
-			continue
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		// Drain body to allow connection reuse.
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-
-		switch {
-		case resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated:
-			return nil
-		case resp.StatusCode == http.StatusTooManyRequests:
-			lastErr = fmt.Errorf("pypi: rate limited (HTTP %d)", resp.StatusCode)
-			continue
-		case resp.StatusCode == http.StatusUnauthorized:
-			return fmt.Errorf("pypi: authentication failed (HTTP %d): check PYPI_TOKEN", resp.StatusCode)
-		case resp.StatusCode == http.StatusForbidden:
-			return fmt.Errorf("pypi: forbidden (HTTP %d): insufficient permissions", resp.StatusCode)
-		case resp.StatusCode >= 500:
-			return fmt.Errorf("pypi: server error (HTTP %d)", resp.StatusCode)
-		default:
-			return fmt.Errorf("pypi: unexpected status (HTTP %d)", resp.StatusCode)
-		}
+	resp, err := p.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("pypi: %w", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 
-	return fmt.Errorf("pypi: publish failed after %d retries: %w", maxRetries, lastErr)
+	// Drain body to allow connection reuse.
+	_, _ = io.Copy(io.Discard, resp.Body)
+
+	return nil
 }
 
 // Verify checks that the given version has been published to PyPI.
@@ -208,7 +170,7 @@ func (p *Publisher) Verify(version string) error {
 		return fmt.Errorf("pypi: failed to create verify request: %w", err)
 	}
 
-	resp, err := p.HTTPClient.Do(req)
+	resp, err := p.Client.Do(req)
 	if err != nil {
 		return fmt.Errorf("pypi: verify request failed: %w", err)
 	}
