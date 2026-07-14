@@ -15,7 +15,7 @@ import (
 // Context holds CLI-level inputs for the release orchestrator.
 type Context struct {
 	Config  *algorithm.Config
-	Git     *git.Client
+	Git     git.GitAPI
 	Logger  *zap.Logger
 	DryRun  bool
 	Verbose bool
