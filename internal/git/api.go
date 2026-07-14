@@ -12,4 +12,11 @@ type GitAPI interface {
 	GetRepositoryURL() (string, error)
 	GetCurrentBranch() (string, error)
 	IsGitRepo() bool
+	StageChanges() error
+	HasChangesToCommit() (bool, error)
+	Commit(message string) error
+	CreateTag(tag, message string) error
+	Push(remote string) error
+	PushTags(remote string) error
+	DeleteTag(tag string) error
 }

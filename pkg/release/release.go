@@ -149,6 +149,9 @@ func (r *Release) Run() error {
 func (r *Release) runPluginLifecycle(ctx *algorithm.Context) error {
 	pluginNames := r.ctx.Config.Plugins
 
+	// Register GitPlugin with the GitAPI from the context
+	plugins.Register(plugins.NewGitPlugin(r.ctx.Git))
+
 	// Phase 1: VerifyConditions
 	for _, name := range pluginNames {
 		p, err := plugins.Get(name)
