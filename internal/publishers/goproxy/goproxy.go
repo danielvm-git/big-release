@@ -9,20 +9,14 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/danielvm-git/big-release/internal/publishers"
+	"github.com/danielvm-git/big-release/internal/publishers/httputil"
 )
 
 const (
 	// DefaultProxyURL is the default Go module mirror URL.
 	DefaultProxyURL = "https://proxy.golang.org"
-
-	// maxRetries is the maximum number of retry attempts on 429.
-	maxRetries = 3
-
-	// retryBase is the base backoff duration in seconds.
-	retryBase = 1 * time.Second
 
 	// maxResponseSize is the maximum response body size in bytes to read (1 MB).
 	maxResponseSize = 1 * 1024 * 1024
@@ -32,8 +26,8 @@ const (
 type Publisher struct {
 	// ProxyURL is the Go module proxy URL. Defaults to DefaultProxyURL.
 	ProxyURL string
-	// HTTPClient is the HTTP client used for API calls. Defaults to http.DefaultClient.
-	HTTPClient *http.Client
+	// Client is the retry HTTP client used for API calls.
+	Client *httputil.RetryClient
 	// DryRun, when true, skips actual exec and HTTP calls.
 	DryRun bool
 	// ExecCommand is the function used to run external commands. Defaults to exec.Command.
@@ -44,7 +38,7 @@ type Publisher struct {
 func NewPublisher() *Publisher {
 	return &Publisher{
 		ProxyURL:    DefaultProxyURL,
-		HTTPClient:  http.DefaultClient,
+		Client:      httputil.NewRetryClient(http.DefaultClient),
 		ExecCommand: exec.Command,
 	}
 }
@@ -112,44 +106,21 @@ func (p *Publisher) Publish(version string) error {
 	// Step 4: Poll proxy to confirm the version is available (with retry on 429).
 	verifyURL := fmt.Sprintf("%s/%s/@v/%s.info", proxyURL, modulePath, version)
 
-	var lastErr error
-	backoff := retryBase
-
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			time.Sleep(backoff)
-			backoff = time.Duration(float64(backoff) * 2)
-		}
-
-		req, reqErr := http.NewRequest(http.MethodGet, verifyURL, nil)
-		if reqErr != nil {
-			lastErr = fmt.Errorf("goproxy: failed to create verify request: %w", reqErr)
-			continue
-		}
-
-		resp, doErr := p.HTTPClient.Do(req)
-		if doErr != nil {
-			lastErr = fmt.Errorf("goproxy: verify request failed: %w", doErr)
-			continue
-		}
-
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-
-		switch {
-		case resp.StatusCode == http.StatusOK:
-			return nil
-		case resp.StatusCode == http.StatusTooManyRequests:
-			lastErr = fmt.Errorf("goproxy: rate limited (HTTP %d)", resp.StatusCode)
-			continue
-		case resp.StatusCode >= 500:
-			return fmt.Errorf("goproxy: server error (HTTP %d)", resp.StatusCode)
-		default:
-			return fmt.Errorf("goproxy: unexpected proxy status (HTTP %d)", resp.StatusCode)
-		}
+	req, err := http.NewRequest(http.MethodGet, verifyURL, nil)
+	if err != nil {
+		return fmt.Errorf("goproxy: failed to create verify request: %w", err)
 	}
 
-	return fmt.Errorf("goproxy: publish verification failed after %d retries: %w", maxRetries, lastErr)
+	resp, err := p.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("goproxy: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Drain body to allow connection reuse.
+	_, _ = io.Copy(io.Discard, resp.Body)
+
+	return nil
 }
 
 // Verify checks that the given version is available on the Go module proxy.
@@ -170,7 +141,7 @@ func (p *Publisher) Verify(version string) error {
 		return fmt.Errorf("goproxy: failed to create verify request: %w", err)
 	}
 
-	resp, err := p.HTTPClient.Do(req)
+	resp, err := p.Client.Do(req)
 	if err != nil {
 		return fmt.Errorf("goproxy: verify request failed: %w", err)
 	}
