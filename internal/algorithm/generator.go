@@ -22,6 +22,22 @@ func NewGenerator() *Generator {
 	return &Generator{}
 }
 
+// sectionOrder defines the display order for commit type sections.
+var sectionOrder = []struct {
+	key   string
+	title string
+}{
+	{"breaking", "BREAKING CHANGES"},
+	{"feat", "Features"},
+	{"fix", "Bug Fixes"},
+	{"perf", "Performance Improvements"},
+	{"docs", "Documentation"},
+	{"refactor", "Refactoring"},
+	{"chore", "Chores"},
+	{"style", "Style"},
+	{"test", "Tests"},
+}
+
 // GenerateNotes generates release notes from commits
 func (g *Generator) GenerateNotes(commits []*Commit, lastRelease *Release, nextRelease *Release) string {
 	if len(commits) == 0 {
@@ -33,34 +49,13 @@ func (g *Generator) GenerateNotes(commits []*Commit, lastRelease *Release, nextR
 	// Group commits by type
 	groups := g.groupCommits(commits)
 
-	// Generate sections
-	if len(groups["breaking"]) > 0 {
-		sb.WriteString("### ⚠ BREAKING CHANGES\n\n")
-		for _, commit := range groups["breaking"] {
-			fmt.Fprintf(&sb, "- %s\n", g.formatCommit(commit))
+	// Generate sections in deterministic order
+	for _, sec := range sectionOrder {
+		if len(groups[sec.key]) == 0 {
+			continue
 		}
-		sb.WriteString("\n")
-	}
-
-	if len(groups["feat"]) > 0 {
-		sb.WriteString("### Features\n\n")
-		for _, commit := range groups["feat"] {
-			fmt.Fprintf(&sb, "- %s\n", g.formatCommit(commit))
-		}
-		sb.WriteString("\n")
-	}
-
-	if len(groups["fix"]) > 0 {
-		sb.WriteString("### Bug Fixes\n\n")
-		for _, commit := range groups["fix"] {
-			fmt.Fprintf(&sb, "- %s\n", g.formatCommit(commit))
-		}
-		sb.WriteString("\n")
-	}
-
-	if len(groups["perf"]) > 0 {
-		sb.WriteString("### Performance Improvements\n\n")
-		for _, commit := range groups["perf"] {
+		fmt.Fprintf(&sb, "### %s\n\n", sec.title)
+		for _, commit := range groups[sec.key] {
 			fmt.Fprintf(&sb, "- %s\n", g.formatCommit(commit))
 		}
 		sb.WriteString("\n")
@@ -75,18 +70,16 @@ func (g *Generator) GenerateNotes(commits []*Commit, lastRelease *Release, nextR
 	return g.hideSensitive(sb.String())
 }
 
-// groupCommits groups commits by type
+// groupCommits groups commits by type. Breaking commits go into
+// the "breaking" bucket; non-breaking commits are grouped by their Type.
 func (g *Generator) groupCommits(commits []*Commit) map[string][]*Commit {
 	groups := make(map[string][]*Commit)
 
 	for _, commit := range commits {
-		// Check for breaking changes first
 		if commit.Breaking {
 			groups["breaking"] = append(groups["breaking"], commit)
 			continue
 		}
-
-		// Group by type
 		if commit.Type != "" {
 			groups[commit.Type] = append(groups[commit.Type], commit)
 		}
