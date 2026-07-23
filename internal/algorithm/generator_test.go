@@ -53,8 +53,8 @@ func TestGenerator_GenerateNotes_OrphanedRevertStillShown(t *testing.T) {
 
 	notes := g.GenerateNotes(commits, nil, nil)
 
-	if !strings.Contains(notes, "### Reverts") {
-		t.Errorf("orphaned revert must render under Reverts section:\n%s", notes)
+	if !strings.Contains(notes, "### Removed") {
+		t.Errorf("orphaned revert must render under Removed section:\n%s", notes)
 	}
 	if !strings.Contains(notes, "Revert something old") {
 		t.Errorf("orphaned revert subject must appear:\n%s", notes)
@@ -162,11 +162,11 @@ func TestGenerator_WithConfigurableCommitTypes_BreakingStillShownFromHiddenType(
 		{Type: "refactor", Subject: "rewrite core", Breaking: true, Body: "BREAKING CHANGE: everything"},
 	}
 	notes := g.GenerateNotes(commits, nil, nil)
-	if !strings.Contains(notes, "### BREAKING CHANGES") {
+	if !strings.Contains(notes, "### Changed") {
 		t.Errorf("breaking change from a hidden type must still appear:\n%s", notes)
 	}
 	if !strings.Contains(notes, "rewrite core") {
-		t.Errorf("breaking change subject must appear in BREAKING CHANGES:\n%s", notes)
+		t.Errorf("breaking change subject must appear in Changed:\n%s", notes)
 	}
 }
 
@@ -192,9 +192,24 @@ func TestNewGenerator_DefaultsToStandardCommitTypes(t *testing.T) {
 	}
 	notes := g.GenerateNotes(commits, nil, nil)
 	// All standard sections still render with default constructor.
-	for _, want := range []string{"### Features", "### Bug Fixes"} {
+	for _, want := range []string{"### Added", "### Fixed"} {
 		if !strings.Contains(notes, want) {
 			t.Errorf("default constructor missing %q:\n%s", want, notes)
+		}
+	}
+}
+
+// BUG-changelog-format: defaults map to Keep-a-Changelog 1.1.0 categories.
+func TestDefaultCommitTypes_KeepAChangelogSections(t *testing.T) {
+	want := map[string]string{
+		"feat":   "Added",
+		"fix":    "Fixed",
+		"perf":   "Changed",
+		"revert": "Removed",
+	}
+	for _, ct := range DefaultCommitTypes() {
+		if section, ok := want[ct.Type]; ok && ct.Section != section {
+			t.Errorf("type %q: section = %q, want %q", ct.Type, ct.Section, section)
 		}
 	}
 }
@@ -225,11 +240,11 @@ func TestGenerator_GenerateNotes_DefaultHidesNonReleaseTypes(t *testing.T) {
 
 	notes := g.GenerateNotes(commits, nil, nil)
 
-	// Visible sections + subjects.
+	// Visible sections + subjects (Keep-a-Changelog categories).
 	for _, want := range []string{
-		"### Features",
-		"### Bug Fixes",
-		"### Performance Improvements",
+		"### Added",
+		"### Fixed",
+		"### Changed",
 		"add login",
 		"fix crash",
 		"speed up queries",
@@ -267,8 +282,8 @@ func TestGenerator_GenerateNotes_BreakingChanges(t *testing.T) {
 
 	notes := g.GenerateNotes(commits, nil, nil)
 
-	if !strings.Contains(notes, "### BREAKING CHANGES") {
-		t.Errorf("missing BREAKING CHANGES section:\n%s", notes)
+	if !strings.Contains(notes, "### Changed") {
+		t.Errorf("missing Changed section:\n%s", notes)
 	}
 	if !strings.Contains(notes, "new API") {
 		t.Errorf("missing breaking commit subject:\n%s", notes)
@@ -284,25 +299,18 @@ func TestGenerator_GenerateNotes_BreakingCommitNotInTypeSection(t *testing.T) {
 
 	notes := g.GenerateNotes(commits, nil, nil)
 
-	// BREAKING CHANGES comes before Features in sectionOrder.
-	// The breaking commit should appear in BREAKING CHANGES, not Features.
-	featuresIdx := strings.Index(notes, "### Features")
-	if featuresIdx == -1 {
-		t.Fatalf("expected Features section:\n%s", notes)
+	addedIdx := strings.Index(notes, "### Added")
+	changedIdx := strings.Index(notes, "### Changed")
+	if addedIdx == -1 || changedIdx == -1 {
+		t.Fatalf("expected Added and Changed sections:\n%s", notes)
 	}
-	// Everything after Features header is the Features section (until end or next section)
-	featuresSection := notes[featuresIdx:]
-	if strings.Contains(featuresSection, "breaking feature") {
-		t.Errorf("breaking commit should not appear in Features section:\n%s", featuresSection)
+	addedSection := notes[addedIdx:changedIdx]
+	if strings.Contains(addedSection, "breaking feature") {
+		t.Errorf("breaking commit should not appear in Added section:\n%s", addedSection)
 	}
-	// Verify it IS in the BREAKING CHANGES section
-	breakingIdx := strings.Index(notes, "### BREAKING CHANGES")
-	if breakingIdx == -1 {
-		t.Fatalf("expected BREAKING CHANGES section:\n%s", notes)
-	}
-	breakingSection := notes[breakingIdx:featuresIdx]
-	if !strings.Contains(breakingSection, "breaking feature") {
-		t.Errorf("breaking commit should appear in BREAKING CHANGES section:\n%s", breakingSection)
+	changedSection := notes[changedIdx:]
+	if !strings.Contains(changedSection, "breaking feature") {
+		t.Errorf("breaking commit should appear in Changed section:\n%s", changedSection)
 	}
 }
 
@@ -382,13 +390,13 @@ func TestGenerator_SectionOrder(t *testing.T) {
 
 	notes := g.GenerateNotes(commits, nil, nil)
 
-	featIdx := strings.Index(notes, "### Features")
-	fixIdx := strings.Index(notes, "### Bug Fixes")
-	if featIdx == -1 || fixIdx == -1 {
+	addedIdx := strings.Index(notes, "### Added")
+	fixedIdx := strings.Index(notes, "### Fixed")
+	if addedIdx == -1 || fixedIdx == -1 {
 		t.Fatalf("expected both sections:\n%s", notes)
 	}
-	if featIdx > fixIdx {
-		t.Errorf("Features should come before Bug Fixes:\n%s", notes)
+	if addedIdx > fixedIdx {
+		t.Errorf("Added should come before Fixed:\n%s", notes)
 	}
 }
 
@@ -396,7 +404,7 @@ func TestGenerator_SectionOrder(t *testing.T) {
 
 func TestGenerator_GenerateNotes_BreakingFromHiddenTypeStillShown(t *testing.T) {
 	// refactor is hidden by default, but a breaking refactor must surface
-	// in BREAKING CHANGES per #7 acceptance criteria.
+	// in Changed per Keep-a-Changelog.
 	g := NewGenerator()
 	commits := []*Commit{
 		{Type: "refactor", Subject: "rewrite core", Breaking: true, Body: "BREAKING CHANGE: everything"},
@@ -404,11 +412,11 @@ func TestGenerator_GenerateNotes_BreakingFromHiddenTypeStillShown(t *testing.T) 
 
 	notes := g.GenerateNotes(commits, nil, nil)
 
-	if !strings.Contains(notes, "### BREAKING CHANGES") {
+	if !strings.Contains(notes, "### Changed") {
 		t.Errorf("breaking change from hidden type must still appear:\n%s", notes)
 	}
 	if !strings.Contains(notes, "rewrite core") {
-		t.Errorf("breaking change subject must appear in BREAKING CHANGES:\n%s", notes)
+		t.Errorf("breaking change subject must appear in Changed:\n%s", notes)
 	}
 	// The refactor section itself must NOT render (it is hidden).
 	if strings.Contains(notes, "### Refactoring") {

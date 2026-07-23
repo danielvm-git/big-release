@@ -1,4 +1,5 @@
 // story: e03s04
+// bug: BUG-changelog-format BUG-changelog-title
 package plugins
 
 import (
@@ -6,16 +7,35 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/danielvm-git/big-release/internal/algorithm"
 )
 
+// managedMarker separates the hand-edit surface (title, preamble, Unreleased)
+// from release-managed version sections below.
+const managedMarker = "<!-- big-release managed -->"
+
 // ChangelogPlugin generates CHANGELOG.md.
-type ChangelogPlugin struct{}
+type ChangelogPlugin struct {
+	title string // optional override from Configure; empty → use config/default
+}
 
 // NewChangelogPlugin creates a new ChangelogPlugin.
 func NewChangelogPlugin() *ChangelogPlugin {
 	return &ChangelogPlugin{}
+}
+
+// Configure decodes changelogTitle from PluginConfigs["changelog"].
+// Implements ConfigurablePlugin. Default remains "# Changelog".
+func (p *ChangelogPlugin) Configure(raw map[string]interface{}) error {
+	if len(raw) == 0 {
+		return nil
+	}
+	if t, ok := raw["changelogTitle"].(string); ok {
+		p.title = strings.TrimSpace(t)
+	}
+	return nil
 }
 
 // Name returns the plugin name.
@@ -57,42 +77,124 @@ func findContentStartIdx(lines []string) int {
 	return -1
 }
 
-func newFileChangelog() string {
-	return "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n"
+// findNextH2Index returns the byte offset of the next "## " line in s, or -1.
+func findNextH2Index(s string) int {
+	if strings.HasPrefix(s, "## ") {
+		return 0
+	}
+	idx := strings.Index(s, "\n## ")
+	if idx < 0 {
+		return -1
+	}
+	return idx + 1 // point at '#'
 }
 
-func mergeIntoExisting(sb *strings.Builder, existingContent string) {
-	lines := strings.Split(existingContent, "\n")
+func normalizeTitle(title string) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return "# Changelog"
+	}
+	if strings.HasPrefix(title, "#") {
+		return title
+	}
+	return "# " + title
+}
+
+func newFileChangelog(title string) string {
+	return normalizeTitle(title) + "\n\n" +
+		"All notable changes to this project will be documented in this file.\n\n" +
+		"The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),\n" +
+		"and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n" +
+		"## [Unreleased]\n\n" +
+		managedMarker + "\n"
+}
+
+func (p *ChangelogPlugin) changelogTitle(ctx *algorithm.ReadOnlyContext) string {
+	if p.title != "" {
+		return p.title
+	}
+	if ctx != nil && ctx.Config != nil && ctx.Config.ChangelogTitle != "" {
+		return ctx.Config.ChangelogTitle
+	}
+	return "Changelog"
+}
+
+func formatVersionHeader(version string, date time.Time) string {
+	return fmt.Sprintf("## [%s] - %s", version, date.Format("2006-01-02"))
+}
+
+func (p *ChangelogPlugin) wrapReleaseNotes(state *algorithm.MutableState, notes string) string {
+	if state.NextRelease == nil || state.NextRelease.Version == "" {
+		return notes
+	}
+	trimmed := strings.TrimSpace(notes)
+	if strings.HasPrefix(trimmed, "## [") {
+		return notes
+	}
+	header := formatVersionHeader(state.NextRelease.Version, time.Now().UTC())
+	if trimmed == "" {
+		return header
+	}
+	return header + "\n\n" + notes
+}
+
+// insertReleaseSection places a new version section after Unreleased / the
+// managed marker (or after the preamble for legacy files), preserving the
+// existing body including any Unreleased notes.
+func insertReleaseSection(existing, release, title string) string {
+	release = strings.TrimSpace(release)
+	if release == "" {
+		return existing
+	}
+
+	if i := strings.Index(existing, managedMarker); i >= 0 {
+		at := i + len(managedMarker)
+		pre := strings.TrimRight(existing[:at], "\n")
+		post := strings.TrimLeft(existing[at:], "\n")
+		if post == "" {
+			return pre + "\n\n" + release + "\n"
+		}
+		return pre + "\n\n" + release + "\n\n" + post
+	}
+
+	if i := strings.Index(existing, "## [Unreleased]"); i >= 0 {
+		restStart := i + len("## [Unreleased]")
+		rel := findNextH2Index(existing[restStart:])
+		if rel >= 0 {
+			insertAt := restStart + rel
+			pre := strings.TrimRight(existing[:insertAt], "\n")
+			post := strings.TrimLeft(existing[insertAt:], "\n")
+			return pre + "\n\n" + release + "\n\n" + post
+		}
+		return strings.TrimRight(existing, "\n") + "\n\n" + release + "\n"
+	}
+
+	lines := strings.Split(existing, "\n")
 	startIdx := findContentStartIdx(lines)
 	if startIdx > 0 {
-		sb.WriteString(strings.Join(lines[startIdx:], "\n"))
-		return
+		pre := strings.TrimRight(strings.Join(lines[:startIdx], "\n"), "\n")
+		post := strings.TrimLeft(strings.Join(lines[startIdx:], "\n"), "\n")
+		return pre + "\n\n" + release + "\n\n" + post
 	}
-	firstLine := ""
-	if len(lines) > 0 {
-		firstLine = lines[0]
+
+	if strings.HasPrefix(strings.TrimSpace(existing), "# ") {
+		return strings.TrimRight(existing, "\n") + "\n\n" + release + "\n"
 	}
-	if strings.HasPrefix(firstLine, "# ") {
-		sb.WriteString(existingContent)
-	} else {
-		sb.WriteString(newFileChangelog())
-		if firstLine != "" {
-			sb.WriteString(existingContent)
-		}
-	}
+	return newFileChangelog(title) + "\n" + release + "\n\n" + existing
 }
 
-func mergeChangelogContent(lastRelease string, existingContent string) string {
-	var sb strings.Builder
-	sb.WriteString(lastRelease)
-	sb.WriteString("\n\n")
-
+func mergeChangelogContent(lastRelease string, existingContent string, title string) string {
+	lastRelease = strings.TrimSpace(lastRelease)
 	if existingContent == "" {
-		sb.WriteString(newFileChangelog())
-		return sb.String()
+		if lastRelease == "" {
+			return newFileChangelog(title)
+		}
+		return newFileChangelog(title) + "\n" + lastRelease + "\n"
 	}
-	mergeIntoExisting(&sb, existingContent)
-	return sb.String()
+	if lastRelease == "" {
+		return existingContent
+	}
+	return insertReleaseSection(existingContent, lastRelease, title)
 }
 
 func (p *ChangelogPlugin) resolveNotes(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (string, error) {
@@ -125,11 +227,13 @@ func (p *ChangelogPlugin) Prepare(ctx *algorithm.ReadOnlyContext, state *algorit
 	if err != nil {
 		return fmt.Errorf("failed to generate release notes: %w", err)
 	}
+	notes = p.wrapReleaseNotes(state, notes)
+	title := p.changelogTitle(ctx)
 	existing, err := p.readChangelogFile()
 	if err != nil {
 		return err
 	}
-	merged := mergeChangelogContent(notes, existing)
+	merged := mergeChangelogContent(notes, existing, title)
 	trimmed := strings.TrimSpace(merged) + "\n"
 	if err := os.WriteFile("CHANGELOG.md", []byte(trimmed), 0644); err != nil {
 		return fmt.Errorf("failed to write CHANGELOG.md: %w", err)

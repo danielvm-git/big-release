@@ -51,22 +51,33 @@ type sectionEntry struct {
 	hidden bool
 }
 
-// breakingSection is the synthetic bucket for breaking changes from any
-// commit type. It always renders first and is never hidden.
-const breakingSection = "BREAKING CHANGES"
+// changedSection is the Keep-a-Changelog bucket for breaking changes and
+// performance improvements. It renders after Fixed and before Removed.
+const changedSection = "Changed"
 
 // sections derives the ordered, renderable section list from the
-// generator's commit types. The synthetic "breaking" section is always
-// prepended.
+// generator's commit types. Breaking changes and perf commits share the
+// synthetic "changed" section per Keep-a-Changelog 1.1.0.
 func (g *Generator) sections() []sectionEntry {
 	out := make([]sectionEntry, 0, len(g.commitTypes)+1)
-	out = append(out, sectionEntry{key: "breaking", title: breakingSection, hidden: false})
+	insertedChanged := false
 	for _, ct := range g.commitTypes {
+		if ct.Type == "perf" {
+			continue
+		}
 		out = append(out, sectionEntry{
 			key:    ct.Type,
 			title:  ct.Section,
 			hidden: ct.Hidden || ct.Section == "",
 		})
+		if ct.Type == "fix" {
+			out = append(out, sectionEntry{key: "changed", title: changedSection, hidden: false})
+			insertedChanged = true
+		}
+	}
+	if !insertedChanged {
+		// Ensure breaking/perf commits always have a renderable home.
+		out = append([]sectionEntry{{key: "changed", title: changedSection, hidden: false}}, out...)
 	}
 	return out
 }
@@ -78,7 +89,7 @@ func (g *Generator) GenerateNotes(commits []*Commit, lastRelease *Release, nextR
 	}
 
 	// Drop revert pairs (a revert and its matched target) from the notes.
-	// Orphaned reverts are retained and render under the Reverts section.
+	// Orphaned reverts are retained and render under the Removed section.
 	commits = filterReverted(commits)
 	if len(commits) == 0 {
 		return ""
@@ -124,21 +135,25 @@ func (g *Generator) writeComparison(sb *strings.Builder, lastTag, nextTag string
 	fmt.Fprintf(sb, "Full Changelog: comparing changes from %s to %s\n", lastTag, nextTag)
 }
 
-// groupCommits groups commits by type. Breaking commits go into the
-// "breaking" bucket regardless of hidden status; non-breaking commits
-// are grouped by their Type and skipped when their type is hidden.
+// groupCommits groups commits by type. Breaking commits and perf commits go
+// into the "changed" bucket regardless of hidden status; non-breaking
+// commits are grouped by their Type and skipped when their type is hidden.
 func (g *Generator) groupCommits(commits []*Commit) map[string][]*Commit {
 	groups := make(map[string][]*Commit)
 	hidden := make(map[string]bool)
-	for _, sec := range g.sections() {
-		if sec.hidden {
-			hidden[sec.key] = true
+	for _, ct := range g.commitTypes {
+		if ct.Hidden || ct.Section == "" {
+			hidden[ct.Type] = true
 		}
 	}
 
 	for _, commit := range commits {
 		if commit.Breaking {
-			groups["breaking"] = append(groups["breaking"], commit)
+			groups["changed"] = append(groups["changed"], commit)
+			continue
+		}
+		if commit.Type == "perf" && !hidden["perf"] {
+			groups["changed"] = append(groups["changed"], commit)
 			continue
 		}
 		if commit.Type != "" && !hidden[commit.Type] {
@@ -215,18 +230,17 @@ func (g *Generator) hideSensitive(text string) string {
 // DefaultCommitTypes returns the seed list of commit type configurations
 // used when the user has not configured commitTypes.
 //
-// Per #7 (parity with @semantic-release/conventional-changelog-conventionalcommits),
-// only release-relevant types are visible by default: feat, fix, perf,
-// revert. The remaining types (docs, refactor, chore, style, test, build,
-// ci) are hidden but still parsed — their commits are excluded from the
-// changelog unless they carry a breaking change, which always surfaces
-// in the BREAKING CHANGES section.
+// Per Keep-a-Changelog 1.1.0, only release-relevant types are visible by
+// default: feat→Added, fix→Fixed, perf→Changed, revert→Removed. The
+// remaining types (docs, refactor, chore, style, test, build, ci) are hidden
+// but still parsed — their commits are excluded from the changelog unless
+// they carry a breaking change, which surfaces in the Changed section.
 func DefaultCommitTypes() []CommitTypeConfig {
 	return []CommitTypeConfig{
-		{Type: "feat", Section: "Features"},
-		{Type: "fix", Section: "Bug Fixes"},
-		{Type: "perf", Section: "Performance Improvements"},
-		{Type: "revert", Section: "Reverts"},
+		{Type: "feat", Section: "Added"},
+		{Type: "fix", Section: "Fixed"},
+		{Type: "perf", Section: "Changed"},
+		{Type: "revert", Section: "Removed"},
 		{Type: "docs", Hidden: true},
 		{Type: "refactor", Hidden: true},
 		{Type: "build", Hidden: true},
