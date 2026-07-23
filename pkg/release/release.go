@@ -51,23 +51,38 @@ func (r *Release) detectCI() {
 	r.ctx.DryRun = true
 }
 
-// validateBranch checks that the current branch is in the configured release branches.
+// validateBranch checks that the current branch is in the configured
+// release branches. Matching supports both exact names and glob patterns
+// (e.g. "+([0-9]).x" matches "1.x", "2.x"). This enables maintenance
+// branch configurations without enumerating every versioned branch.
 func (r *Release) validateBranch(branchName string) error {
 	for _, bc := range r.ctx.Config.Branches {
-		if bc.Name == branchName {
+		if matchBranch(bc.Name, branchName) {
 			return nil
 		}
 	}
 	return fmt.Errorf("branch %q not in release branches, skipping", branchName)
 }
 
-// mapBranchConfig finds the BranchConfig matching branchName and maps it to an
-// algorithm.Branch, propagating Type, Channel, and Prerelease fields.
-// Returns a default Branch with only Name set if no config matches.
+// matchBranch reports whether a configured branch pattern matches the
+// actual branch name. It first tries an exact match (the common case and
+// the historical behavior), then falls back to extglob-style pattern
+// matching via matchBranchPattern.
+func matchBranch(pattern, branch string) bool {
+	if pattern == branch {
+		return true
+	}
+	return matchBranchPattern(pattern, branch)
+}
+
+// mapBranchConfig finds the BranchConfig matching branchName (via exact or
+// glob match) and maps it to an algorithm.Branch, propagating Type,
+// Channel, and Prerelease fields. Returns a default Branch with only Name
+// set if no config matches.
 func mapBranchConfig(branchName string, configs []algorithm.BranchConfig) *algorithm.Branch {
 	branch := &algorithm.Branch{Name: branchName}
 	for _, bc := range configs {
-		if bc.Name == branchName {
+		if matchBranch(bc.Name, branchName) {
 			if bc.Type != "" {
 				branch.Type = algorithm.BranchType(bc.Type)
 			}
@@ -220,6 +235,10 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 		if state.NextRelease == nil {
 			state.NextRelease = &algorithm.Release{}
 		}
+		// Propagate the branch channel so publishers can target the right
+		// distribution channel (e.g. npm dist-tag, prerelease line).
+		state.NextRelease.Channel = ctx.Branch.Channel
+		state.NextRelease.Branch = ctx.Branch.Name
 		if releaseType != "" {
 			state.NextRelease.Type = releaseType
 		}
