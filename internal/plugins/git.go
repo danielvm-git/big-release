@@ -1,9 +1,14 @@
-// story: e03s01
+// story: e03s01 e21s03 e21s04
 package plugins
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os/exec"
+	"path/filepath"
+	"strings"
+	"text/template"
 
 	"github.com/danielvm-git/big-release/internal/algorithm"
 	"github.com/danielvm-git/big-release/internal/git"
@@ -11,13 +16,36 @@ import (
 
 // GitPlugin commits changes and manages git tags for releases.
 type GitPlugin struct {
-	// Git is the git API implementation.
-	Git git.GitAPI
+	Git            git.GitAPI
+	commitMessage  string
+	commitAssets   []string
+	assetsExplicit bool
 }
 
 // NewGitPlugin creates a new GitPlugin.
 func NewGitPlugin(gitAPI git.GitAPI) *GitPlugin {
 	return &GitPlugin{Git: gitAPI}
+}
+
+// Configure decodes git plugin config from PluginConfigs["git"].
+func (p *GitPlugin) Configure(raw map[string]interface{}) error {
+	if len(raw) == 0 {
+		return nil
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return fmt.Errorf("git plugin: failed to re-marshal config: %w", err)
+	}
+	var cfg GitConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return fmt.Errorf("git plugin: invalid config: %w", err)
+	}
+	p.commitMessage = cfg.Message
+	if _, ok := raw["assets"]; ok {
+		p.assetsExplicit = true
+		p.commitAssets = cfg.Assets
+	}
+	return nil
 }
 
 // Name returns the plugin name.
@@ -51,25 +79,76 @@ func (p *GitPlugin) GenerateNotes(ctx *algorithm.ReadOnlyContext, state *algorit
 	return "", nil
 }
 
-func (p *GitPlugin) stageChanges() error {
-	return p.Git.StageChanges()
+func (p *GitPlugin) stageChanges(ctx *algorithm.ReadOnlyContext) error {
+	if !p.assetsExplicit {
+		return p.Git.StageChanges()
+	}
+
+	modified, err := p.Git.GetModifiedFiles()
+	if err != nil {
+		return err
+	}
+	paths := matchModifiedAssets(modified, p.commitAssets)
+	if len(paths) == 0 {
+		return nil
+	}
+	return p.Git.StagePaths(paths)
 }
 
 func (p *GitPlugin) hasChangesToCommit() (bool, error) {
 	return p.Git.HasChangesToCommit()
 }
 
-func (p *GitPlugin) commitRelease(version string) error {
-	msg := fmt.Sprintf("chore(release): %s [skip ci]\n\nRelease version %s", version, version)
+type gitTemplateContext struct {
+	Version     string
+	Branch      string
+	Notes       string
+	NextRelease *algorithm.Release
+	LastRelease *algorithm.Release
+}
+
+func (p *GitPlugin) buildCommitMessage(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (string, error) {
+	version := state.NextRelease.Version
+	fallback := fmt.Sprintf("chore(release): %s [skip ci]\n\nRelease version %s", version, version)
+	if p.commitMessage == "" {
+		return fallback, nil
+	}
+
+	tctx := gitTemplateContext{
+		Version:     version,
+		Notes:       state.NextRelease.Notes,
+		NextRelease: state.NextRelease,
+		LastRelease: state.LastRelease,
+	}
+	if ctx.Branch != nil {
+		tctx.Branch = ctx.Branch.Name
+	}
+
+	t, err := template.New("commit message").Parse(p.commitMessage)
+	if err != nil {
+		return "", fmt.Errorf("invalid commit message template: %w", err)
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, tctx); err != nil {
+		return "", fmt.Errorf("failed to render commit message template: %w", err)
+	}
+	return buf.String(), nil
+}
+
+func (p *GitPlugin) commitRelease(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
+	msg, err := p.buildCommitMessage(ctx, state)
+	if err != nil {
+		return err
+	}
 	return p.Git.Commit(msg)
 }
 
-// Prepare stages all changes and commits them with the release version.
+// Prepare stages configured changes and commits them with the release version.
 func (p *GitPlugin) Prepare(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	if ctx.DryRun {
 		return nil
 	}
-	if err := p.stageChanges(); err != nil {
+	if err := p.stageChanges(ctx); err != nil {
 		return err
 	}
 	hasChanges, err := p.hasChangesToCommit()
@@ -79,7 +158,7 @@ func (p *GitPlugin) Prepare(ctx *algorithm.ReadOnlyContext, state *algorithm.Mut
 	if !hasChanges {
 		return nil
 	}
-	return p.commitRelease(state.NextRelease.Version)
+	return p.commitRelease(ctx, state)
 }
 
 func (p *GitPlugin) createTag(version string) error {
@@ -120,4 +199,53 @@ func (p *GitPlugin) Success(ctx *algorithm.ReadOnlyContext, state *algorithm.Mut
 // Fail is called on release failure.
 func (p *GitPlugin) Fail(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState, err error) error {
 	return nil
+}
+
+// matchModifiedAssets returns modified paths matching any configured asset glob.
+func matchModifiedAssets(modified, patterns []string) []string {
+	if len(patterns) == 0 || len(modified) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, pattern := range patterns {
+		if pattern == "" {
+			continue
+		}
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			continue
+		}
+		candidates := matches
+		if len(matches) == 0 {
+			candidates = []string{pattern}
+		}
+		for _, mod := range modified {
+			for _, candidate := range candidates {
+				if pathMatchesAsset(mod, candidate, pattern) && !seen[mod] {
+					seen[mod] = true
+					out = append(out, mod)
+				}
+			}
+		}
+	}
+	return out
+}
+
+func pathMatchesAsset(modified, candidate, pattern string) bool {
+	if modified == candidate || modified == pattern {
+		return true
+	}
+	if strings.Contains(pattern, "*") {
+		matched, _ := filepath.Match(pattern, modified)
+		if matched {
+			return true
+		}
+		base := filepath.Base(pattern)
+		if strings.Contains(base, "*") {
+			matched, _ := filepath.Match(base, filepath.Base(modified))
+			return matched
+		}
+	}
+	return filepath.Base(modified) == filepath.Base(candidate)
 }

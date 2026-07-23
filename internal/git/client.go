@@ -271,6 +271,44 @@ func (c *Client) StageChanges() error {
 	return nil
 }
 
+// GetModifiedFiles returns paths with unstaged or staged modifications.
+func (c *Client) GetModifiedFiles() ([]string, error) {
+	cmd := exec.Command("git", "status", "--porcelain")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get modified files: %w", err)
+	}
+
+	var files []string
+	for _, line := range strings.Split(string(output), "\n") {
+		line = strings.TrimSpace(line)
+		if len(line) < 4 {
+			continue
+		}
+		path := strings.TrimSpace(line[3:])
+		if idx := strings.Index(path, " -> "); idx >= 0 {
+			path = path[idx+4:]
+		}
+		if path != "" {
+			files = append(files, path)
+		}
+	}
+	return files, nil
+}
+
+// StagePaths stages the given paths for commit.
+func (c *Client) StagePaths(paths []string) error {
+	if len(paths) == 0 {
+		return nil
+	}
+	args := append([]string{"add", "--"}, paths...)
+	cmd := exec.Command("git", args...)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to stage paths: %w", err)
+	}
+	return nil
+}
+
 // HasChangesToCommit checks if there are any changes to commit.
 func (c *Client) HasChangesToCommit() (bool, error) {
 	cmd := exec.Command("git", "status", "--porcelain")

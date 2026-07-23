@@ -13,6 +13,8 @@ type GitAPI interface {
 	GetCurrentBranch() (string, error)
 	IsGitRepo() bool
 	StageChanges() error
+	GetModifiedFiles() ([]string, error)
+	StagePaths(paths []string) error
 	HasChangesToCommit() (bool, error)
 	Commit(message string) error
 	CreateTag(tag, message string) error
