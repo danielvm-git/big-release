@@ -14,38 +14,38 @@ type Plugin interface {
 
 // ConditionVerifier verifies pre-release conditions.
 type ConditionVerifier interface {
-	VerifyConditions(ctx *algorithm.Context) error
+	VerifyConditions(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error
 }
 
 // CommitAnalyzer analyzes commits and returns a release type.
 type CommitAnalyzer interface {
-	AnalyzeCommits(ctx *algorithm.Context) (algorithm.ReleaseType, error)
+	AnalyzeCommits(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (algorithm.ReleaseType, error)
 }
 
 // ReleaseVerifier verifies the calculated release before proceeding.
 type ReleaseVerifier interface {
-	VerifyRelease(ctx *algorithm.Context) error
+	VerifyRelease(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error
 }
 
 // NotesGenerator generates release notes.
 type NotesGenerator interface {
-	GenerateNotes(ctx *algorithm.Context) (string, error)
+	GenerateNotes(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (string, error)
 }
 
 // Preparer prepares the release (stages changes, runs hooks, etc.).
 type Preparer interface {
-	Prepare(ctx *algorithm.Context) error
+	Prepare(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error
 }
 
 // Publisher publishes the release (creates tags, GitHub releases, etc.).
 type Publisher interface {
-	Publish(ctx *algorithm.Context) (*algorithm.Release, error)
+	Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (*algorithm.Release, error)
 }
 
 // LifecycleHook is called after success or on failure.
 type LifecycleHook interface {
-	Success(ctx *algorithm.Context) error
-	Fail(ctx *algorithm.Context, err error) error
+	Success(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error
+	Fail(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState, err error) error
 }
 
 // Registry manages plugins

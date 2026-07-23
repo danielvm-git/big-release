@@ -20,49 +20,49 @@ func TestExecPluginName(t *testing.T) {
 func TestExecPluginVerifyConditions(t *testing.T) {
 	t.Run("SC-e03s03-P1-02: VerifyConditions passes with valid config", func(t *testing.T) {
 		p := NewExecPlugin()
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{
 			Config: &algorithm.Config{
 				Publishers: map[string]algorithm.PublisherConfig{
 					"exec": {Enabled: true, Options: map[string]string{"commands": "echo hello"}},
 				},
 			},
 		}
-		if err := p.VerifyConditions(ctx); err != nil {
+		if err := p.VerifyConditions(ctx, &algorithm.MutableState{}); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 	})
 	t.Run("SC-e03s03-P1-03: VerifyConditions fails with nil config", func(t *testing.T) {
-		if err := NewExecPlugin().VerifyConditions(&algorithm.Context{}); err == nil {
+		if err := NewExecPlugin().VerifyConditions(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{}); err == nil {
 			t.Error("expected error with nil config, got nil")
 		}
 	})
 	t.Run("SC-e03s03-P1-04: VerifyConditions fails when exec publisher not configured", func(t *testing.T) {
-		ctx := &algorithm.Context{Config: &algorithm.Config{Publishers: map[string]algorithm.PublisherConfig{}}}
-		if err := NewExecPlugin().VerifyConditions(ctx); err == nil {
+		ctx := &algorithm.ReadOnlyContext{Config: &algorithm.Config{Publishers: map[string]algorithm.PublisherConfig{}}}
+		if err := NewExecPlugin().VerifyConditions(ctx, &algorithm.MutableState{}); err == nil {
 			t.Error("expected error when exec not configured, got nil")
 		}
 	})
 	t.Run("SC-e03s03-P1-05: VerifyConditions fails when exec publisher not enabled", func(t *testing.T) {
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{
 			Config: &algorithm.Config{
 				Publishers: map[string]algorithm.PublisherConfig{
 					"exec": {Enabled: false},
 				},
 			},
 		}
-		if err := NewExecPlugin().VerifyConditions(ctx); err == nil {
+		if err := NewExecPlugin().VerifyConditions(ctx, &algorithm.MutableState{}); err == nil {
 			t.Error("expected error when exec not enabled, got nil")
 		}
 	})
 	t.Run("SC-e03s03-P1-06: VerifyConditions fails with no commands", func(t *testing.T) {
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{
 			Config: &algorithm.Config{
 				Publishers: map[string]algorithm.PublisherConfig{
 					"exec": {Enabled: true, Options: map[string]string{}},
 				},
 			},
 		}
-		if err := NewExecPlugin().VerifyConditions(ctx); err == nil {
+		if err := NewExecPlugin().VerifyConditions(ctx, &algorithm.MutableState{}); err == nil {
 			t.Error("expected error with no commands, got nil")
 		}
 	})
@@ -71,13 +71,13 @@ func TestExecPluginVerifyConditions(t *testing.T) {
 func TestExecPluginNoop(t *testing.T) {
 	p := NewExecPlugin()
 	t.Run("SC-e03s03-P1-07: AnalyzeCommits returns empty", func(t *testing.T) {
-		rt, err := p.AnalyzeCommits(&algorithm.Context{})
+		rt, err := p.AnalyzeCommits(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{})
 		if err != nil || rt != "" {
 			t.Errorf("expected empty, got err=%v rt=%q", err, rt)
 		}
 	})
 	t.Run("SC-e03s03-P1-08: GenerateNotes returns empty", func(t *testing.T) {
-		notes, err := p.GenerateNotes(&algorithm.Context{})
+		notes, err := p.GenerateNotes(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{})
 		if err != nil || notes != "" {
 			t.Errorf("expected empty, got err=%v notes=%q", err, notes)
 		}
@@ -86,7 +86,7 @@ func TestExecPluginNoop(t *testing.T) {
 
 func TestExecPluginPrepare(t *testing.T) {
 	t.Run("SC-e03s03-P1-09: Prepare does nothing in dry-run mode", func(t *testing.T) {
-		if err := NewExecPlugin().Prepare(&algorithm.Context{DryRun: true}); err != nil {
+		if err := NewExecPlugin().Prepare(&algorithm.ReadOnlyContext{DryRun: true}, &algorithm.MutableState{}); err != nil {
 			t.Errorf("expected no error in dry-run, got: %v", err)
 		}
 	})
@@ -98,14 +98,14 @@ func TestExecPluginPrepare(t *testing.T) {
 				return "output", nil
 			},
 		}}
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{
 			Config: &algorithm.Config{
 				Publishers: map[string]algorithm.PublisherConfig{
 					"exec": {Options: map[string]string{"commands": "echo hello\nmake build"}},
 				},
 			},
 		}
-		if err := p.Prepare(ctx); err != nil {
+		if err := p.Prepare(ctx, &algorithm.MutableState{}); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 		if len(executedCommands) != 2 {
@@ -125,7 +125,7 @@ func TestExecPluginPrepare(t *testing.T) {
 				"exec": {Options: map[string]string{"commands": "# comment\n\necho hello\n\nmake build"}},
 			},
 		}
-		if err := p.Prepare(&algorithm.Context{Config: ctx}); err != nil {
+		if err := p.Prepare(&algorithm.ReadOnlyContext{Config: ctx}, &algorithm.MutableState{}); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 		if len(executedCommands) != 2 {
@@ -138,14 +138,14 @@ func TestExecPluginPrepare(t *testing.T) {
 				return "", fmt.Errorf("command failed")
 			},
 		}}
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{
 			Config: &algorithm.Config{
 				Publishers: map[string]algorithm.PublisherConfig{
 					"exec": {Options: map[string]string{"commands": "false"}},
 				},
 			},
 		}
-		if err := p.Prepare(ctx); err == nil {
+		if err := p.Prepare(ctx, &algorithm.MutableState{}); err == nil {
 			t.Error("expected error on command failure, got nil")
 		}
 	})
@@ -159,14 +159,14 @@ func TestExecPluginPrepare(t *testing.T) {
 				return "output", nil
 			},
 		}}
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{
 			Config: &algorithm.Config{
 				Publishers: map[string]algorithm.PublisherConfig{
 					"exec": {Options: map[string]string{"commands": "echo hello world"}},
 				},
 			},
 		}
-		if err := p.Prepare(ctx); err != nil {
+		if err := p.Prepare(ctx, &algorithm.MutableState{}); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 		if capturedName != "echo" {
@@ -184,7 +184,7 @@ func TestExecPluginPrepare(t *testing.T) {
 				return "output", nil
 			},
 		}}
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{
 			Config: &algorithm.Config{
 				Publishers: map[string]algorithm.PublisherConfig{
 					"exec": {Options: map[string]string{
@@ -193,7 +193,7 @@ func TestExecPluginPrepare(t *testing.T) {
 				},
 			},
 		}
-		if err := p.Prepare(ctx); err != nil {
+		if err := p.Prepare(ctx, &algorithm.MutableState{}); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 		if len(capturedArgs) != 3 {
@@ -214,18 +214,18 @@ func TestExecPluginPrepare(t *testing.T) {
 func TestExecPluginLifecycle(t *testing.T) {
 	p := NewExecPlugin()
 	t.Run("SC-e03s03-P1-14: Publish returns nil", func(t *testing.T) {
-		release, err := p.Publish(&algorithm.Context{})
+		release, err := p.Publish(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{})
 		if err != nil || release != nil {
 			t.Errorf("expected nil, got err=%v release=%v", err, release)
 		}
 	})
 	t.Run("SC-e03s03-P1-15: Success returns nil", func(t *testing.T) {
-		if err := p.Success(&algorithm.Context{}); err != nil {
+		if err := p.Success(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{}); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 	})
 	t.Run("SC-e03s03-P1-16: Fail returns nil", func(t *testing.T) {
-		if err := p.Fail(&algorithm.Context{}, nil); err != nil {
+		if err := p.Fail(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{}, nil); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 	})

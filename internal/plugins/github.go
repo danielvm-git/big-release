@@ -37,7 +37,7 @@ func (p *GitHubPlugin) Name() string {
 }
 
 // VerifyConditions checks that required environment variables are set.
-func (p *GitHubPlugin) VerifyConditions(ctx *algorithm.Context) error {
+func (p *GitHubPlugin) VerifyConditions(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	// Skip credential checks in dry-run mode — we won't be publishing.
 	if ctx.DryRun {
 		return nil
@@ -57,22 +57,22 @@ func (p *GitHubPlugin) VerifyConditions(ctx *algorithm.Context) error {
 }
 
 // AnalyzeCommits is not applicable for the GitHub plugin.
-func (p *GitHubPlugin) AnalyzeCommits(ctx *algorithm.Context) (algorithm.ReleaseType, error) {
+func (p *GitHubPlugin) AnalyzeCommits(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (algorithm.ReleaseType, error) {
 	return "", nil
 }
 
 // VerifyRelease is not applicable for the GitHub plugin.
-func (p *GitHubPlugin) VerifyRelease(ctx *algorithm.Context) error {
+func (p *GitHubPlugin) VerifyRelease(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	return nil
 }
 
 // GenerateNotes is not applicable for the GitHub plugin.
-func (p *GitHubPlugin) GenerateNotes(ctx *algorithm.Context) (string, error) {
+func (p *GitHubPlugin) GenerateNotes(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (string, error) {
 	return "", nil
 }
 
 // Prepare is not applicable for the GitHub plugin.
-func (p *GitHubPlugin) Prepare(ctx *algorithm.Context) error {
+func (p *GitHubPlugin) Prepare(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	return nil
 }
 
@@ -149,28 +149,28 @@ func (p *GitHubPlugin) sendReleaseRequest(payload []byte, repo, version string) 
 }
 
 // Publish creates a GitHub release via the API.
-func (p *GitHubPlugin) Publish(ctx *algorithm.Context) (*algorithm.Release, error) {
+func (p *GitHubPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (*algorithm.Release, error) {
 	if ctx.DryRun {
 		return nil, nil
 	}
-	payload, err := p.buildReleasePayload(ctx.NextRelease.Version, ctx.NextRelease.Notes, string(ctx.NextRelease.Type))
+	payload, err := p.buildReleasePayload(state.NextRelease.Version, state.NextRelease.Notes, string(state.NextRelease.Type))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal release body: %w", err)
 	}
 	repo := os.Getenv("GITHUB_REPOSITORY")
-	if err := p.sendReleaseRequest(payload, repo, ctx.NextRelease.Version); err != nil {
+	if err := p.sendReleaseRequest(payload, repo, state.NextRelease.Version); err != nil {
 		return nil, err
 	}
 	return nil, nil
 }
 
 // Success is called after a successful release.
-func (p *GitHubPlugin) Success(ctx *algorithm.Context) error {
+func (p *GitHubPlugin) Success(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	return nil
 }
 
 // Fail is called on release failure.
-func (p *GitHubPlugin) Fail(ctx *algorithm.Context, err error) error {
+func (p *GitHubPlugin) Fail(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState, err error) error {
 	return nil
 }
 

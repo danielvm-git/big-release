@@ -37,7 +37,7 @@ func TestGitHubPluginVerifyConditions(t *testing.T) {
 		defer unsetEnv(t, "GITHUB_REPOSITORY")
 
 		p := NewGitHubPlugin()
-		if err := p.VerifyConditions(&algorithm.Context{}); err != nil {
+		if err := p.VerifyConditions(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{}); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 	})
@@ -48,7 +48,7 @@ func TestGitHubPluginVerifyConditions(t *testing.T) {
 		defer unsetEnv(t, "GITHUB_REPOSITORY")
 
 		p := NewGitHubPlugin()
-		if err := p.VerifyConditions(&algorithm.Context{}); err == nil {
+		if err := p.VerifyConditions(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{}); err == nil {
 			t.Error("expected error with missing GITHUB_TOKEN, got nil")
 		}
 	})
@@ -59,7 +59,7 @@ func TestGitHubPluginVerifyConditions(t *testing.T) {
 		defer unsetEnv(t, "GITHUB_TOKEN")
 
 		p := NewGitHubPlugin()
-		if err := p.VerifyConditions(&algorithm.Context{}); err == nil {
+		if err := p.VerifyConditions(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{}); err == nil {
 			t.Error("expected error with missing GITHUB_REPOSITORY, got nil")
 		}
 	})
@@ -71,7 +71,7 @@ func TestGitHubPluginVerifyConditions(t *testing.T) {
 		defer unsetEnv(t, "GITHUB_REPOSITORY")
 
 		p := NewGitHubPlugin()
-		if err := p.VerifyConditions(&algorithm.Context{}); err == nil {
+		if err := p.VerifyConditions(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{}); err == nil {
 			t.Error("expected error with invalid repo format, got nil")
 		}
 	})
@@ -80,7 +80,7 @@ func TestGitHubPluginVerifyConditions(t *testing.T) {
 func TestGitHubPluginAnalyzeCommits(t *testing.T) {
 	t.Run("SC-e03s02-P1-06: AnalyzeCommits returns empty release type", func(t *testing.T) {
 		p := NewGitHubPlugin()
-		rt, err := p.AnalyzeCommits(&algorithm.Context{})
+		rt, err := p.AnalyzeCommits(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{})
 		if err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
@@ -93,7 +93,7 @@ func TestGitHubPluginAnalyzeCommits(t *testing.T) {
 func TestGitHubPluginGenerateNotes(t *testing.T) {
 	t.Run("SC-e03s02-P1-07: GenerateNotes returns empty string", func(t *testing.T) {
 		p := NewGitHubPlugin()
-		notes, err := p.GenerateNotes(&algorithm.Context{})
+		notes, err := p.GenerateNotes(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{})
 		if err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
@@ -106,7 +106,7 @@ func TestGitHubPluginGenerateNotes(t *testing.T) {
 func TestGitHubPluginPrepare(t *testing.T) {
 	t.Run("SC-e03s02-P1-08: Prepare returns nil", func(t *testing.T) {
 		p := NewGitHubPlugin()
-		if err := p.Prepare(&algorithm.Context{}); err != nil {
+		if err := p.Prepare(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{}); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 	})
@@ -120,11 +120,13 @@ func TestGitHubPluginPublish(t *testing.T) {
 		defer unsetEnv(t, "GITHUB_REPOSITORY")
 
 		p := NewGitHubPlugin()
-		ctx := &algorithm.Context{
-			NextRelease: &algorithm.Release{Version: "1.0.0"},
-			DryRun:      true,
+		ctx := &algorithm.ReadOnlyContext{
+			DryRun: true,
 		}
-		release, err := p.Publish(ctx)
+		state := &algorithm.MutableState{
+			NextRelease: &algorithm.Release{Version: "1.0.0"},
+		}
+		release, err := p.Publish(ctx, state)
 		if err != nil {
 			t.Errorf("expected no error in dry-run, got: %v", err)
 		}
@@ -155,16 +157,18 @@ func TestGitHubPluginPublish(t *testing.T) {
 		p.client = server.Client()
 		p.apiBaseURL = server.URL
 
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{
+			DryRun: false,
+		}
+		state := &algorithm.MutableState{
 			NextRelease: &algorithm.Release{
 				Version: "1.0.0",
 				Type:    algorithm.ReleaseTypePatch,
 				Notes:   "Release notes",
 			},
-			DryRun: false,
 		}
 
-		_, err := p.Publish(ctx)
+		_, err := p.Publish(ctx, state)
 		if err != nil {
 			t.Errorf("expected no error on 201, got: %v", err)
 		}
@@ -186,12 +190,14 @@ func TestGitHubPluginPublish(t *testing.T) {
 		p.client = server.Client()
 		p.apiBaseURL = server.URL
 
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{
+			DryRun: false,
+		}
+		state := &algorithm.MutableState{
 			NextRelease: &algorithm.Release{Version: "1.0.0"},
-			DryRun:      false,
 		}
 
-		_, err := p.Publish(ctx)
+		_, err := p.Publish(ctx, state)
 		if err == nil {
 			t.Fatal("expected error on 401, got nil")
 		}
@@ -213,12 +219,14 @@ func TestGitHubPluginPublish(t *testing.T) {
 		p.client = server.Client()
 		p.apiBaseURL = server.URL
 
-		ctx := &algorithm.Context{
+		ctx := &algorithm.ReadOnlyContext{
+			DryRun: false,
+		}
+		state := &algorithm.MutableState{
 			NextRelease: &algorithm.Release{Version: "1.0.0"},
-			DryRun:      false,
 		}
 
-		_, err := p.Publish(ctx)
+		_, err := p.Publish(ctx, state)
 		if err == nil {
 			t.Fatal("expected error on 422, got nil")
 		}
@@ -228,7 +236,7 @@ func TestGitHubPluginPublish(t *testing.T) {
 func TestGitHubPluginSuccess(t *testing.T) {
 	t.Run("SC-e03s02-P1-13: Success returns nil", func(t *testing.T) {
 		p := NewGitHubPlugin()
-		if err := p.Success(&algorithm.Context{}); err != nil {
+		if err := p.Success(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{}); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 	})
@@ -237,7 +245,7 @@ func TestGitHubPluginSuccess(t *testing.T) {
 func TestGitHubPluginFail(t *testing.T) {
 	t.Run("SC-e03s02-P1-14: Fail returns nil", func(t *testing.T) {
 		p := NewGitHubPlugin()
-		if err := p.Fail(&algorithm.Context{}, nil); err != nil {
+		if err := p.Fail(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{}, nil); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 	})
