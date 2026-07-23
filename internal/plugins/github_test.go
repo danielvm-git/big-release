@@ -627,7 +627,7 @@ func TestGitHubPluginPublish_CustomBodyTemplate(t *testing.T) {
 		Branch: &algorithm.Branch{Name: "main"},
 	}
 	state := &algorithm.MutableState{
-		NextRelease: &algorithm.Release{Version: "1.5.0", Type: algorithm.ReleaseTypeMinor, Notes: "### Features\n- new thing"},
+		NextRelease: &algorithm.Release{Version: "1.5.0", Type: algorithm.ReleaseTypeMinor, Notes: "### Added\n- new thing"},
 	}
 
 	if _, err := p.Publish(ctx, state); err != nil {
@@ -637,7 +637,7 @@ func TestGitHubPluginPublish_CustomBodyTemplate(t *testing.T) {
 	if !strings.Contains(bodyStr, `Shipped 1.5.0 on branch main`) {
 		t.Errorf("expected templated body with version+branch, got: %s", bodyStr)
 	}
-	if !strings.Contains(bodyStr, `### Features`) {
+	if !strings.Contains(bodyStr, `### Added`) {
 		t.Errorf("expected notes interpolated into body, got: %s", bodyStr)
 	}
 }

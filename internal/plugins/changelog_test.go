@@ -44,7 +44,7 @@ func TestChangelogPluginGenerateNotes(t *testing.T) {
 		}
 	})
 	t.Run("delegates to ctx.NextRelease.Notes", func(t *testing.T) {
-		expectedNotes := "## 2.0.0\n\n### Features\n\n- feat: add login"
+		expectedNotes := "## [2.0.0] - 2024-01-15\n\n### Added\n\n- feat: add login"
 		notes, err := p.GenerateNotes(&algorithm.ReadOnlyContext{
 			Commits: []*algorithm.Commit{
 				{Type: "feat", Subject: "add login"},
@@ -87,31 +87,54 @@ func TestChangelogPluginPrepare(t *testing.T) {
 		defer chdirTempDir(t)()
 		ctx := &algorithm.ReadOnlyContext{}
 		state := &algorithm.MutableState{
-			NextRelease: &algorithm.Release{Version: "1.0.0", Notes: "## 1.0.0 (2024-01-15)\n\n### Features\n\n- feat: initial release\n"},
+			NextRelease: &algorithm.Release{Version: "1.0.0", Notes: "### Added\n\n- feat: initial release\n"},
 		}
 		if err := p.Prepare(ctx, state); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		data, _ := os.ReadFile("CHANGELOG.md")
 		content := string(data)
-		if !strings.Contains(content, "1.0.0") || !strings.Contains(content, "# Changelog") {
-			t.Errorf("expected version and title in changelog, got: %s", content)
+		for _, want := range []string{
+			"# Changelog",
+			"keepachangelog.com/en/1.1.0",
+			"## [Unreleased]",
+			"<!-- big-release managed -->",
+			"## [1.0.0] - ",
+			"### Added",
+		} {
+			if !strings.Contains(content, want) {
+				t.Errorf("expected %q in Keep-a-Changelog file, got:\n%s", want, content)
+			}
+		}
+		// Title and Unreleased must precede the version section.
+		if strings.Index(content, "# Changelog") > strings.Index(content, "## [1.0.0]") {
+			t.Errorf("title must precede version section:\n%s", content)
+		}
+		if strings.Index(content, "## [Unreleased]") > strings.Index(content, "## [1.0.0]") {
+			t.Errorf("Unreleased must precede version section:\n%s", content)
 		}
 	})
 	t.Run("SC-e03s04-P1-12: appends to existing CHANGELOG.md", func(t *testing.T) {
 		defer chdirTempDir(t)()
-		_ = os.WriteFile("CHANGELOG.md", []byte("# Changelog\n\nAll notable changes.\n\n## 0.9.0 (2024-01-01)\n\n### Features\n\n- feat: initial\n"), 0644)
+		_ = os.WriteFile("CHANGELOG.md", []byte("# Changelog\n\nAll notable changes.\n\n## [Unreleased]\n\n- WIP note\n\n<!-- big-release managed -->\n\n## [0.9.0] - 2024-01-01\n\n### Added\n\n- feat: initial\n"), 0644)
 		ctx := &algorithm.ReadOnlyContext{}
 		state := &algorithm.MutableState{
-			NextRelease: &algorithm.Release{Version: "1.0.0", Notes: "## 1.0.0 (2024-06-15)\n\n### Features\n\n- feat: major release\n"},
+			NextRelease: &algorithm.Release{Version: "1.0.0", Notes: "### Added\n\n- feat: major release\n"},
 		}
 		if err := p.Prepare(ctx, state); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		data, _ := os.ReadFile("CHANGELOG.md")
 		content := string(data)
-		if !strings.Contains(content, "1.0.0") || !strings.Contains(content, "0.9.0") {
+		if !strings.Contains(content, "[1.0.0]") || !strings.Contains(content, "[0.9.0]") {
 			t.Errorf("expected both versions in changelog, got: %s", content)
+		}
+		if !strings.Contains(content, "## [Unreleased]") || !strings.Contains(content, "- WIP note") {
+			t.Errorf("expected Unreleased section preserved, got: %s", content)
+		}
+		// New release inserts above the previous version.
+		if strings.Index(content, "[1.0.0]") > strings.Index(content, "[0.9.0]") {
+			t.Errorf("new version must appear before older version:\n%s", content)
 		}
 	})
 	t.Run("SC-e03s04-P1-13: uses pre-computed notes from orchestrator", func(t *testing.T) {
@@ -120,7 +143,7 @@ func TestChangelogPluginPrepare(t *testing.T) {
 		state := &algorithm.MutableState{
 			NextRelease: &algorithm.Release{
 				Version: "1.0.0",
-				Notes:   "## 1.0.0\n\n### Features\n\n- feat: new feature",
+				Notes:   "### Added\n\n- feat: new feature",
 			},
 		}
 		if err := p.Prepare(ctx, state); err != nil {
@@ -128,8 +151,43 @@ func TestChangelogPluginPrepare(t *testing.T) {
 		}
 		data, _ := os.ReadFile("CHANGELOG.md")
 		content := string(data)
-		if !strings.Contains(content, "1.0.0") || !strings.Contains(content, "new feature") {
-			t.Errorf("expected version and commit in changelog, got: %s", content)
+		if !strings.Contains(content, "[1.0.0]") || !strings.Contains(content, "new feature") {
+			t.Errorf("expected version header and commit in changelog, got: %s", content)
+		}
+	})
+	t.Run("BUG-changelog-title: custom changelogTitle in config", func(t *testing.T) {
+		defer chdirTempDir(t)()
+		ctx := &algorithm.ReadOnlyContext{
+			Config: &algorithm.Config{ChangelogTitle: "Release History"},
+		}
+		state := &algorithm.MutableState{
+			NextRelease: &algorithm.Release{Version: "2.0.0", Notes: "### Added\n\n- feat: item\n"},
+		}
+		if err := p.Prepare(ctx, state); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := os.ReadFile("CHANGELOG.md")
+		content := string(data)
+		if !strings.Contains(content, "# Release History") {
+			t.Errorf("expected custom title, got: %s", content)
+		}
+	})
+	t.Run("BUG-changelog-title: Configure changelogTitle overrides default", func(t *testing.T) {
+		defer chdirTempDir(t)()
+		plugin := NewChangelogPlugin()
+		if err := plugin.Configure(map[string]interface{}{"changelogTitle": "My Changes"}); err != nil {
+			t.Fatalf("Configure: %v", err)
+		}
+		state := &algorithm.MutableState{
+			NextRelease: &algorithm.Release{Version: "1.0.0", Notes: "### Fixed\n\n- fix: bug\n"},
+		}
+		if err := plugin.Prepare(&algorithm.ReadOnlyContext{}, state); err != nil {
+			t.Fatalf("Prepare: %v", err)
+		}
+		data, _ := os.ReadFile("CHANGELOG.md")
+		content := string(data)
+		if !strings.Contains(content, "# My Changes") {
+			t.Errorf("expected Configure title, got: %s", content)
 		}
 	})
 }

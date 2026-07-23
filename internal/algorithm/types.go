@@ -80,6 +80,7 @@ type Config struct {
 	CommitTypes    []CommitTypeConfig                `yaml:"commitTypes,omitempty" json:"commitTypes,omitempty"`
 	PluginConfigs  map[string]map[string]interface{} `yaml:"pluginConfigs,omitempty" json:"pluginConfigs,omitempty"`
 	InitialVersion string                            `yaml:"initialVersion,omitempty" json:"initialVersion,omitempty"`
+	ChangelogTitle string                            `yaml:"changelogTitle,omitempty" json:"changelogTitle,omitempty"`
 }
 
 // CommitTypeConfig configures how a single conventional commit type is
