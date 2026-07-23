@@ -77,7 +77,18 @@ type Config struct {
 	TagFormat      string                     `yaml:"tagFormat" json:"tagFormat"`
 	Plugins        []string                   `yaml:"plugins" json:"plugins"`
 	Publishers     map[string]PublisherConfig `yaml:"publishers" json:"publishers"`
+	CommitTypes    []CommitTypeConfig         `yaml:"commitTypes,omitempty" json:"commitTypes,omitempty"`
 	InitialVersion string                     `yaml:"initialVersion,omitempty" json:"initialVersion,omitempty"`
+}
+
+// CommitTypeConfig configures how a single conventional commit type is
+// rendered (and whether it is rendered at all) in release notes. Hidden
+// types are excluded from the changelog unless their commit carries a
+// breaking change.
+type CommitTypeConfig struct {
+	Type    string `yaml:"type" json:"type"`
+	Section string `yaml:"section,omitempty" json:"section,omitempty"` // display title; empty = hidden
+	Hidden  bool   `yaml:"hidden,omitempty" json:"hidden,omitempty"`
 }
 
 // BranchConfig represents branch configuration
