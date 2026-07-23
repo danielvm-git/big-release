@@ -13,10 +13,11 @@ var (
 		regexp.MustCompile(`(?i)(token|password|credential|secret|private)=\S+`),
 	}
 
-	// issueRefPattern matches bare or keyword-prefixed issue references:
+	// IssueRefPattern matches bare or keyword-prefixed issue references:
 	//   #123, fixes #123, closes #123, resolves #123
 	// Captures the keyword prefix (group 1) and the issue number (group 2).
-	issueRefPattern = regexp.MustCompile(`(?i)(fixes|closes|resolves)?\s*#(\d+)`)
+	// Exported so plugins (e.g. github) can reuse without duplication.
+	IssueRefPattern = regexp.MustCompile(`(?i)(fixes|closes|resolves)?\s*#(\d+)`)
 )
 
 // Generator generates release notes.
@@ -191,8 +192,8 @@ func (g *Generator) linkifyIssues(text string) string {
 	if g.repoURL == "" {
 		return text
 	}
-	return issueRefPattern.ReplaceAllStringFunc(text, func(match string) string {
-		sub := issueRefPattern.FindStringSubmatch(match)
+	return IssueRefPattern.ReplaceAllStringFunc(text, func(match string) string {
+		sub := IssueRefPattern.FindStringSubmatch(match)
 		keyword := strings.TrimSpace(sub[1])
 		num := sub[2]
 		if keyword != "" {
