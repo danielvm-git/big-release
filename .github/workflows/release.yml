@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v5
         with:
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v5
         with:
@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -111,7 +111,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: true
@@ -132,9 +132,13 @@ jobs:
             echo "No tag on this commit, skipping release."
           fi
 
-      - name: Build
+      - name: Build host binary
         if: steps.check-tag.outputs.tag_exists == 'true'
         run: make build
+
+      - name: Cross-compile release assets
+        if: steps.check-tag.outputs.tag_exists == 'true'
+        run: make release
 
       - name: Install big-release
         if: steps.check-tag.outputs.tag_exists == 'true'
@@ -155,6 +159,10 @@ jobs:
         if: steps.check-tag.outputs.tag_exists == 'true'
         uses: softprops/action-gh-release@v1
         with:
-          files: bin/big-release-*
+          files: |
+            bin/big-release-linux-amd64
+            bin/big-release-darwin-amd64
+            bin/big-release-darwin-arm64
+            bin/big-release-windows-amd64.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
