@@ -279,6 +279,10 @@ func TestVerifyRelease_Error(t *testing.T) {
 
 func TestBranchValidation(t *testing.T) {
 	// When the current branch is not in Config.Branches, Run() should return a skip error.
+	t.Setenv("GITHUB_EVENT_NAME", "")
+	t.Setenv("CI_MERGE_REQUEST_ID", "")
+	t.Setenv("BUILD_REASON", "")
+
 	gitClient, err := git.NewClient()
 	if err != nil {
 		t.Skipf("skipping: cannot create git client: %v", err)
@@ -354,6 +358,71 @@ func TestCIDetection(t *testing.T) {
 	r.detectCI()
 	if !r.ctx.DryRun {
 		t.Error("expected DryRun to be auto-enabled when no CI env vars are set")
+	}
+}
+
+func TestDetectPR_GitHubActions(t *testing.T) {
+	t.Setenv("GITHUB_EVENT_NAME", "pull_request")
+	t.Setenv("CI_MERGE_REQUEST_ID", "")
+	t.Setenv("BUILD_REASON", "")
+
+	r := New(&Context{Logger: zap.NewNop()})
+	if !r.detectPR() {
+		t.Error("expected detectPR() true when GITHUB_EVENT_NAME=pull_request")
+	}
+}
+
+func TestDetectPR_GitLab(t *testing.T) {
+	t.Setenv("GITHUB_EVENT_NAME", "")
+	t.Setenv("CI_MERGE_REQUEST_ID", "42")
+	t.Setenv("BUILD_REASON", "")
+
+	r := New(&Context{Logger: zap.NewNop()})
+	if !r.detectPR() {
+		t.Error("expected detectPR() true when CI_MERGE_REQUEST_ID is set")
+	}
+}
+
+func TestDetectPR_AzureDevOps(t *testing.T) {
+	t.Setenv("GITHUB_EVENT_NAME", "")
+	t.Setenv("CI_MERGE_REQUEST_ID", "")
+	t.Setenv("BUILD_REASON", "PullRequest")
+
+	r := New(&Context{Logger: zap.NewNop()})
+	if !r.detectPR() {
+		t.Error("expected detectPR() true when BUILD_REASON=PullRequest")
+	}
+}
+
+func TestDetectPR_NotPR(t *testing.T) {
+	t.Setenv("GITHUB_EVENT_NAME", "push")
+	t.Setenv("CI_MERGE_REQUEST_ID", "")
+	t.Setenv("BUILD_REASON", "IndividualCI")
+
+	r := New(&Context{Logger: zap.NewNop()})
+	if r.detectPR() {
+		t.Error("expected detectPR() false for non-PR CI events")
+	}
+}
+
+func TestRun_SkipsOnPR(t *testing.T) {
+	// PR detection must short-circuit before git/plugin work — nil Git is fine.
+	t.Setenv("CI", "true")
+	t.Setenv("GITHUB_EVENT_NAME", "pull_request")
+
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches: []algorithm.BranchConfig{{Name: "main"}},
+			Plugins:  []string{},
+		},
+		Git:    nil,
+		Logger: zap.NewNop(),
+		DryRun: false,
+	}
+
+	err := New(ctx).Run()
+	if err != nil {
+		t.Fatalf("expected nil (skip) on PR, got: %v", err)
 	}
 }
 
