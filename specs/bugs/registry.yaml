@@ -52,3 +52,21 @@ bugs:
     files_changed:
       - pkg/release/release.go
     commit_message: "fix(release): validate current branch against config.Branches"
+
+  - id: BUG-nil-panic-analyzer
+    status: fixed
+    severity: critical
+    scope: release-pipeline
+    title: Nil pointer panic in ChangelogPlugin + unused Analyzer
+    approach: |
+      1. resolveNotes() panicked on nil NextRelease — added nil guard.
+      2. algorithm.Analyzer existed but was never called — wired as Phase 2 fallback.
+      3. Added early exit when no release type detected.
+    risk_level: low
+    files_changed:
+      - internal/plugins/changelog.go
+      - pkg/release/release.go
+      - internal/plugins/changelog_test.go
+      - pkg/release/release_test.go
+    commit_message: "fix(release): wire Analyzer fallback and nil guard in resolveNotes"
+    source: "https://github.com/danielvm-git/big-release/issues/6"

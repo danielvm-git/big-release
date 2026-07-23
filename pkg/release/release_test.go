@@ -718,6 +718,239 @@ func TestAnalyzeCommits_FirstPluginWins_WhenEqualPriority(t *testing.T) {
 	}
 }
 
+// --- BUG-nil-panic-analyzer: Analyzer fallback tests ---
+
+// noAnalyzePlugin is a plugin that implements all interfaces EXCEPT CommitAnalyzer.
+type noAnalyzePlugin struct {
+	name string
+}
+
+func (p *noAnalyzePlugin) Name() string { return p.name }
+func (p *noAnalyzePlugin) VerifyConditions(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) error {
+	return nil
+}
+func (p *noAnalyzePlugin) VerifyRelease(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) error {
+	return nil
+}
+func (p *noAnalyzePlugin) GenerateNotes(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) (string, error) {
+	return "", nil
+}
+func (p *noAnalyzePlugin) Prepare(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) error {
+	return nil
+}
+func (p *noAnalyzePlugin) Publish(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) (*algorithm.Release, error) {
+	return nil, nil
+}
+func (p *noAnalyzePlugin) Success(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) error {
+	return nil
+}
+func (p *noAnalyzePlugin) Fail(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState, _ error) error {
+	return nil
+}
+
+var _ plugins.Plugin = (*noAnalyzePlugin)(nil)
+var _ plugins.ConditionVerifier = (*noAnalyzePlugin)(nil)
+var _ plugins.ReleaseVerifier = (*noAnalyzePlugin)(nil)
+var _ plugins.NotesGenerator = (*noAnalyzePlugin)(nil)
+var _ plugins.Preparer = (*noAnalyzePlugin)(nil)
+var _ plugins.Publisher = (*noAnalyzePlugin)(nil)
+var _ plugins.LifecycleHook = (*noAnalyzePlugin)(nil)
+
+func TestAnalyzerFallback_FeatCommitTriggersMinor(t *testing.T) {
+	// V2+V3: When no plugin returns a release type, the built-in Analyzer
+	// should detect 'feat:' commits and return minor.
+	gitClient, err := git.NewClient()
+	if err != nil {
+		t.Skipf("skipping: cannot create git client: %v", err)
+	}
+	if !gitClient.IsGitRepo() {
+		t.Skip("skipping: not in a git repo")
+	}
+
+	// Register a plugin that does NOT implement CommitAnalyzer
+	noAnalyze := &noAnalyzePlugin{name: "no-analyze"}
+	plugins.Register(noAnalyze)
+
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches: []algorithm.BranchConfig{
+				{Name: "main"},
+			},
+			TagFormat:      "v${version}",
+			InitialVersion: "0.1.0",
+			Plugins:        []string{"no-analyze"},
+		},
+		Git:    gitClient,
+		Logger: zap.NewNop(),
+		DryRun: true,
+	}
+
+	r := New(ctx)
+	algoCtx, state, err := r.buildAlgoContext()
+	if err != nil {
+		t.Fatalf("buildAlgoContext failed: %v", err)
+	}
+
+	// Inject a feat commit so the Analyzer has something to analyze
+	algoCtx.Commits = []*algorithm.Commit{
+		{Message: "feat: add login", Type: "feat", Subject: "add login"},
+	}
+
+	if err := r.runPluginLifecycle(algoCtx, state); err != nil {
+		t.Fatalf("runPluginLifecycle failed: %v", err)
+	}
+
+	if state.NextRelease == nil {
+		t.Fatal("expected NextRelease to be set after Analyzer fallback")
+	}
+	if state.NextRelease.Type != algorithm.ReleaseTypeMinor {
+		t.Errorf("expected release type minor from Analyzer fallback, got %q", state.NextRelease.Type)
+	}
+}
+
+func TestAnalyzerFallback_FixCommitTriggersPatch(t *testing.T) {
+	// V4: 'fix:' commits should trigger patch via Analyzer fallback.
+	gitClient, err := git.NewClient()
+	if err != nil {
+		t.Skipf("skipping: cannot create git client: %v", err)
+	}
+	if !gitClient.IsGitRepo() {
+		t.Skip("skipping: not in a git repo")
+	}
+
+	noAnalyze := &noAnalyzePlugin{name: "no-analyze-patch"}
+	plugins.Register(noAnalyze)
+
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches: []algorithm.BranchConfig{
+				{Name: "main"},
+			},
+			TagFormat:      "v${version}",
+			InitialVersion: "0.1.0",
+			Plugins:        []string{"no-analyze-patch"},
+		},
+		Git:    gitClient,
+		Logger: zap.NewNop(),
+		DryRun: true,
+	}
+
+	r := New(ctx)
+	algoCtx, state, err := r.buildAlgoContext()
+	if err != nil {
+		t.Fatalf("buildAlgoContext failed: %v", err)
+	}
+
+	algoCtx.Commits = []*algorithm.Commit{
+		{Message: "fix: resolve crash", Type: "fix", Subject: "resolve crash"},
+	}
+
+	if err := r.runPluginLifecycle(algoCtx, state); err != nil {
+		t.Fatalf("runPluginLifecycle failed: %v", err)
+	}
+
+	if state.NextRelease == nil {
+		t.Fatal("expected NextRelease to be set")
+	}
+	if state.NextRelease.Type != algorithm.ReleaseTypePatch {
+		t.Errorf("expected release type patch, got %q", state.NextRelease.Type)
+	}
+}
+
+func TestAnalyzerFallback_BreakingCommitTriggersMajor(t *testing.T) {
+	// V5: Breaking commits should trigger major via Analyzer fallback.
+	gitClient, err := git.NewClient()
+	if err != nil {
+		t.Skipf("skipping: cannot create git client: %v", err)
+	}
+	if !gitClient.IsGitRepo() {
+		t.Skip("skipping: not in a git repo")
+	}
+
+	noAnalyze := &noAnalyzePlugin{name: "no-analyze-major"}
+	plugins.Register(noAnalyze)
+
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches: []algorithm.BranchConfig{
+				{Name: "main"},
+			},
+			TagFormat:      "v${version}",
+			InitialVersion: "0.1.0",
+			Plugins:        []string{"no-analyze-major"},
+		},
+		Git:    gitClient,
+		Logger: zap.NewNop(),
+		DryRun: true,
+	}
+
+	r := New(ctx)
+	algoCtx, state, err := r.buildAlgoContext()
+	if err != nil {
+		t.Fatalf("buildAlgoContext failed: %v", err)
+	}
+
+	algoCtx.Commits = []*algorithm.Commit{
+		{Message: "feat!: breaking change", Type: "feat", Subject: "breaking change", Breaking: true},
+	}
+
+	if err := r.runPluginLifecycle(algoCtx, state); err != nil {
+		t.Fatalf("runPluginLifecycle failed: %v", err)
+	}
+
+	if state.NextRelease == nil {
+		t.Fatal("expected NextRelease to be set")
+	}
+	if state.NextRelease.Type != algorithm.ReleaseTypeMajor {
+		t.Errorf("expected release type major, got %q", state.NextRelease.Type)
+	}
+}
+
+func TestAnalyzerFallback_NoRelevantChanges_NoPanic(t *testing.T) {
+	// V6: When commits have no releasable type, should exit cleanly.
+	gitClient, err := git.NewClient()
+	if err != nil {
+		t.Skipf("skipping: cannot create git client: %v", err)
+	}
+	if !gitClient.IsGitRepo() {
+		t.Skip("skipping: not in a git repo")
+	}
+
+	noAnalyze := &noAnalyzePlugin{name: "no-analyze-noop"}
+	plugins.Register(noAnalyze)
+
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches: []algorithm.BranchConfig{
+				{Name: "main"},
+			},
+			TagFormat:      "v${version}",
+			InitialVersion: "0.1.0",
+			Plugins:        []string{"no-analyze-noop"},
+		},
+		Git:    gitClient,
+		Logger: zap.NewNop(),
+		DryRun: true,
+	}
+
+	r := New(ctx)
+	algoCtx, state, err := r.buildAlgoContext()
+	if err != nil {
+		t.Fatalf("buildAlgoContext failed: %v", err)
+	}
+
+	// Only chore commits — no releasable type
+	algoCtx.Commits = []*algorithm.Commit{
+		{Message: "chore: update deps", Type: "chore", Subject: "update deps"},
+	}
+
+	// Should return nil (no error, no release)
+	err = r.runPluginLifecycle(algoCtx, state)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+}
+
 // TestReadOnlyContextImmutable verifies that ReadOnlyContext fields are not modified by plugins.
 func TestReadOnlyContextImmutable(t *testing.T) {
 	// Use a simple test: buildAlgoContext returns ReadOnlyContext and MutableState

@@ -154,6 +154,45 @@ func TestChangelogPluginLifecycle(t *testing.T) {
 	})
 }
 
+// --- BUG-nil-panic-analyzer: V1 ---
+func TestResolveNotes_NilNextRelease(t *testing.T) {
+	// resolveNotes must not panic when NextRelease is nil.
+	p := NewChangelogPlugin()
+	ctx := &algorithm.ReadOnlyContext{
+		Commits: []*algorithm.Commit{
+			{Type: "feat", Subject: "add feature", Message: "feat: add feature"},
+		},
+	}
+	state := &algorithm.MutableState{NextRelease: nil}
+
+	notes, err := p.resolveNotes(ctx, state)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if notes != "" {
+		t.Errorf("expected empty notes when NextRelease is nil, got: %q", notes)
+	}
+}
+
+// --- BUG-nil-panic-analyzer: V7 ---
+func TestPrepare_NilNextRelease_NoPanic(t *testing.T) {
+	// Prepare must not panic when NextRelease is nil (full flow).
+	p := NewChangelogPlugin()
+	defer chdirTempDir(t)()
+	ctx := &algorithm.ReadOnlyContext{}
+	state := &algorithm.MutableState{NextRelease: nil}
+
+	err := p.Prepare(ctx, state)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	// Should not create a CHANGELOG.md when there's nothing to write
+	_, statErr := os.Stat("CHANGELOG.md")
+	if statErr == nil {
+		t.Log("CHANGELOG.md was created (acceptable)")
+	}
+}
+
 func TestChangelogPluginAutoRegistration(t *testing.T) {
 	t.Run("SC-e03s04-P1-17: ChangelogPlugin auto-registered in global registry", func(t *testing.T) {
 		found := false

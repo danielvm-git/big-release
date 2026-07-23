@@ -188,6 +188,12 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 		}
 	}
 
+	// Phase 2 fallback: use built-in Analyzer if no plugin returned a release type
+	if releaseType == "" {
+		analyzer := algorithm.NewAnalyzer()
+		releaseType = analyzer.AnalyzeCommits(ctx.Commits)
+	}
+
 	// Phase 2.5: Generate notes using the single algorithm Generator
 	gen := algorithm.NewGenerator()
 	notes := gen.GenerateNotes(ctx.Commits, state.LastRelease, state.NextRelease)
@@ -202,6 +208,12 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 		if notes != "" {
 			state.NextRelease.Notes = notes
 		}
+	}
+
+	// Early exit: no relevant changes detected
+	if releaseType == "" && notes == "" {
+		r.ctx.Logger.Info("No relevant changes, skipping release")
+		return nil
 	}
 
 	// Phase 3: Let plugins contribute additional notes (e.g. ChangelogPlugin)

@@ -96,6 +96,9 @@ func mergeChangelogContent(lastRelease string, existingContent string) string {
 }
 
 func (p *ChangelogPlugin) resolveNotes(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (string, error) {
+	if state.NextRelease == nil {
+		return "", nil
+	}
 	if state.NextRelease.Notes != "" {
 		return state.NextRelease.Notes, nil
 	}
