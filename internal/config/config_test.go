@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -75,5 +76,41 @@ func TestDefaultConfig_SeedsCommitTypes(t *testing.T) {
 		if !seen[want] {
 			t.Errorf("DefaultConfig.CommitTypes missing %q: %+v", want, seen)
 		}
+	}
+}
+
+// --- e19s01 (#10): plugin config round-trip ---
+
+func TestLoadPluginConfigs_AssetsRoundTrip(t *testing.T) {
+	yml := `
+branches:
+  - name: main
+tagFormat: "v${version}"
+plugins:
+  - github
+pluginConfigs:
+  github:
+    assets:
+      - path: dist/*.tar.gz
+        label: "big-release (linux-amd64)"
+      - path: bin/big-release
+`
+	tmp := t.TempDir() + "/.big-release.yml"
+	if err := os.WriteFile(tmp, []byte(yml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(tmp)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	gh, ok := cfg.PluginConfigs["github"]
+	if !ok {
+		t.Fatal("expected github pluginConfigs entry")
+	}
+	assets, _ := gh["assets"].([]interface{})
+	if len(assets) != 2 {
+		t.Fatalf("expected 2 assets, got %d: %+v", len(assets), gh["assets"])
 	}
 }

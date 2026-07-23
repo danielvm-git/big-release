@@ -48,6 +48,13 @@ type LifecycleHook interface {
 	Fail(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState, err error) error
 }
 
+// ConfigurablePlugin receives its typed configuration from
+// Config.PluginConfigs before the pipeline runs. Plugins that need config
+// implement this; the orchestrator type-asserts and calls Configure.
+type ConfigurablePlugin interface {
+	Configure(raw map[string]interface{}) error
+}
+
 // Registry manages plugins
 type Registry struct {
 	plugins map[string]Plugin
