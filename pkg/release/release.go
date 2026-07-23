@@ -155,6 +155,23 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 	// Register GitPlugin with the GitAPI from the context
 	plugins.Register(plugins.NewGitPlugin(r.ctx.Git))
 
+	// Phase 0: Configure plugins that accept typed config (e.g. github assets).
+	for _, name := range pluginNames {
+		p, err := plugins.Get(name)
+		if err != nil {
+			return fmt.Errorf("plugin %q not found: %w", name, err)
+		}
+		if cp, ok := p.(plugins.ConfigurablePlugin); ok {
+			raw := ctx.Config.PluginConfigs[name]
+			if raw == nil {
+				raw = map[string]interface{}{}
+			}
+			if err := cp.Configure(raw); err != nil {
+				return fmt.Errorf("plugin %q configure failed: %w", name, err)
+			}
+		}
+	}
+
 	// Phase 1: VerifyConditions
 	for _, name := range pluginNames {
 		p, err := plugins.Get(name)

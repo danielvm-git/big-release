@@ -73,12 +73,13 @@ type Tag struct {
 
 // Config represents the release configuration
 type Config struct {
-	Branches       []BranchConfig             `yaml:"branches" json:"branches"`
-	TagFormat      string                     `yaml:"tagFormat" json:"tagFormat"`
-	Plugins        []string                   `yaml:"plugins" json:"plugins"`
-	Publishers     map[string]PublisherConfig `yaml:"publishers" json:"publishers"`
-	CommitTypes    []CommitTypeConfig         `yaml:"commitTypes,omitempty" json:"commitTypes,omitempty"`
-	InitialVersion string                     `yaml:"initialVersion,omitempty" json:"initialVersion,omitempty"`
+	Branches       []BranchConfig                    `yaml:"branches" json:"branches"`
+	TagFormat      string                            `yaml:"tagFormat" json:"tagFormat"`
+	Plugins        []string                          `yaml:"plugins" json:"plugins"`
+	Publishers     map[string]PublisherConfig        `yaml:"publishers" json:"publishers"`
+	CommitTypes    []CommitTypeConfig                `yaml:"commitTypes,omitempty" json:"commitTypes,omitempty"`
+	PluginConfigs  map[string]map[string]interface{} `yaml:"pluginConfigs,omitempty" json:"pluginConfigs,omitempty"`
+	InitialVersion string                            `yaml:"initialVersion,omitempty" json:"initialVersion,omitempty"`
 }
 
 // CommitTypeConfig configures how a single conventional commit type is
@@ -103,6 +104,20 @@ type BranchConfig struct {
 type PublisherConfig struct {
 	Enabled bool              `yaml:"enabled" json:"enabled"`
 	Options map[string]string `yaml:"options,omitempty" json:"options,omitempty"`
+}
+
+// AssetConfig declares a binary artifact to attach to a GitHub release.
+// Path may be a glob pattern (e.g. "dist/*.tar.gz"); Label is an optional
+// display name overriding the file name on the release page.
+type AssetConfig struct {
+	Path  string `yaml:"path" json:"path"`
+	Label string `yaml:"label,omitempty" json:"label,omitempty"`
+}
+
+// GitHubConfig configures the github plugin (release creation, assets,
+// commenting). Loaded from the PluginConfigs["github"] entry.
+type GitHubConfig struct {
+	Assets []AssetConfig `yaml:"assets,omitempty" json:"assets,omitempty"`
 }
 
 // ReadOnlyContext holds immutable inputs to the release pipeline.

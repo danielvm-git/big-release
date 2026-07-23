@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/danielvm-git/big-release/internal/algorithm"
@@ -240,6 +241,212 @@ func TestGitHubPluginSuccess(t *testing.T) {
 			t.Errorf("expected no error, got: %v", err)
 		}
 	})
+}
+
+// --- e19s01 (#10): upload binary assets to GitHub releases ---
+
+func TestGitHubPluginPublish_UploadsAssets(t *testing.T) {
+	// The release POST must be followed by asset upload POSTs to the
+	// uploads host, one per configured asset.
+	tmp := t.TempDir()
+	assetPath := tmp + "/big-release-linux-amd64"
+	if err := os.WriteFile(assetPath, []byte("binary-bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var releaseCalled, assetCalled int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/releases") && r.Method == http.MethodPost {
+			releaseCalled++
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 42}`))
+			return
+		}
+		// Asset upload endpoint: /repos/{repo}/releases/{id}/assets
+		if strings.Contains(r.URL.Path, "/assets") && r.Method == http.MethodPost {
+			assetCalled++
+			if name := r.URL.Query().Get("name"); name == "" {
+				t.Errorf("asset upload missing ?name= query")
+			}
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+	p.uploadBaseURL = server.URL // route uploads to the same test server
+	p.assets = []algorithm.AssetConfig{{Path: assetPath, Label: "big-release (linux-amd64)"}}
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	if _, err := p.Publish(ctx, state); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if releaseCalled != 1 {
+		t.Errorf("expected 1 release POST, got %d", releaseCalled)
+	}
+	if assetCalled != 1 {
+		t.Errorf("expected 1 asset upload, got %d", assetCalled)
+	}
+}
+
+func TestGitHubPluginPublish_MissingAssetLogsWarningNotFailure(t *testing.T) {
+	// A configured asset that does not exist on disk must NOT fail the release.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releases") {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 42}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+	p.uploadBaseURL = server.URL
+	p.assets = []algorithm.AssetConfig{{Path: "/nonexistent/missing-binary"}}
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	if _, err := p.Publish(ctx, state); err != nil {
+		t.Errorf("missing asset must not fail the release, got: %v", err)
+	}
+}
+
+func TestGitHubPluginPublish_DryRunSkipsAssets(t *testing.T) {
+	tmp := t.TempDir()
+	assetPath := tmp + "/binary"
+	if err := os.WriteFile(assetPath, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var anyCall bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		anyCall = true
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+	p.uploadBaseURL = server.URL
+	p.assets = []algorithm.AssetConfig{{Path: assetPath}}
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: true}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	if _, err := p.Publish(ctx, state); err != nil {
+		t.Fatalf("dry-run must not error, got: %v", err)
+	}
+	if anyCall {
+		t.Error("dry-run must not make any HTTP calls")
+	}
+}
+
+func TestGitHubPluginPublish_NoAssetsSkipsUpload(t *testing.T) {
+	// Default plugin (no assets configured) behaves exactly as before:
+	// single release POST, no upload calls.
+	var releaseCalled, assetCalled int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releases") {
+			releaseCalled++
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 42}`))
+			return
+		}
+		if strings.Contains(r.URL.Path, "/assets") {
+			assetCalled++
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	if _, err := p.Publish(ctx, state); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if releaseCalled != 1 {
+		t.Errorf("expected 1 release POST, got %d", releaseCalled)
+	}
+	if assetCalled != 0 {
+		t.Errorf("expected 0 asset uploads when no assets configured, got %d", assetCalled)
+	}
+}
+
+func TestExpandAssetGlobs(t *testing.T) {
+	tmp := t.TempDir()
+	for _, name := range []string{"a.tar.gz", "b.tar.gz", "c.zip"} {
+		if err := os.WriteFile(tmp+"/"+name, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, errs := expandAssetGlobs([]algorithm.AssetConfig{{Path: tmp + "/*.tar.gz"}})
+	if len(errs) != 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if len(got) != 2 {
+		t.Errorf("expected 2 expanded assets, got %d: %+v", len(got), got)
+	}
+}
+
+func TestMimeTypeForAsset(t *testing.T) {
+	cases := map[string]string{
+		"app.tar.gz": "application/gzip",
+		"app.zip":    "application/zip",
+		"app.exe":    "application/vnd.microsoft.portable-executable",
+		"app.bin":    "application/octet-stream",
+	}
+	for name, want := range cases {
+		if got := mimeTypeForAsset(name); got != want {
+			t.Errorf("mimeTypeForAsset(%q) = %q, want %q", name, got, want)
+		}
+	}
 }
 
 func TestGitHubPluginFail(t *testing.T) {
