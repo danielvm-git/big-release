@@ -134,18 +134,26 @@ func (g *Generator) hideSensitive(text string) string {
 }
 
 // DefaultCommitTypes returns the seed list of commit type configurations
-// used when the user has not configured commitTypes. e18s01 keeps the
-// historical defaults (all sections visible); e18s02 flips the
-// non-release types to hidden.
+// used when the user has not configured commitTypes.
+//
+// Per #7 (parity with @semantic-release/conventional-changelog-conventionalcommits),
+// only release-relevant types are visible by default: feat, fix, perf,
+// revert. The remaining types (docs, refactor, chore, style, test, build,
+// ci) are hidden but still parsed — their commits are excluded from the
+// changelog unless they carry a breaking change, which always surfaces
+// in the BREAKING CHANGES section.
 func DefaultCommitTypes() []CommitTypeConfig {
 	return []CommitTypeConfig{
 		{Type: "feat", Section: "Features"},
 		{Type: "fix", Section: "Bug Fixes"},
 		{Type: "perf", Section: "Performance Improvements"},
-		{Type: "docs", Section: "Documentation"},
-		{Type: "refactor", Section: "Refactoring"},
-		{Type: "chore", Section: "Chores"},
-		{Type: "style", Section: "Style"},
-		{Type: "test", Section: "Tests"},
+		{Type: "revert", Section: "Reverts"},
+		{Type: "docs", Hidden: true},
+		{Type: "refactor", Hidden: true},
+		{Type: "build", Hidden: true},
+		{Type: "ci", Hidden: true},
+		{Type: "chore", Hidden: true},
+		{Type: "style", Hidden: true},
+		{Type: "test", Hidden: true},
 	}
 }
