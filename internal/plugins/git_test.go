@@ -265,6 +265,79 @@ func TestGitPluginFail(t *testing.T) {
 	})
 }
 
+func TestGitPluginCommitMessageTemplate(t *testing.T) {
+	t.Run("SC-e21s03-P1-01: Prepare uses configured commit message template", func(t *testing.T) {
+		fg := &fakeGit{isRepo: true, changes: true}
+		p := NewGitPlugin(fg)
+		if err := p.Configure(map[string]interface{}{
+			"message": "release {{.Version}} on {{.Branch}}",
+		}); err != nil {
+			t.Fatalf("Configure: %v", err)
+		}
+		ctx := &algorithm.ReadOnlyContext{
+			DryRun: false,
+			Branch: &algorithm.Branch{Name: "main"},
+		}
+		state := &algorithm.MutableState{NextRelease: &algorithm.Release{Version: "1.2.3"}}
+		if err := p.Prepare(ctx, state); err != nil {
+			t.Fatalf("Prepare: %v", err)
+		}
+		if fg.lastCommitMsg != "release 1.2.3 on main" {
+			t.Errorf("commit message = %q, want custom template output", fg.lastCommitMsg)
+		}
+	})
+
+	t.Run("SC-e21s03-P1-02: invalid commit message template returns error", func(t *testing.T) {
+		p := NewGitPlugin(&fakeGit{isRepo: true, changes: true})
+		if err := p.Configure(map[string]interface{}{
+			"message": "release {{.MissingField",
+		}); err != nil {
+			t.Fatalf("Configure: %v", err)
+		}
+		ctx := &algorithm.ReadOnlyContext{DryRun: false}
+		state := &algorithm.MutableState{NextRelease: &algorithm.Release{Version: "1.0.0"}}
+		if err := p.Prepare(ctx, state); err == nil {
+			t.Fatal("expected template parse error")
+		}
+	})
+}
+
+func TestMatchModifiedAssets(t *testing.T) {
+	t.Run("SC-e21s04-P1-01: matches modified files against asset globs", func(t *testing.T) {
+		got := matchModifiedAssets(
+			[]string{"CHANGELOG.md", "README.md", "internal/foo.go"},
+			[]string{"CHANGELOG.md", "package.json"},
+		)
+		if len(got) != 1 || got[0] != "CHANGELOG.md" {
+			t.Errorf("got %v, want [CHANGELOG.md]", got)
+		}
+	})
+}
+
+func TestGitPluginCommitAssets(t *testing.T) {
+	t.Run("SC-e21s04-P1-02: Prepare stages only configured asset paths", func(t *testing.T) {
+		fg := &fakeGit{
+			isRepo:        true,
+			changes:       true,
+			modifiedFiles: []string{"CHANGELOG.md", "README.md"},
+		}
+		p := NewGitPlugin(fg)
+		if err := p.Configure(map[string]interface{}{
+			"assets": []interface{}{"CHANGELOG.md"},
+		}); err != nil {
+			t.Fatalf("Configure: %v", err)
+		}
+		ctx := &algorithm.ReadOnlyContext{DryRun: false}
+		state := &algorithm.MutableState{NextRelease: &algorithm.Release{Version: "1.0.0"}}
+		if err := p.Prepare(ctx, state); err != nil {
+			t.Fatalf("Prepare: %v", err)
+		}
+		if len(fg.stagedPaths) != 1 || fg.stagedPaths[0] != "CHANGELOG.md" {
+			t.Errorf("staged paths = %v, want [CHANGELOG.md]", fg.stagedPaths)
+		}
+	})
+}
+
 func TestGitPluginRegistration(t *testing.T) {
 	t.Run("SC-e03s01-P1-13: GitPlugin can be registered", func(t *testing.T) {
 		// Clear the registry for this test
@@ -292,18 +365,21 @@ func TestGitPluginRegistration(t *testing.T) {
 
 // fakeGit implements git.GitAPI for testing.
 type fakeGit struct {
-	commits   []*algorithm.Commit
-	tags      []string
-	tagHead   string
-	head      string
-	release   *algorithm.Release
-	repoURL   string
-	branch    string
-	isRepo    bool
-	changes   bool
-	createErr error
-	pushErr   error
-	deleteErr error
+	commits       []*algorithm.Commit
+	tags          []string
+	tagHead       string
+	head          string
+	release       *algorithm.Release
+	repoURL       string
+	branch        string
+	isRepo        bool
+	changes       bool
+	modifiedFiles []string
+	stagedPaths   []string
+	lastCommitMsg string
+	createErr     error
+	pushErr       error
+	deleteErr     error
 }
 
 func (f *fakeGit) GetCommits(from, to string) ([]*algorithm.Commit, error) {
@@ -342,11 +418,21 @@ func (f *fakeGit) StageChanges() error {
 	return nil
 }
 
+func (f *fakeGit) GetModifiedFiles() ([]string, error) {
+	return f.modifiedFiles, nil
+}
+
+func (f *fakeGit) StagePaths(paths []string) error {
+	f.stagedPaths = append(f.stagedPaths, paths...)
+	return nil
+}
+
 func (f *fakeGit) HasChangesToCommit() (bool, error) {
 	return f.changes, nil
 }
 
 func (f *fakeGit) Commit(message string) error {
+	f.lastCommitMsg = message
 	return nil
 }
 

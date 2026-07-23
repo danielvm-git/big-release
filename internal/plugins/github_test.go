@@ -930,3 +930,146 @@ func TestGitHubPluginAutoRegistration(t *testing.T) {
 		}
 	})
 }
+
+func TestGitHubPluginPublish_DiscussionCategory(t *testing.T) {
+	t.Run("SC-e21s01-P1-01: Publish sends discussion_category_name when configured", func(t *testing.T) {
+		var body string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost {
+				b, _ := io.ReadAll(r.Body)
+				body = string(b)
+			}
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 99}`))
+		}))
+		defer server.Close()
+
+		setEnv(t, "GITHUB_TOKEN", "test-token")
+		setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+		defer unsetEnv(t, "GITHUB_TOKEN")
+		defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+		p := NewGitHubPlugin()
+		p.client = server.Client()
+		p.apiBaseURL = server.URL
+		if err := p.Configure(map[string]interface{}{
+			"discussionCategoryName": "Announcements",
+		}); err != nil {
+			t.Fatalf("Configure: %v", err)
+		}
+
+		ctx := &algorithm.ReadOnlyContext{DryRun: false, Branch: &algorithm.Branch{Name: "main", Type: algorithm.BranchTypeRelease}}
+		state := &algorithm.MutableState{NextRelease: &algorithm.Release{Version: "2.0.0", Notes: "notes"}}
+		if _, err := p.Publish(ctx, state); err != nil {
+			t.Fatalf("Publish: %v", err)
+		}
+		if !strings.Contains(body, `"discussion_category_name":"Announcements"`) {
+			t.Errorf("expected discussion_category_name in payload, got %s", body)
+		}
+	})
+}
+
+func TestGitHubPlugin_resolveMakeLatest(t *testing.T) {
+	t.Run("SC-e21s02-P1-01: main release branch defaults make_latest true", func(t *testing.T) {
+		p := NewGitHubPlugin()
+		ctx := &algorithm.ReadOnlyContext{Branch: &algorithm.Branch{Name: "main", Type: algorithm.BranchTypeRelease}}
+		if got := p.resolveMakeLatest(ctx); got != "true" {
+			t.Errorf("got %q, want true", got)
+		}
+	})
+
+	t.Run("SC-e21s02-P1-02: prerelease branch defaults make_latest false", func(t *testing.T) {
+		p := NewGitHubPlugin()
+		ctx := &algorithm.ReadOnlyContext{Branch: &algorithm.Branch{Name: "beta", Type: algorithm.BranchTypePrerelease}}
+		if got := p.resolveMakeLatest(ctx); got != "false" {
+			t.Errorf("got %q, want false", got)
+		}
+	})
+
+	t.Run("SC-e21s02-P1-03: explicit makeLatest config overrides default", func(t *testing.T) {
+		p := NewGitHubPlugin()
+		trueVal := true
+		p.makeLatest = &trueVal
+		ctx := &algorithm.ReadOnlyContext{Branch: &algorithm.Branch{Name: "beta", Type: algorithm.BranchTypePrerelease}}
+		if got := p.resolveMakeLatest(ctx); got != "true" {
+			t.Errorf("got %q, want true", got)
+		}
+	})
+}
+
+func TestGitHubPluginPublish_MakeLatest(t *testing.T) {
+	t.Run("SC-e21s02-P1-04: Publish sends make_latest false for beta branch", func(t *testing.T) {
+		var body string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost {
+				b, _ := io.ReadAll(r.Body)
+				body = string(b)
+			}
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 1}`))
+		}))
+		defer server.Close()
+
+		setEnv(t, "GITHUB_TOKEN", "test-token")
+		setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+		defer unsetEnv(t, "GITHUB_TOKEN")
+		defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+		p := NewGitHubPlugin()
+		p.client = server.Client()
+		p.apiBaseURL = server.URL
+		ctx := &algorithm.ReadOnlyContext{
+			DryRun: false,
+			Branch: &algorithm.Branch{Name: "beta", Type: algorithm.BranchTypePrerelease},
+		}
+		state := &algorithm.MutableState{NextRelease: &algorithm.Release{Version: "1.0.0-beta.1", Type: algorithm.ReleaseTypePrerelease, Notes: "notes"}}
+		if _, err := p.Publish(ctx, state); err != nil {
+			t.Fatalf("Publish: %v", err)
+		}
+		if !strings.Contains(body, `"make_latest":"false"`) {
+			t.Errorf("expected make_latest false in payload, got %s", body)
+		}
+	})
+}
+
+func TestGitHubPluginPublish_DraftIncludesMakeLatest(t *testing.T) {
+	t.Run("SC-e21s02-P1-05: publishDraft PATCH includes make_latest", func(t *testing.T) {
+		var patchBody string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releases"):
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{"id": 42}`))
+			case r.Method == http.MethodPatch:
+				b, _ := io.ReadAll(r.Body)
+				patchBody = string(b)
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{"id": 42}`))
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+		defer server.Close()
+
+		setEnv(t, "GITHUB_TOKEN", "test-token")
+		setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+		defer unsetEnv(t, "GITHUB_TOKEN")
+		defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+		p := NewGitHubPlugin()
+		p.client = server.Client()
+		p.apiBaseURL = server.URL
+		p.draftRelease = true
+		ctx := &algorithm.ReadOnlyContext{
+			DryRun: false,
+			Branch: &algorithm.Branch{Name: "beta", Type: algorithm.BranchTypePrerelease},
+		}
+		state := &algorithm.MutableState{NextRelease: &algorithm.Release{Version: "1.0.0-beta.1", Type: algorithm.ReleaseTypePrerelease, Notes: "notes"}}
+		if _, err := p.Publish(ctx, state); err != nil {
+			t.Fatalf("Publish: %v", err)
+		}
+		if !strings.Contains(patchBody, `"make_latest":"false"`) {
+			t.Errorf("expected make_latest in draft publish PATCH, got %s", patchBody)
+		}
+	})
+}

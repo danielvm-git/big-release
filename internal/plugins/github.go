@@ -1,4 +1,4 @@
-// story: e03s02
+// story: e03s02 e21s01 e21s02
 package plugins
 
 import (
@@ -17,15 +17,17 @@ import (
 
 // GitHubPlugin creates GitHub releases via the API.
 type GitHubPlugin struct {
-	client              HTTPClient
-	apiBaseURL          string // for testing; empty = use default GitHub API
-	uploadBaseURL       string // for testing; empty = use default uploads host
-	assets              []algorithm.AssetConfig
-	draftRelease        bool
-	releaseNameTemplate string
-	releaseBodyTemplate string
-	successComment      string
-	releasedLabels      []string
+	client                 HTTPClient
+	apiBaseURL             string // for testing; empty = use default GitHub API
+	uploadBaseURL          string // for testing; empty = use default uploads host
+	assets                 []algorithm.AssetConfig
+	draftRelease           bool
+	releaseNameTemplate    string
+	releaseBodyTemplate    string
+	successComment         string
+	releasedLabels         []string
+	discussionCategoryName string
+	makeLatest             *bool
 }
 
 // HTTPClient defines the interface for making HTTP requests.
@@ -62,6 +64,12 @@ func (p *GitHubPlugin) Configure(raw map[string]interface{}) error {
 	p.releaseBodyTemplate = cfg.ReleaseBody
 	p.successComment = cfg.SuccessComment
 	p.releasedLabels = cfg.ReleasedLabels
+	if v, ok := raw["discussionCategoryName"].(string); ok {
+		p.discussionCategoryName = strings.TrimSpace(v)
+	}
+	if v, ok := raw["makeLatest"].(bool); ok {
+		p.makeLatest = &v
+	}
 	return nil
 }
 
@@ -112,12 +120,14 @@ func (p *GitHubPlugin) Prepare(ctx *algorithm.ReadOnlyContext, state *algorithm.
 
 // createReleaseRequest represents a GitHub release creation request.
 type createReleaseRequest struct {
-	TagName              string `json:"tag_name"`
-	Name                 string `json:"name"`
-	Body                 string `json:"body"`
-	Draft                bool   `json:"draft"`
-	Prerelease           bool   `json:"prerelease"`
-	GenerateReleaseNotes bool   `json:"generate_release_notes"`
+	TagName                string `json:"tag_name"`
+	Name                   string `json:"name"`
+	Body                   string `json:"body"`
+	Draft                  bool   `json:"draft"`
+	Prerelease             bool   `json:"prerelease"`
+	GenerateReleaseNotes   bool   `json:"generate_release_notes"`
+	DiscussionCategoryName string `json:"discussion_category_name,omitempty"`
+	MakeLatest             string `json:"make_latest,omitempty"`
 }
 
 // templateContext is the variable scope passed to release name/body
@@ -164,7 +174,29 @@ func (p *GitHubPlugin) buildReleasePayload(ctx *algorithm.ReadOnlyContext, state
 		Prerelease:           releaseType == "prerelease",
 		GenerateReleaseNotes: notes == "",
 	}
+	if p.discussionCategoryName != "" {
+		req.DiscussionCategoryName = p.discussionCategoryName
+	}
+	if ml := p.resolveMakeLatest(ctx); ml != "" {
+		req.MakeLatest = ml
+	}
 	return json.Marshal(req)
+}
+
+// resolveMakeLatest returns the GitHub make_latest flag ("true"/"false").
+func (p *GitHubPlugin) resolveMakeLatest(ctx *algorithm.ReadOnlyContext) string {
+	if p.makeLatest != nil {
+		if *p.makeLatest {
+			return "true"
+		}
+		return "false"
+	}
+	if ctx.Branch != nil &&
+		ctx.Branch.Type == algorithm.BranchTypeRelease &&
+		ctx.Branch.Name == "main" {
+		return "true"
+	}
+	return "false"
 }
 
 // renderTemplate executes a Go text/template against tctx. When tmpl is
@@ -259,7 +291,7 @@ func (p *GitHubPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.
 
 	// Draft releases are published atomically after asset upload (#13).
 	if p.draftRelease && releaseID != 0 {
-		if err := p.publishDraft(repo, releaseID); err != nil {
+		if err := p.publishDraft(ctx, repo, releaseID); err != nil {
 			return nil, err
 		}
 	}
@@ -267,9 +299,16 @@ func (p *GitHubPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.
 }
 
 // publishDraft flips a draft release to published via PATCH.
-func (p *GitHubPlugin) publishDraft(repo string, releaseID int64) error {
+func (p *GitHubPlugin) publishDraft(ctx *algorithm.ReadOnlyContext, repo string, releaseID int64) error {
 	patchURL := fmt.Sprintf("%s/repos/%s/releases/%d", p.releaseURLBase(), repo, releaseID)
-	payload, err := json.Marshal(map[string]bool{"draft": false})
+	body := map[string]interface{}{"draft": false}
+	if ml := p.resolveMakeLatest(ctx); ml != "" {
+		body["make_latest"] = ml
+	}
+	if p.discussionCategoryName != "" {
+		body["discussion_category_name"] = p.discussionCategoryName
+	}
+	payload, err := json.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("failed to marshal draft publish payload: %w", err)
 	}
