@@ -708,6 +708,174 @@ func TestGitHubPluginPublish_InvalidNameTemplateReturnsError(t *testing.T) {
 	}
 }
 
+// --- e19s04 (#12): comment on resolved issues/PRs after release ---
+
+func TestParseReferencedIssues(t *testing.T) {
+	cases := []struct {
+		name    string
+		message string
+		want    []int
+	}{
+		{"bare ref", "fix: crash, #123", []int{123}},
+		{"fixes keyword", "fix: resolve, fixes #456", []int{456}},
+		{"closes keyword", "feat: add, closes #789", []int{789}},
+		{"resolves keyword", "feat: add, resolves #101", []int{101}},
+		{"multiple", "feat: add, closes #1 and resolves #2, fixes #3", []int{1, 2, 3}},
+		{"none", "chore: update deps", nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := parseReferencedIssues(tc.message)
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Errorf("index %d: got %d, want %d", i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestGitHubPluginSuccess_CommentsOnReferencedIssues(t *testing.T) {
+	var commented []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// POST /repos/{repo}/issues/{n}/comments
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/issues/") && strings.Contains(r.URL.Path, "/comments") {
+			body, _ := io.ReadAll(r.Body)
+			commented = append(commented, r.URL.Path)
+			if !strings.Contains(string(body), "2.0.0") {
+				t.Errorf("comment body should include version, got: %s", body)
+			}
+			w.WriteHeader(http.StatusCreated)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+	p.successComment = "Released in {{.Version}}"
+
+	ctx := &algorithm.ReadOnlyContext{
+		DryRun:  false,
+		Commits: []*algorithm.Commit{{Message: "fix: crash, closes #42 and fixes #99"}},
+	}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "2.0.0", Type: algorithm.ReleaseTypeMajor},
+	}
+
+	if err := p.Success(ctx, state); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if len(commented) != 2 {
+		t.Errorf("expected 2 issue comments, got %d: %v", len(commented), commented)
+	}
+}
+
+func TestGitHubPluginSuccess_DryRunSkipsCommenting(t *testing.T) {
+	var anyCall bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		anyCall = true
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+
+	ctx := &algorithm.ReadOnlyContext{
+		DryRun:  true,
+		Commits: []*algorithm.Commit{{Message: "fix: crash, closes #42"}},
+	}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0"},
+	}
+
+	if err := p.Success(ctx, state); err != nil {
+		t.Fatalf("dry-run Success must not error, got: %v", err)
+	}
+	if anyCall {
+		t.Error("dry-run must not make any HTTP calls")
+	}
+}
+
+func TestGitHubPluginSuccess_403IsNonFatal(t *testing.T) {
+	// A 403/404 on commenting must NOT fail the release.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+
+	ctx := &algorithm.ReadOnlyContext{
+		DryRun:  false,
+		Commits: []*algorithm.Commit{{Message: "fix: crash, closes #42"}},
+	}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0"},
+	}
+
+	if err := p.Success(ctx, state); err != nil {
+		t.Errorf("commenting 403 must be non-fatal, got: %v", err)
+	}
+}
+
+func TestGitHubPluginSuccess_NoIssuesNoCalls(t *testing.T) {
+	var anyCall bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		anyCall = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+
+	ctx := &algorithm.ReadOnlyContext{
+		DryRun:  false,
+		Commits: []*algorithm.Commit{{Message: "chore: no issue ref here"}},
+	}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0"},
+	}
+
+	if err := p.Success(ctx, state); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if anyCall {
+		t.Error("no issue refs → no HTTP calls expected")
+	}
+}
+
 func TestExpandAssetGlobs(t *testing.T) {
 	tmp := t.TempDir()
 	for _, name := range []string{"a.tar.gz", "b.tar.gz", "c.zip"} {
