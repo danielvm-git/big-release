@@ -1,7 +1,0 @@
-/* ============================================================
-   BigBase Design System — Root stylesheet
-   Imports all token and component definitions.
-   ============================================================ */
-
-@import url('./colors_and_type.css');
-@import url('./components.css');
