@@ -311,3 +311,139 @@ func TestGenerator_GenerateNotes_BreakingFromHiddenTypeStillShown(t *testing.T) 
 		t.Errorf("hidden Refactoring section must not render:\n%s", notes)
 	}
 }
+
+// --- e18s03 (#8): clickable commit hash and issue links ---
+
+func TestGenerator_GenerateNotes_ClickableCommitHash_Scoped(t *testing.T) {
+	g := NewGenerator()
+	g.SetRepositoryURL("https://github.com/owner/repo")
+	commits := []*Commit{
+		{Type: "feat", Scope: "auth", Subject: "add OAuth", Hash: "abc1234567890def"},
+	}
+
+	notes := g.GenerateNotes(commits, nil, nil)
+
+	want := "[abc1234](https://github.com/owner/repo/commit/abc1234567890def)"
+	if !strings.Contains(notes, want) {
+		t.Errorf("expected clickable commit hash %q:\n%s", want, notes)
+	}
+}
+
+func TestGenerator_GenerateNotes_ClickableCommitHash_NoRepoURL(t *testing.T) {
+	// Without a repo URL, fall back to the plain-text hash (current behavior).
+	g := NewGenerator()
+	commits := []*Commit{
+		{Type: "feat", Scope: "auth", Subject: "add OAuth", Hash: "abc1234567890def"},
+	}
+
+	notes := g.GenerateNotes(commits, nil, nil)
+
+	if !strings.Contains(notes, "(abc1234)") {
+		t.Errorf("expected plain-text hash fallback when no repo URL:\n%s", notes)
+	}
+	if strings.Contains(notes, "](http") {
+		t.Errorf("should not emit a link without repo URL:\n%s", notes)
+	}
+}
+
+func TestGenerator_GenerateNotes_HashRenderedEvenWithoutScope(t *testing.T) {
+	// #8: the no-scope case previously omitted the hash entirely.
+	g := NewGenerator()
+	g.SetRepositoryURL("https://github.com/owner/repo")
+	commits := []*Commit{
+		{Type: "fix", Subject: "fix bug", Hash: "def567890abcdef1"},
+	}
+
+	notes := g.GenerateNotes(commits, nil, nil)
+
+	want := "[def5678](https://github.com/owner/repo/commit/def567890abcdef1)"
+	if !strings.Contains(notes, want) {
+		t.Errorf("expected hash link in no-scope case %q:\n%s", want, notes)
+	}
+}
+
+func TestGenerator_GenerateNotes_ClickableCompareLink(t *testing.T) {
+	g := NewGenerator()
+	g.SetRepositoryURL("https://github.com/owner/repo")
+	commits := []*Commit{
+		{Type: "feat", Subject: "new feature"},
+	}
+	lastRelease := &Release{GitTag: "v1.0.0"}
+	nextRelease := &Release{GitTag: "v1.1.0"}
+
+	notes := g.GenerateNotes(commits, lastRelease, nextRelease)
+
+	want := "[Full Changelog](https://github.com/owner/repo/compare/v1.0.0...v1.1.0)"
+	if !strings.Contains(notes, want) {
+		t.Errorf("expected clickable compare link %q:\n%s", want, notes)
+	}
+}
+
+func TestGenerator_GenerateNotes_CompareLinkWithoutRepoURL_OmitsLink(t *testing.T) {
+	// No repo URL: keep the historical prose form (do not emit a broken link).
+	g := NewGenerator()
+	commits := []*Commit{
+		{Type: "feat", Subject: "new feature"},
+	}
+	lastRelease := &Release{GitTag: "v1.0.0"}
+	nextRelease := &Release{GitTag: "v1.1.0"}
+
+	notes := g.GenerateNotes(commits, lastRelease, nextRelease)
+
+	if strings.Contains(notes, "](http") {
+		t.Errorf("should not emit compare link without repo URL:\n%s", notes)
+	}
+	if !strings.Contains(notes, "v1.0.0") || !strings.Contains(notes, "v1.1.0") {
+		t.Errorf("should still mention tags in prose form:\n%s", notes)
+	}
+}
+
+func TestGenerator_GenerateNotes_IssueReferenceLinkified(t *testing.T) {
+	g := NewGenerator()
+	g.SetRepositoryURL("https://github.com/owner/repo")
+	commits := []*Commit{
+		{Type: "fix", Subject: "resolve crash, fixes #456", Hash: "abcdef1234567890"},
+	}
+
+	notes := g.GenerateNotes(commits, nil, nil)
+
+	want := "[#456](https://github.com/owner/repo/issues/456)"
+	if !strings.Contains(notes, want) {
+		t.Errorf("expected issue reference linkified %q:\n%s", want, notes)
+	}
+}
+
+func TestGenerator_GenerateNotes_ClosesResolvesLinkified(t *testing.T) {
+	g := NewGenerator()
+	g.SetRepositoryURL("https://github.com/owner/repo")
+	commits := []*Commit{
+		{Type: "feat", Subject: "add thing, closes #100 and resolves #200", Hash: "abcdef1234567890"},
+	}
+
+	notes := g.GenerateNotes(commits, nil, nil)
+
+	for _, want := range []string{
+		"[#100](https://github.com/owner/repo/issues/100)",
+		"[#200](https://github.com/owner/repo/issues/200)",
+	} {
+		if !strings.Contains(notes, want) {
+			t.Errorf("expected %q:\n%s", want, notes)
+		}
+	}
+}
+
+func TestGenerator_GenerateNotes_IssueRefWithoutRepoURL_NotLinkified(t *testing.T) {
+	g := NewGenerator()
+	commits := []*Commit{
+		{Type: "fix", Subject: "fix crash, fixes #456", Hash: "abcdef1234567890"},
+	}
+
+	notes := g.GenerateNotes(commits, nil, nil)
+
+	if strings.Contains(notes, "](http") {
+		t.Errorf("should not linkify without repo URL:\n%s", notes)
+	}
+	if !strings.Contains(notes, "#456") {
+		t.Errorf("should keep literal #456:\n%s", notes)
+	}
+}

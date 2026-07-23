@@ -196,6 +196,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 
 	// Phase 2.5: Generate notes using the single algorithm Generator
 	gen := algorithm.NewGenerator(ctx.Config.CommitTypes)
+	gen.SetRepositoryURL(ctx.RepositoryURL)
 	notes := gen.GenerateNotes(ctx.Commits, state.LastRelease, state.NextRelease)
 
 	if releaseType != "" || notes != "" {
