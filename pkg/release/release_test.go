@@ -1011,3 +1011,88 @@ func TestReadOnlyContextImmutable(t *testing.T) {
 		t.Error("modifying MutableState.Notes should not affect ReadOnlyContext.RepositoryURL")
 	}
 }
+
+// --- e20 (#14): multi-branch release support with channels ---
+
+func TestMatchBranch_GlobPattern(t *testing.T) {
+	// N.x style patterns should match versioned branches.
+	cases := []struct {
+		pattern string
+		branch  string
+		want    bool
+	}{
+		{"main", "main", true},
+		{"main", "develop", false},
+		{"1.x", "1.x", true}, // literal N.x branch name
+		{"+([0-9]).x", "1.x", true},
+		{"+([0-9]).x", "2.x", true},
+		{"+([0-9]).x", "main", false},
+		{"release/+([0-9])", "release/1", true},
+		{"next", "next", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.pattern+"=="+tc.branch, func(t *testing.T) {
+			got := matchBranch(tc.pattern, tc.branch)
+			if got != tc.want {
+				t.Errorf("matchBranch(%q, %q) = %v, want %v", tc.pattern, tc.branch, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidateBranch_GlobMatching(t *testing.T) {
+	// validateBranch should accept a branch that matches a glob pattern
+	// in Config.Branches, not just exact-name matches.
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches: []algorithm.BranchConfig{
+				{Name: "main"},
+				{Name: "+([0-9]).x", Type: "maintenance"},
+			},
+			TagFormat: "v${version}",
+		},
+		Logger: zap.NewNop(),
+		DryRun: true,
+	}
+
+	r := New(ctx)
+	if err := r.validateBranch("1.x"); err != nil {
+		t.Errorf("expected 1.x to match +([0-9]).x pattern, got error: %v", err)
+	}
+	if err := r.validateBranch("2.x"); err != nil {
+		t.Errorf("expected 2.x to match +([0-9]).x pattern, got error: %v", err)
+	}
+	if err := r.validateBranch("develop"); err == nil {
+		t.Error("expected develop to NOT match any pattern")
+	}
+}
+
+func TestMapBranchConfig_GlobMatching(t *testing.T) {
+	// mapBranchConfig should find the maintenance config for a 1.x branch
+	// even when the config uses a glob pattern.
+	configs := []algorithm.BranchConfig{
+		{Name: "main"},
+		{Name: "+([0-9]).x", Type: "maintenance", Channel: "1.x"},
+	}
+	branch := mapBranchConfig("1.x", configs)
+	if branch.Type != algorithm.BranchTypeMaintenance {
+		t.Errorf("expected maintenance type for 1.x, got %q", branch.Type)
+	}
+	if branch.Channel != "1.x" {
+		t.Errorf("expected channel 1.x, got %q", branch.Channel)
+	}
+}
+
+func TestMapBranchConfig_ChannelPropagated(t *testing.T) {
+	// The channel from BranchConfig must propagate to the algorithm.Branch.
+	configs := []algorithm.BranchConfig{
+		{Name: "next", Type: "prerelease", Channel: "next", Prerelease: "beta"},
+	}
+	branch := mapBranchConfig("next", configs)
+	if branch.Channel != "next" {
+		t.Errorf("expected channel next, got %q", branch.Channel)
+	}
+	if branch.Prerelease != "beta" {
+		t.Errorf("expected prerelease beta, got %q", branch.Prerelease)
+	}
+}
