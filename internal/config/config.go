@@ -36,6 +36,7 @@ func DefaultConfig() *algorithm.Config {
 			"git",
 			"github",
 		},
+		CommitTypes: algorithm.DefaultCommitTypes(),
 		Publishers: map[string]algorithm.PublisherConfig{
 			"npm":     {Enabled: true},
 			"pypi":    {Enabled: true},

@@ -5,6 +5,96 @@ import (
 	"testing"
 )
 
+// --- e18s01: configurable commit type sections & visibility (plumbing) ---
+
+func TestGenerator_WithConfigurableCommitTypes_RespectsSectionTitle(t *testing.T) {
+	// Custom section title for feat.
+	types := DefaultCommitTypes()
+	types[0].Section = "Awesome Features" // feat is first in DefaultCommitTypes
+
+	g := NewGenerator(types)
+	commits := []*Commit{
+		{Type: "feat", Subject: "add login"},
+	}
+	notes := g.GenerateNotes(commits, nil, nil)
+	if !strings.Contains(notes, "### Awesome Features") {
+		t.Errorf("expected custom section title, got:\n%s", notes)
+	}
+}
+
+func TestGenerator_WithConfigurableCommitTypes_HidesHiddenType(t *testing.T) {
+	types := DefaultCommitTypes()
+	// Mark chore as hidden.
+	for i := range types {
+		if types[i].Type == "chore" {
+			types[i].Hidden = true
+		}
+	}
+
+	g := NewGenerator(types)
+	commits := []*Commit{
+		{Type: "feat", Subject: "add login"},
+		{Type: "chore", Subject: "update deps"},
+	}
+	notes := g.GenerateNotes(commits, nil, nil)
+	if strings.Contains(notes, "update deps") {
+		t.Errorf("hidden chore commit must not appear in notes:\n%s", notes)
+	}
+	if !strings.Contains(notes, "add login") {
+		t.Errorf("non-hidden feat commit must appear in notes:\n%s", notes)
+	}
+}
+
+func TestGenerator_WithConfigurableCommitTypes_BreakingStillShownFromHiddenType(t *testing.T) {
+	types := DefaultCommitTypes()
+	for i := range types {
+		if types[i].Type == "refactor" {
+			types[i].Hidden = true
+		}
+	}
+
+	g := NewGenerator(types)
+	commits := []*Commit{
+		{Type: "refactor", Subject: "rewrite core", Breaking: true, Body: "BREAKING CHANGE: everything"},
+	}
+	notes := g.GenerateNotes(commits, nil, nil)
+	if !strings.Contains(notes, "### BREAKING CHANGES") {
+		t.Errorf("breaking change from a hidden type must still appear:\n%s", notes)
+	}
+	if !strings.Contains(notes, "rewrite core") {
+		t.Errorf("breaking change subject must appear in BREAKING CHANGES:\n%s", notes)
+	}
+}
+
+func TestDefaultCommitTypes_CoversAllCurrentTypes(t *testing.T) {
+	types := DefaultCommitTypes()
+	seen := map[string]bool{}
+	for _, ct := range types {
+		seen[ct.Type] = true
+	}
+	for _, want := range []string{"feat", "fix", "perf", "docs", "refactor", "chore", "style", "test"} {
+		if !seen[want] {
+			t.Errorf("DefaultCommitTypes missing %q: %+v", want, seen)
+		}
+	}
+}
+
+func TestNewGenerator_DefaultsToStandardCommitTypes(t *testing.T) {
+	// NewGenerator() with no args must behave identically to NewGenerator(DefaultCommitTypes())
+	g := NewGenerator()
+	commits := []*Commit{
+		{Type: "feat", Subject: "add login"},
+		{Type: "fix", Subject: "fix crash"},
+	}
+	notes := g.GenerateNotes(commits, nil, nil)
+	// All standard sections still render with default constructor.
+	for _, want := range []string{"### Features", "### Bug Fixes"} {
+		if !strings.Contains(notes, want) {
+			t.Errorf("default constructor missing %q:\n%s", want, notes)
+		}
+	}
+}
+
 func TestGenerator_GenerateNotes_Empty(t *testing.T) {
 	g := NewGenerator()
 	notes := g.GenerateNotes(nil, nil, nil)

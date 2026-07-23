@@ -1,0 +1,60 @@
+epic: e20
+title: Multi-branch Release Support with Channels
+description: >
+  semantic-release parity for releasing from multiple branches with
+  separate channels (main=stable, next=prerelease, 1.x=maintenance).
+  Each branch gets its own version line, tag range scan, and distribution
+  channel. Highest-risk epic — BranchConfig.Channel is stored today but
+  never propagated; branch matching is exact-name only (no globbing).
+  May split into s01 (per-branch tag-range scan) + s02 (channel
+  propagation) during plan-work.
+status: planning
+priority: P2
+bcps: 14
+
+out_of_scope:
+  - Coordination of simultaneous multi-branch releases in one run
+  - npm dist-tags (channel flag plumbed to GitHub release only)
+  - Automated maintenance-branch creation
+
+stories:
+  - id: e20s01
+    title: Per-branch tag range scan and glob branch matching
+    description: >
+      Enumerate configured branches; per-branch tag scanning (v1.x tags
+      vs v2.x-beta tags). Replace exact-name branch matching in
+      release.go validateBranch with glob expansion (1.x, N.x patterns).
+    status: todo
+    files:
+      - pkg/release/release.go
+      - pkg/release/release_test.go
+      - internal/git/client.go
+
+  - id: e20s02
+    title: Channel propagation to GitHub release
+    description: >
+      Propagate BranchConfig.Channel to state.NextRelease.Channel and
+      through to GitHub release (release name/prerelease flag per
+      branch). Each branch calculates version independently.
+    status: todo
+    files:
+      - pkg/release/release.go
+      - pkg/release/release_test.go
+      - internal/plugins/github.go
+
+verification:
+  - step: All tests pass
+    command: make test
+    expected: All tests pass
+
+  - step: Build binary
+    command: make build
+    expected: Binary exists in bin/big-release
+
+  - step: Lint
+    command: make lint
+    expected: No lint errors
+
+  - step: Preflight
+    command: make preflight
+    expected: Preflight green

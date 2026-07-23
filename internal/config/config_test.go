@@ -59,3 +59,21 @@ func TestValidateConfig_AcceptsValidBranchTypes(t *testing.T) {
 		}
 	}
 }
+
+// --- e18s01: configurable commit type sections & visibility ---
+
+func TestDefaultConfig_SeedsCommitTypes(t *testing.T) {
+	cfg := DefaultConfig()
+	if len(cfg.CommitTypes) == 0 {
+		t.Fatal("expected DefaultConfig to seed CommitTypes, got empty slice")
+	}
+	seen := map[string]bool{}
+	for _, ct := range cfg.CommitTypes {
+		seen[ct.Type] = true
+	}
+	for _, want := range []string{"feat", "fix", "perf", "docs", "refactor", "chore", "style", "test"} {
+		if !seen[want] {
+			t.Errorf("DefaultConfig.CommitTypes missing %q: %+v", want, seen)
+		}
+	}
+}

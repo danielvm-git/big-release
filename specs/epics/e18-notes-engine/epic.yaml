@@ -1,0 +1,90 @@
+epic: e18
+title: Notes & Changelog Engine
+description: >
+  Make the release notes engine configurable and parity with
+  @semantic-release/release-notes-generator: configurable commit type
+  sections/visibility (issue #15), hide non-release types (#7),
+  clickable commit hash and issue links (#8), filter revert commits (#9).
+  Foundation: e18s01 introduces the CommitTypes config struct that all
+  other stories build on.
+status: planning
+priority: P1
+bcps: 10
+
+out_of_scope:
+  - Custom per-type templates (only section titles/visibility)
+  - Multi-language i18n of section titles
+  - GitLab-specific URL patterns (generic URL builder, GitHub primary)
+
+stories:
+  - id: e18s01
+    title: Configurable commit type sections & visibility (FOUNDATION)
+    description: >
+      Introduce CommitTypeConfig (type, section, hidden) in
+      algorithm.Config. DefaultConfig seeds the full type list (feat/fix/
+      perf/revert shown; docs/chore/ci/refactor/style/test/build hidden).
+      Replace hardcoded sectionOrder in generator.go with a type map
+      derived from config. Build analyzer.go regex dynamically from
+      configured types. groupCommits skips hidden types unless breaking.
+      Thread commitTypes into Generator constructor; update release.go.
+    status: todo
+    files:
+      - internal/algorithm/types.go
+      - internal/config/config.go
+      - internal/algorithm/generator.go
+      - internal/algorithm/generator_test.go
+      - internal/algorithm/analyzer.go
+      - pkg/release/release.go
+
+  - id: e18s02
+    title: Hide non-release commit types from changelog (#7)
+    description: >
+      Verify seeded defaults exclude docs/chore/ci/refactor/style/test/build
+      from changelog by default. Primarily e18s01 defaults + acceptance
+      tests. Breaking changes from any type still appear in BREAKING
+      CHANGES.
+    status: todo
+    files:
+      - internal/algorithm/generator_test.go
+
+  - id: e18s03
+    title: Clickable commit hash and issue links (#8)
+    description: >
+      formatCommit renders hash as markdown link [{short}]({repoURL}/commit/{full});
+      render hash in both scoped and unscoped cases. Thread RepositoryURL
+      into Generator. Compare block becomes real compare URL. Linkify
+      #123 / fixes|closes|resolves #N issue references.
+    status: todo
+    files:
+      - internal/algorithm/generator.go
+      - internal/algorithm/generator_test.go
+      - pkg/release/release.go
+
+  - id: e18s04
+    title: Filter revert commits from release notes (#9)
+    description: >
+      Detect revert type, parse Reverts: footer or "This reverts commit
+      {hash}" body. Drop both revert and matched target from notes.
+      Orphaned reverts (no match) still appear. Bump analysis unchanged.
+    status: todo
+    files:
+      - internal/algorithm/generator.go
+      - internal/algorithm/generator_test.go
+      - internal/algorithm/analyzer.go
+
+verification:
+  - step: All tests pass
+    command: make test
+    expected: All tests pass
+
+  - step: Build binary
+    command: make build
+    expected: Binary exists in bin/big-release
+
+  - step: Lint
+    command: make lint
+    expected: No lint errors
+
+  - step: Preflight
+    command: make preflight
+    expected: Preflight green
