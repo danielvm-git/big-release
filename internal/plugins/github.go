@@ -12,17 +12,21 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
+	"time"
 
 	"github.com/danielvm-git/big-release/internal/algorithm"
 )
 
 // GitHubPlugin creates GitHub releases via the API.
 type GitHubPlugin struct {
-	client        HTTPClient
-	apiBaseURL    string // for testing; empty = use default GitHub API
-	uploadBaseURL string // for testing; empty = use default uploads host
-	assets        []algorithm.AssetConfig
-	draftRelease  bool
+	client              HTTPClient
+	apiBaseURL          string // for testing; empty = use default GitHub API
+	uploadBaseURL       string // for testing; empty = use default uploads host
+	assets              []algorithm.AssetConfig
+	draftRelease        bool
+	releaseNameTemplate string
+	releaseBodyTemplate string
 }
 
 // HTTPClient defines the interface for making HTTP requests.
@@ -55,6 +59,8 @@ func (p *GitHubPlugin) Configure(raw map[string]interface{}) error {
 	}
 	p.assets = cfg.Assets
 	p.draftRelease = cfg.DraftRelease
+	p.releaseNameTemplate = cfg.ReleaseName
+	p.releaseBodyTemplate = cfg.ReleaseBody
 	return nil
 }
 
@@ -113,16 +119,69 @@ type createReleaseRequest struct {
 	GenerateReleaseNotes bool   `json:"generate_release_notes"`
 }
 
-func (p *GitHubPlugin) buildReleasePayload(version, notes, releaseType string) ([]byte, error) {
-	body := &createReleaseRequest{
+// templateContext is the variable scope passed to release name/body
+// templates. Mirrors @semantic-release/github's lodash template context.
+type templateContext struct {
+	Version     string
+	Date        string
+	Branch      string
+	Notes       string
+	NextRelease *algorithm.Release
+	LastRelease *algorithm.Release
+}
+
+func (p *GitHubPlugin) buildReleasePayload(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) ([]byte, error) {
+	version := state.NextRelease.Version
+	notes := state.NextRelease.Notes
+	releaseType := string(state.NextRelease.Type)
+
+	tctx := templateContext{
+		Version:     version,
+		Date:        time.Now().UTC().Format(time.RFC3339),
+		Notes:       notes,
+		NextRelease: state.NextRelease,
+		LastRelease: state.LastRelease,
+	}
+	if ctx.Branch != nil {
+		tctx.Branch = ctx.Branch.Name
+	}
+
+	name, err := p.renderTemplate("release name", p.releaseNameTemplate, "v"+version, tctx)
+	if err != nil {
+		return nil, err
+	}
+	body, err := p.renderTemplate("release body", p.releaseBodyTemplate, notes, tctx)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &createReleaseRequest{
 		TagName:              version,
-		Name:                 fmt.Sprintf("v%s", version),
-		Body:                 notes,
+		Name:                 name,
+		Body:                 body,
 		Draft:                p.draftRelease,
 		Prerelease:           releaseType == "prerelease",
 		GenerateReleaseNotes: notes == "",
 	}
-	return json.Marshal(body)
+	return json.Marshal(req)
+}
+
+// renderTemplate executes a Go text/template against tctx. When tmpl is
+// empty, the fallback value is returned unchanged (preserving default
+// behavior). A parse or execution error is returned with context.
+func (p *GitHubPlugin) renderTemplate(label, tmpl, fallback string, tctx templateContext) (string, error) {
+	if tmpl == "" {
+		return fallback, nil
+	}
+	t, err := template.New(label).Parse(tmpl)
+	if err != nil {
+		return "", fmt.Errorf("invalid %s template: %w", label, err)
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, tctx); err != nil {
+		return "", fmt.Errorf("failed to render %s template: %w", label, err)
+	}
+	return buf.String(), nil
 }
 
 func (p *GitHubPlugin) createHTTPRequest(url string, payload []byte) (*http.Request, error) {
@@ -180,7 +239,7 @@ func (p *GitHubPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.
 	if ctx.DryRun {
 		return nil, nil
 	}
-	payload, err := p.buildReleasePayload(state.NextRelease.Version, state.NextRelease.Notes, string(state.NextRelease.Type))
+	payload, err := p.buildReleasePayload(ctx, state)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal release body: %w", err)
 	}

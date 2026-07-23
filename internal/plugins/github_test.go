@@ -561,6 +561,153 @@ func TestGitHubPluginPublish_NonDraftNeverPatches(t *testing.T) {
 	}
 }
 
+// --- e19s03 (#11): configurable release name and body templates ---
+
+func TestGitHubPluginPublish_CustomReleaseNameTemplate(t *testing.T) {
+	var capturedBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releases") {
+			capturedBody, _ = io.ReadAll(r.Body)
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 1}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+	p.releaseNameTemplate = "Release {{.Version}} - {{.Date}}"
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "2.0.0", Type: algorithm.ReleaseTypeMinor, Notes: "n"},
+	}
+
+	if _, err := p.Publish(ctx, state); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if !strings.HasPrefix(string(capturedBody), `{"tag_name":"2.0.0","name":"Release 2.0.0`) {
+		t.Errorf("expected templated release name, got: %s", capturedBody)
+	}
+}
+
+func TestGitHubPluginPublish_CustomBodyTemplate(t *testing.T) {
+	var capturedBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releases") {
+			capturedBody, _ = io.ReadAll(r.Body)
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 1}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+	p.releaseBodyTemplate = "Shipped {{.Version}} on branch {{.Branch}}\n\n{{.Notes}}"
+
+	ctx := &algorithm.ReadOnlyContext{
+		DryRun: false,
+		Branch: &algorithm.Branch{Name: "main"},
+	}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.5.0", Type: algorithm.ReleaseTypeMinor, Notes: "### Features\n- new thing"},
+	}
+
+	if _, err := p.Publish(ctx, state); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	bodyStr := string(capturedBody)
+	if !strings.Contains(bodyStr, `Shipped 1.5.0 on branch main`) {
+		t.Errorf("expected templated body with version+branch, got: %s", bodyStr)
+	}
+	if !strings.Contains(bodyStr, `### Features`) {
+		t.Errorf("expected notes interpolated into body, got: %s", bodyStr)
+	}
+}
+
+func TestGitHubPluginPublish_DefaultNameTemplatePreservesVPrefix(t *testing.T) {
+	// With no template configured, name must still be "v{version}".
+	var capturedBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releases") {
+			capturedBody, _ = io.ReadAll(r.Body)
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 1}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "3.1.4", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	if _, err := p.Publish(ctx, state); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if !strings.Contains(string(capturedBody), `"name":"v3.1.4"`) {
+		t.Errorf("default name must be v{version}, got: %s", capturedBody)
+	}
+}
+
+func TestGitHubPluginPublish_InvalidNameTemplateReturnsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+	p.releaseNameTemplate = "{{ .Version" // malformed
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	_, err := p.Publish(ctx, state)
+	if err == nil {
+		t.Fatal("expected error for invalid template, got nil")
+	}
+	if !strings.Contains(err.Error(), "template") {
+		t.Errorf("expected template-related error, got: %v", err)
+	}
+}
+
 func TestExpandAssetGlobs(t *testing.T) {
 	tmp := t.TempDir()
 	for _, name := range []string{"a.tar.gz", "b.tar.gz", "c.zip"} {

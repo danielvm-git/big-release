@@ -119,6 +119,8 @@ type AssetConfig struct {
 type GitHubConfig struct {
 	Assets       []AssetConfig `yaml:"assets,omitempty" json:"assets,omitempty"`
 	DraftRelease bool          `yaml:"draftRelease,omitempty" json:"draftRelease,omitempty"`
+	ReleaseName  string        `yaml:"releaseName,omitempty" json:"releaseName,omitempty"`
+	ReleaseBody  string        `yaml:"releaseBody,omitempty" json:"releaseBody,omitempty"`
 }
 
 // ReadOnlyContext holds immutable inputs to the release pipeline.
