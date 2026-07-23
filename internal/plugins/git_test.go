@@ -12,6 +12,28 @@ import (
 	"github.com/danielvm-git/big-release/internal/git"
 )
 
+// scrubGitEnv drops git hook/worktree env vars so tests that shell out to
+// git cannot mutate the real repository when run under `git commit` hooks
+// (which set GIT_DIR / GIT_INDEX_FILE / GIT_WORK_TREE).
+func scrubGitEnv() []string {
+	var out []string
+	for _, e := range os.Environ() {
+		switch {
+		case strings.HasPrefix(e, "GIT_DIR="),
+			strings.HasPrefix(e, "GIT_WORK_TREE="),
+			strings.HasPrefix(e, "GIT_INDEX_FILE="),
+			strings.HasPrefix(e, "GIT_PREFIX="),
+			strings.HasPrefix(e, "GIT_COMMON_DIR="),
+			strings.HasPrefix(e, "GIT_OBJECT_DIRECTORY="),
+			strings.HasPrefix(e, "GIT_ALTERNATE_OBJECT_DIRECTORIES="):
+			continue
+		default:
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 // setupTestGitRepo creates a temporary git repository for testing.
 func setupTestGitRepo(t *testing.T) string {
 	t.Helper()
@@ -20,15 +42,16 @@ func setupTestGitRepo(t *testing.T) string {
 
 	cmds := [][]string{
 		{"git", "init"},
-		{"git", "config", "user.email", "test@test.com"},
-		{"git", "config", "user.name", "Test User"},
-		{"git", "config", "commit.gpgSign", "false"},
-		{"git", "config", "tag.gpgSign", "false"},
+		{"git", "config", "--local", "user.email", "test@test.com"},
+		{"git", "config", "--local", "user.name", "Test User"},
+		{"git", "config", "--local", "commit.gpgSign", "false"},
+		{"git", "config", "--local", "tag.gpgSign", "false"},
 	}
 
 	for _, args := range cmds {
 		cmd := exec.Command(args[0], args[1:]...)
 		cmd.Dir = dir
+		cmd.Env = scrubGitEnv()
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("failed to run %v: %v\noutput: %s", args, err, string(out))
 		}
@@ -50,6 +73,7 @@ func execInDir(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Dir = dir
+	cmd.Env = scrubGitEnv()
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("command %v failed: %v\noutput: %s", args, err, string(out))
