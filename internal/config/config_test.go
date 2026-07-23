@@ -61,6 +61,23 @@ func TestValidateConfig_AcceptsValidBranchTypes(t *testing.T) {
 	}
 }
 
+func TestValidateConfig_RejectsDuplicateBranchNames(t *testing.T) {
+	cfg := &algorithm.Config{
+		Branches: []algorithm.BranchConfig{
+			{Name: "main", Type: "release"},
+			{Name: "main", Type: "prerelease"},
+		},
+		TagFormat: "v${version}",
+	}
+	err := ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected error for duplicate branch names, got nil")
+	}
+	if !strings.Contains(err.Error(), "duplicate branch name") {
+		t.Errorf("expected 'duplicate branch name' error, got: %v", err)
+	}
+}
+
 // --- e18s01: configurable commit type sections & visibility ---
 
 func TestDefaultConfig_SeedsCommitTypes(t *testing.T) {
