@@ -1,0 +1,56 @@
+name: Feature request
+description: Suggest a new publisher, config option, or an improvement to big-release
+title: "[feature] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion! For changes to the release *algorithm*
+        (version rules, SemVer handling, changelog generation), this is the
+        right starting point — but expect a higher review bar because many
+        repos depend on consistent behavior.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the gap. What's currently hard, manual, or inconsistent?
+      placeholder: "There's no publisher for <registry X>, so I have to publish manually after each release…"
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What change do you propose?
+      description: The concrete change you'd like to see. If it affects the config schema or CLI, say how.
+      placeholder: "Add a `pubspec` publisher that runs `dart pub publish` and updates the version in pubspec.yaml…"
+    validations:
+      required: true
+  - type: dropdown
+    id: publisher-scope
+    attributes:
+      label: Which area does this touch?
+      options:
+        - New publisher / language
+        - New plugin
+        - Configuration option
+        - Algorithm (version / changelog / branch matching)
+        - CLI / output
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: What else did you consider, and why is this the better fit?
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Links to the registry's publishing contract, examples from semantic-release, or anything else relevant.
+    validations:
+      required: false

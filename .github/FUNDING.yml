@@ -1,0 +1,18 @@
+# Funding configuration — the "Sponsor" button on the repository page.
+# Docs: https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+#
+# Uncomment the lines for the platforms you accept sponsorship through.
+# big-release ships this with no sponsor button by default; enable opt-in.
+
+# github: [danielvm-git]
+# patreon: # INSERT-PATREON-USERNAME
+# open_collective: # INSERT-COLLECTIVE-SLUG
+# ko_fi: # INSERT-KOFI-USERNAME
+# tidelift: # platform: INSERT-PLATFORM-NAME / repo: INSERT-REPO
+# community_bridge: # INSERT-NAME
+# liberapay: # INSERT-USERNAME
+# issuehunt: # INSERT-USERNAME
+# lfx_crowdfunding: # INSERT-PROJECT-ID
+# polar: # INSERT-USERNAME
+# buy_me_a_coffee: # INSERT-USERNAME
+# custom: # ["https://INSERT-URL", "https://INSERT-URL"]
