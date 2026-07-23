@@ -117,10 +117,12 @@ type AssetConfig struct {
 // GitHubConfig configures the github plugin (release creation, assets,
 // commenting). Loaded from the PluginConfigs["github"] entry.
 type GitHubConfig struct {
-	Assets       []AssetConfig `yaml:"assets,omitempty" json:"assets,omitempty"`
-	DraftRelease bool          `yaml:"draftRelease,omitempty" json:"draftRelease,omitempty"`
-	ReleaseName  string        `yaml:"releaseName,omitempty" json:"releaseName,omitempty"`
-	ReleaseBody  string        `yaml:"releaseBody,omitempty" json:"releaseBody,omitempty"`
+	Assets         []AssetConfig `yaml:"assets,omitempty" json:"assets,omitempty"`
+	DraftRelease   bool          `yaml:"draftRelease,omitempty" json:"draftRelease,omitempty"`
+	ReleaseName    string        `yaml:"releaseName,omitempty" json:"releaseName,omitempty"`
+	ReleaseBody    string        `yaml:"releaseBody,omitempty" json:"releaseBody,omitempty"`
+	SuccessComment string        `yaml:"successComment,omitempty" json:"successComment,omitempty"`
+	ReleasedLabels []string      `yaml:"releasedLabels,omitempty" json:"releasedLabels,omitempty"`
 }
 
 // ReadOnlyContext holds immutable inputs to the release pipeline.
