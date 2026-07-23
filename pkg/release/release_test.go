@@ -279,6 +279,10 @@ func TestVerifyRelease_Error(t *testing.T) {
 
 func TestBranchValidation(t *testing.T) {
 	// When the current branch is not in Config.Branches, Run() should return a skip error.
+	t.Setenv("GITHUB_EVENT_NAME", "")
+	t.Setenv("CI_MERGE_REQUEST_ID", "")
+	t.Setenv("BUILD_REASON", "")
+
 	gitClient, err := git.NewClient()
 	if err != nil {
 		t.Skipf("skipping: cannot create git client: %v", err)
