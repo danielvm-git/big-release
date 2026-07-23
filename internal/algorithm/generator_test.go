@@ -5,6 +5,110 @@ import (
 	"testing"
 )
 
+// --- e18s04 (#9): filter revert commits from release notes ---
+
+func TestGenerator_GenerateNotes_RevertRemovesBothRevertAndTarget(t *testing.T) {
+	// If commit A is reverted by commit B, neither appears in notes.
+	g := NewGenerator()
+	commits := []*Commit{
+		{Type: "feat", Scope: "auth", Subject: "add OAuth", Hash: "aaaaaaa111111111"},
+		{Type: "revert", Subject: "Revert \"add OAuth\"", Hash: "bbbbbbb222222222", Body: "This reverts commit aaaaaaa111111111."},
+	}
+
+	notes := g.GenerateNotes(commits, nil, nil)
+
+	if strings.Contains(notes, "add OAuth") {
+		t.Errorf("reverted target must not appear in notes:\n%s", notes)
+	}
+	if strings.Contains(notes, "Revert") {
+		t.Errorf("revert commit must not appear in notes:\n%s", notes)
+	}
+}
+
+func TestGenerator_GenerateNotes_RevertFromRevertsFooter(t *testing.T) {
+	// The Reverts: footer form (alternative to the body sentence).
+	g := NewGenerator()
+	commits := []*Commit{
+		{Type: "fix", Subject: "fix bug", Hash: "ccccccc333333333"},
+		{Type: "revert", Subject: "undo fix", Hash: "ddddddd444444444", Body: "Reverts: ccccccc333333333"},
+	}
+
+	notes := g.GenerateNotes(commits, nil, nil)
+
+	if strings.Contains(notes, "fix bug") {
+		t.Errorf("reverted target must not appear:\n%s", notes)
+	}
+	if strings.Contains(notes, "undo fix") {
+		t.Errorf("revert commit must not appear:\n%s", notes)
+	}
+}
+
+func TestGenerator_GenerateNotes_OrphanedRevertStillShown(t *testing.T) {
+	// A revert whose target is not in the commit list still appears.
+	g := NewGenerator()
+	commits := []*Commit{
+		{Type: "feat", Subject: "unrelated feature", Hash: "eeeeeee555555555"},
+		{Type: "revert", Subject: "Revert something old", Hash: "fffffff666666666", Body: "This reverts commit 9999999999999999."},
+	}
+
+	notes := g.GenerateNotes(commits, nil, nil)
+
+	if !strings.Contains(notes, "### Reverts") {
+		t.Errorf("orphaned revert must render under Reverts section:\n%s", notes)
+	}
+	if !strings.Contains(notes, "Revert something old") {
+		t.Errorf("orphaned revert subject must appear:\n%s", notes)
+	}
+}
+
+func TestGenerator_GenerateNotes_NonRevertedFeatureStillShown(t *testing.T) {
+	// Unrelated feat commits are unaffected by revert filtering.
+	g := NewGenerator()
+	commits := []*Commit{
+		{Type: "feat", Subject: "keep this", Hash: "1111111111111111"},
+		{Type: "revert", Subject: "Revert something", Hash: "2222222222222222", Body: "This reverts commit 9999999999999999."},
+	}
+
+	notes := g.GenerateNotes(commits, nil, nil)
+
+	if !strings.Contains(notes, "keep this") {
+		t.Errorf("non-reverted feat must still appear:\n%s", notes)
+	}
+}
+
+func TestParseRevertedHash_BodySentence(t *testing.T) {
+	body := "This reverts commit abcdef1234567890abcdef1234567890abcdef12.\n\nReason: broken"
+	got := parseRevertedHash(body)
+	want := "abcdef1234567890abcdef1234567890abcdef12"
+	if got != want {
+		t.Errorf("parseRevertedHash body form: got %q want %q", got, want)
+	}
+}
+
+func TestParseRevertedHash_RevertsFooter(t *testing.T) {
+	body := "Some description\n\nReverts: 1234567890abcdef1234567890abcdef12345678"
+	got := parseRevertedHash(body)
+	want := "1234567890abcdef1234567890abcdef12345678"
+	if got != want {
+		t.Errorf("parseRevertedHash footer form: got %q want %q", got, want)
+	}
+}
+
+func TestParseRevertedHash_None(t *testing.T) {
+	if got := parseRevertedHash("just a normal body"); got != "" {
+		t.Errorf("expected empty hash for non-revert body, got %q", got)
+	}
+}
+
+func TestParseRevertedHash_ShortHashFromFooter(t *testing.T) {
+	// Footers may carry a short hash; we still return it for matching.
+	body := "Reverts: abc1234"
+	got := parseRevertedHash(body)
+	if got != "abc1234" {
+		t.Errorf("expected short hash abc1234, got %q", got)
+	}
+}
+
 // --- e18s01: configurable commit type sections & visibility (plumbing) ---
 
 func TestGenerator_WithConfigurableCommitTypes_RespectsSectionTitle(t *testing.T) {

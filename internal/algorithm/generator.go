@@ -76,6 +76,13 @@ func (g *Generator) GenerateNotes(commits []*Commit, lastRelease *Release, nextR
 		return ""
 	}
 
+	// Drop revert pairs (a revert and its matched target) from the notes.
+	// Orphaned reverts are retained and render under the Reverts section.
+	commits = filterReverted(commits)
+	if len(commits) == 0 {
+		return ""
+	}
+
 	var sb strings.Builder
 
 	// Group commits by type
