@@ -51,6 +51,21 @@ func (r *Release) detectCI() {
 	r.ctx.DryRun = true
 }
 
+// detectPR reports whether this run was triggered by a pull request.
+// Checks GitHub Actions, GitLab CI, and Azure DevOps indicators.
+func (r *Release) detectPR() bool {
+	if os.Getenv("GITHUB_EVENT_NAME") == "pull_request" {
+		return true
+	}
+	if os.Getenv("CI_MERGE_REQUEST_ID") != "" {
+		return true
+	}
+	if os.Getenv("BUILD_REASON") == "PullRequest" {
+		return true
+	}
+	return false
+}
+
 // validateBranch checks that the current branch is in the configured
 // release branches. Matching supports both exact names and glob patterns
 // (e.g. "+([0-9]).x" matches "1.x", "2.x"). This enables maintenance
@@ -137,6 +152,10 @@ func (r *Release) buildAlgoContext() (*algorithm.ReadOnlyContext, *algorithm.Mut
 
 func (r *Release) Run() error {
 	r.detectCI()
+	if r.detectPR() {
+		r.ctx.Logger.Info("This run was triggered by a pull request and therefore a new version won't be published")
+		return nil
+	}
 
 	algoCtx, state, err := r.buildAlgoContext()
 	if err != nil {
