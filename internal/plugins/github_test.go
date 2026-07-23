@@ -2,6 +2,7 @@
 package plugins
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -415,6 +416,148 @@ func TestGitHubPluginPublish_NoAssetsSkipsUpload(t *testing.T) {
 	}
 	if assetCalled != 0 {
 		t.Errorf("expected 0 asset uploads when no assets configured, got %d", assetCalled)
+	}
+}
+
+// --- e19s02 (#13): draft GitHub releases ---
+
+func TestGitHubPluginPublish_DraftReleaseCreatesAsDraftThenPublishes(t *testing.T) {
+	// draftRelease:true → POST release with draft:true, then after assets
+	// are uploaded, PATCH the release to draft:false.
+	tmp := t.TempDir()
+	assetPath := tmp + "/binary"
+	if err := os.WriteFile(assetPath, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var createBody []byte
+	var patchCalled bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releases"):
+			createBody, _ = io.ReadAll(r.Body)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 99}`))
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/assets"):
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{}`))
+		case r.Method == http.MethodPatch && strings.Contains(r.URL.Path, "/releases/99"):
+			patchCalled = true
+			patchBody, _ := io.ReadAll(r.Body)
+			if !strings.Contains(string(patchBody), `"draft":false`) {
+				t.Errorf("PATCH must set draft:false, got: %s", patchBody)
+			}
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+	p.uploadBaseURL = server.URL
+	p.draftRelease = true
+	p.assets = []algorithm.AssetConfig{{Path: assetPath}}
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	if _, err := p.Publish(ctx, state); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if !strings.Contains(string(createBody), `"draft":true`) {
+		t.Errorf("create request must include draft:true, got: %s", createBody)
+	}
+	if !patchCalled {
+		t.Error("expected a PATCH to publish the draft after asset upload")
+	}
+}
+
+func TestGitHubPluginPublish_DraftReleaseNoAssets_PublishesImmediately(t *testing.T) {
+	// draftRelease:true but no assets → still PATCH to draft:false right after create.
+	var patchCalled bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releases"):
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 99}`))
+		case r.Method == http.MethodPatch && strings.Contains(r.URL.Path, "/releases/99"):
+			patchCalled = true
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+	p.draftRelease = true
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	if _, err := p.Publish(ctx, state); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if !patchCalled {
+		t.Error("draft with no assets must still PATCH to publish")
+	}
+}
+
+func TestGitHubPluginPublish_NonDraftNeverPatches(t *testing.T) {
+	// Default (draftRelease:false) must NEVER send a PATCH.
+	var patchCalled bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch {
+			patchCalled = true
+		}
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releases") {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 99}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	if _, err := p.Publish(ctx, state); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if patchCalled {
+		t.Error("non-draft release must never send a PATCH")
 	}
 }
 

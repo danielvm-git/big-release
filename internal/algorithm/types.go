@@ -117,7 +117,8 @@ type AssetConfig struct {
 // GitHubConfig configures the github plugin (release creation, assets,
 // commenting). Loaded from the PluginConfigs["github"] entry.
 type GitHubConfig struct {
-	Assets []AssetConfig `yaml:"assets,omitempty" json:"assets,omitempty"`
+	Assets       []AssetConfig `yaml:"assets,omitempty" json:"assets,omitempty"`
+	DraftRelease bool          `yaml:"draftRelease,omitempty" json:"draftRelease,omitempty"`
 }
 
 // ReadOnlyContext holds immutable inputs to the release pipeline.

@@ -22,6 +22,7 @@ type GitHubPlugin struct {
 	apiBaseURL    string // for testing; empty = use default GitHub API
 	uploadBaseURL string // for testing; empty = use default uploads host
 	assets        []algorithm.AssetConfig
+	draftRelease  bool
 }
 
 // HTTPClient defines the interface for making HTTP requests.
@@ -53,6 +54,7 @@ func (p *GitHubPlugin) Configure(raw map[string]interface{}) error {
 		return fmt.Errorf("github plugin: invalid config: %w", err)
 	}
 	p.assets = cfg.Assets
+	p.draftRelease = cfg.DraftRelease
 	return nil
 }
 
@@ -106,6 +108,7 @@ type createReleaseRequest struct {
 	TagName              string `json:"tag_name"`
 	Name                 string `json:"name"`
 	Body                 string `json:"body"`
+	Draft                bool   `json:"draft"`
 	Prerelease           bool   `json:"prerelease"`
 	GenerateReleaseNotes bool   `json:"generate_release_notes"`
 }
@@ -115,6 +118,7 @@ func (p *GitHubPlugin) buildReleasePayload(version, notes, releaseType string) (
 		TagName:              version,
 		Name:                 fmt.Sprintf("v%s", version),
 		Body:                 notes,
+		Draft:                p.draftRelease,
 		Prerelease:           releaseType == "prerelease",
 		GenerateReleaseNotes: notes == "",
 	}
@@ -154,11 +158,7 @@ func (p *GitHubPlugin) handleReleaseResponse(resp *http.Response, repo, version 
 }
 
 func (p *GitHubPlugin) releaseURL(repo string) string {
-	baseURL := p.apiBaseURL
-	if baseURL == "" {
-		baseURL = "https://api.github.com"
-	}
-	return fmt.Sprintf("%s/repos/%s/releases", baseURL, repo)
+	return fmt.Sprintf("%s/repos/%s/releases", p.releaseURLBase(), repo)
 }
 
 func (p *GitHubPlugin) sendReleaseRequest(payload []byte, repo, version string) (int64, error) {
@@ -196,7 +196,52 @@ func (p *GitHubPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.
 			return nil, err
 		}
 	}
+
+	// Draft releases are published atomically after asset upload (#13).
+	if p.draftRelease && releaseID != 0 {
+		if err := p.publishDraft(repo, releaseID); err != nil {
+			return nil, err
+		}
+	}
 	return nil, nil
+}
+
+// publishDraft flips a draft release to published via PATCH.
+func (p *GitHubPlugin) publishDraft(repo string, releaseID int64) error {
+	patchURL := fmt.Sprintf("%s/repos/%s/releases/%d", p.releaseURLBase(), repo, releaseID)
+	payload, err := json.Marshal(map[string]bool{"draft": false})
+	if err != nil {
+		return fmt.Errorf("failed to marshal draft publish payload: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodPatch, patchURL, bytes.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("failed to create draft publish request: %w", err)
+	}
+	token := os.Getenv("GITHUB_TOKEN")
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to publish draft release: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("draft publish failed (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
+// releaseURLBase returns the API base without the /releases suffix, used
+// to build per-release URLs (PATCH, assets).
+func (p *GitHubPlugin) releaseURLBase() string {
+	baseURL := p.apiBaseURL
+	if baseURL == "" {
+		baseURL = "https://api.github.com"
+	}
+	return baseURL
 }
 
 // Success is called after a successful release.
