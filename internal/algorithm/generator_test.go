@@ -103,7 +103,10 @@ func TestGenerator_GenerateNotes_Empty(t *testing.T) {
 	}
 }
 
-func TestGenerator_GenerateNotes_AllCommitTypes(t *testing.T) {
+func TestGenerator_GenerateNotes_DefaultHidesNonReleaseTypes(t *testing.T) {
+	// #7: by default, only release-relevant types appear in the changelog.
+	// Hidden: docs, chore, refactor, style, test, build, ci.
+	// Visible: feat, fix, perf, revert.
 	g := NewGenerator()
 	commits := []*Commit{
 		{Type: "feat", Subject: "add login"},
@@ -118,26 +121,35 @@ func TestGenerator_GenerateNotes_AllCommitTypes(t *testing.T) {
 
 	notes := g.GenerateNotes(commits, nil, nil)
 
+	// Visible sections + subjects.
 	for _, want := range []string{
 		"### Features",
 		"### Bug Fixes",
 		"### Performance Improvements",
+		"add login",
+		"fix crash",
+		"speed up queries",
+	} {
+		if !strings.Contains(notes, want) {
+			t.Errorf("notes missing visible %q:\n%s", want, notes)
+		}
+	}
+
+	// Hidden sections + subjects must not appear.
+	for _, unwanted := range []string{
 		"### Documentation",
 		"### Refactoring",
 		"### Chores",
 		"### Style",
 		"### Tests",
-		"add login",
-		"fix crash",
-		"speed up queries",
 		"update readme",
 		"extract util",
 		"update deps",
 		"format code",
 		"add unit tests",
 	} {
-		if !strings.Contains(notes, want) {
-			t.Errorf("notes missing %q:\n%s", want, notes)
+		if strings.Contains(notes, unwanted) {
+			t.Errorf("hidden %q must not appear in notes:\n%s", unwanted, notes)
 		}
 	}
 }
@@ -260,18 +272,42 @@ func TestGenerator_GenerateNotes_HidesSensitive(t *testing.T) {
 func TestGenerator_SectionOrder(t *testing.T) {
 	g := NewGenerator()
 	commits := []*Commit{
-		{Type: "test", Subject: "add test"},
+		{Type: "fix", Subject: "add fix"},
 		{Type: "feat", Subject: "add feature"},
 	}
 
 	notes := g.GenerateNotes(commits, nil, nil)
 
 	featIdx := strings.Index(notes, "### Features")
-	testIdx := strings.Index(notes, "### Tests")
-	if featIdx == -1 || testIdx == -1 {
+	fixIdx := strings.Index(notes, "### Bug Fixes")
+	if featIdx == -1 || fixIdx == -1 {
 		t.Fatalf("expected both sections:\n%s", notes)
 	}
-	if featIdx > testIdx {
-		t.Errorf("Features should come before Tests:\n%s", notes)
+	if featIdx > fixIdx {
+		t.Errorf("Features should come before Bug Fixes:\n%s", notes)
+	}
+}
+
+// --- e18s02 (#7): breaking changes from hidden types still appear ---
+
+func TestGenerator_GenerateNotes_BreakingFromHiddenTypeStillShown(t *testing.T) {
+	// refactor is hidden by default, but a breaking refactor must surface
+	// in BREAKING CHANGES per #7 acceptance criteria.
+	g := NewGenerator()
+	commits := []*Commit{
+		{Type: "refactor", Subject: "rewrite core", Breaking: true, Body: "BREAKING CHANGE: everything"},
+	}
+
+	notes := g.GenerateNotes(commits, nil, nil)
+
+	if !strings.Contains(notes, "### BREAKING CHANGES") {
+		t.Errorf("breaking change from hidden type must still appear:\n%s", notes)
+	}
+	if !strings.Contains(notes, "rewrite core") {
+		t.Errorf("breaking change subject must appear in BREAKING CHANGES:\n%s", notes)
+	}
+	// The refactor section itself must NOT render (it is hidden).
+	if strings.Contains(notes, "### Refactoring") {
+		t.Errorf("hidden Refactoring section must not render:\n%s", notes)
 	}
 }
