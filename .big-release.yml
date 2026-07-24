@@ -1,0 +1,4 @@
+# big-release configuration
+# Tags in this repo use format "2.0.0" (no "v" prefix)
+tagFormat: "${version}"
+initialVersion: "0.1.0"

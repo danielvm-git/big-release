@@ -26,10 +26,10 @@ vendor/
 .DS_Store
 Thumbs.db
 
-# big-release
-.big-release.yml
-.big-release.json
-.big-release.yaml
+# big-release config is committed for CI
+# .big-release.yml
+# .big-release.json
+# .big-release.yaml
 
 # Build artifacts
 dist/
