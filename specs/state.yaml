@@ -12,7 +12,7 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'Fix landed for BUG-release-workflow-softprops-and-verbose.'
+  context: 'Epic e08 semantic-release test parity complete and merged. Bug release workflow softprops also fixed.'
   next_skill: survey-context
 release:
   commit_landed: true

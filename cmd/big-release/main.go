@@ -11,6 +11,7 @@ import (
 
 	"github.com/danielvm-git/big-release/internal/config"
 	"github.com/danielvm-git/big-release/internal/git"
+	"github.com/danielvm-git/big-release/internal/secure"
 	"github.com/danielvm-git/big-release/pkg/release"
 )
 
@@ -96,14 +97,15 @@ func main() {
 // combined with the sparse success-path logs, previously made a release
 // appear completely silent (BUG-release-workflow-softprops-and-verbose).
 func buildLogger(verbose bool) (*zap.Logger, error) {
+	opts := []zap.Option{zap.WrapCore(secure.WrapCore)}
 	if verbose {
 		devCfg := zap.NewDevelopmentConfig()
 		devCfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
-		return devCfg.Build()
+		return devCfg.Build(opts...)
 	}
 	prodCfg := zap.NewProductionConfig()
 	prodCfg.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
-	return prodCfg.Build()
+	return prodCfg.Build(opts...)
 }
 
 func runRelease(dryRun, verbose bool, configFile string) error {

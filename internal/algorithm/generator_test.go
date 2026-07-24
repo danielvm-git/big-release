@@ -559,3 +559,19 @@ func TestGenerator_GenerateNotes_IssueRefWithoutRepoURL_NotLinkified(t *testing.
 		t.Errorf("should keep literal #456:\n%s", notes)
 	}
 }
+
+// --- e08s01: secret masking in release notes ---
+
+func TestMasking_GeneratorNotes(t *testing.T) {
+	g := NewGenerator()
+	commits := []*Commit{
+		{Type: "feat", Subject: "add auth token=ghp_notleaked1234567890123456789012", Hash: "abc1234567890"},
+	}
+	notes := g.GenerateNotes(commits, nil, nil)
+	if strings.Contains(notes, "ghp_notleaked") {
+		t.Fatalf("release notes leaked token:\n%s", notes)
+	}
+	if !strings.Contains(notes, "[secure]") {
+		t.Fatalf("expected redacted placeholder in notes:\n%s", notes)
+	}
+}

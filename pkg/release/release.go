@@ -235,7 +235,8 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 		}
 	}
 
-	// Phase 1: VerifyConditions
+	// Phase 1: VerifyConditions — collect all failures (e08s05)
+	var verifyErrs []error
 	for _, name := range pluginNames {
 		p, err := plugins.Get(name)
 		if err != nil {
@@ -243,9 +244,12 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 		}
 		if cv, ok := p.(plugins.ConditionVerifier); ok {
 			if err := cv.VerifyConditions(ctx, state); err != nil {
-				return fmt.Errorf("plugin %q verify conditions failed: %w", name, err)
+				verifyErrs = append(verifyErrs, fmt.Errorf("plugin %q verify conditions failed: %w", name, err))
 			}
 		}
+	}
+	if agg := NewAggregateError(verifyErrs...); agg != nil {
+		return agg
 	}
 
 	// Phase 2: AnalyzeCommits — collect release type from plugins (priority-based)

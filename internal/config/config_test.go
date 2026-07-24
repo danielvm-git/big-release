@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -135,5 +136,92 @@ pluginConfigs:
 	assets, _ := gh["assets"].([]interface{})
 	if len(assets) != 2 {
 		t.Fatalf("expected 2 assets, got %d: %+v", len(assets), gh["assets"])
+	}
+}
+
+// --- e08s06: configuration file loading ---
+
+func TestFileLoading_YAML(t *testing.T) {
+	yml := `
+branches:
+  - name: main
+tagFormat: "release-${version}"
+`
+	path := filepath.Join(t.TempDir(), ".big-release.yml")
+	if err := os.WriteFile(path, []byte(yml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TagFormat != "release-${version}" {
+		t.Fatalf("expected custom tagFormat, got %q", cfg.TagFormat)
+	}
+}
+
+func TestFileLoading_JSON(t *testing.T) {
+	js := `{"branches":[{"name":"main"}],"tagFormat":"json-${version}"}`
+	path := filepath.Join(t.TempDir(), ".big-release.json")
+	if err := os.WriteFile(path, []byte(js), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TagFormat != "json-${version}" {
+		t.Fatalf("expected json tagFormat, got %q", cfg.TagFormat)
+	}
+}
+
+func TestFileLoading_ParentDiscovery(t *testing.T) {
+	root := t.TempDir()
+	child := filepath.Join(root, "sub", "dir")
+	if err := os.MkdirAll(child, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	yml := `
+branches:
+  - name: main
+tagFormat: "parent-${version}"
+`
+	if err := os.WriteFile(filepath.Join(root, ".big-release.yml"), []byte(yml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(child); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(orig) })
+
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TagFormat != "parent-${version}" {
+		t.Fatalf("expected parent config, got %q", cfg.TagFormat)
+	}
+}
+
+func TestFileLoading_ExplicitPath(t *testing.T) {
+	dir := t.TempDir()
+	explicit := filepath.Join(dir, "custom.yml")
+	other := filepath.Join(dir, ".big-release.yml")
+	if err := os.WriteFile(explicit, []byte("branches:\n  - name: main\ntagFormat: explicit-${version}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(other, []byte("branches:\n  - name: main\ntagFormat: default-${version}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(explicit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TagFormat != "explicit-${version}" {
+		t.Fatalf("expected explicit path config, got %q", cfg.TagFormat)
 	}
 }
