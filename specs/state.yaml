@@ -5,8 +5,8 @@ active_story: null
 epic_cycle: null
 bug_id: BUG-release-workflow-softprops-and-verbose
 bug_cycle:
-  current_step: 3
-  completed_steps: [1, 2]
+  current_step: 4
+  completed_steps: [1, 2, 3]
 bigpowers_version: 2.76.1
 environment:
   go: 1.26.3
@@ -15,7 +15,7 @@ environment:
   binary: ./bin/big-release (dev)
 handoff:
   context: 'Fixing two release-workflow bugs: softprops tag error + --verbose no output.'
-  next_skill: develop-tdd
+  next_skill: validate-fix
 release:
   commit_landed: true
   ci_verified: true
