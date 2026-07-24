@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- big-release managed -->
 
+## [2.1.1] - 2026-07-24
+
+### Fixed
+
+- **ci:** remove redundant softprops upload step and enable verbose logger output ([9030e2e](https://github.com/danielvm-git/big-release/commit/9030e2e3e84086e5c84384e9449a079084170d92))
+
 ## [2.1.0] - 2026-07-24
 
 ### Added
