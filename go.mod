@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/BurntSushi/toml v1.6.0
-	github.com/Masterminds/semver/v3 v3.2.1
+	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/spf13/cobra v1.10.2
 	go.uber.org/zap v1.28.0
 	gopkg.in/yaml.v3 v3.0.1
