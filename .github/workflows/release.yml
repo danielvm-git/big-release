@@ -158,7 +158,7 @@ jobs:
 
       - name: Upload release artifacts
         if: steps.check-tag.outputs.tag_exists == 'true'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             bin/big-release-linux-amd64
