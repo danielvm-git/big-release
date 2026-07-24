@@ -52,6 +52,9 @@ func (p *GitHubPlugin) uploadOneAsset(repo string, releaseID int64, asset algori
 	if err != nil {
 		return fmt.Errorf("failed to create asset upload request for %q: %w", name, err)
 	}
+	if stat, err := f.Stat(); err == nil {
+		req.ContentLength = stat.Size()
+	}
 	token := os.Getenv("GITHUB_TOKEN")
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", mimeTypeForAsset(name))

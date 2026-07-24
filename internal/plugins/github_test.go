@@ -270,6 +270,9 @@ func TestGitHubPluginPublish_UploadsAssets(t *testing.T) {
 			if name := r.URL.Query().Get("name"); name == "" {
 				t.Errorf("asset upload missing ?name= query")
 			}
+			if r.ContentLength <= 0 {
+				t.Errorf("asset upload missing Content-Length: %d", r.ContentLength)
+			}
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{}`))
 			return
