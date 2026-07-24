@@ -1,5 +1,5 @@
 execution_status:
-  last_updated: "2026-07-13"
+  last_updated: "2026-07-23"
   current_epic: null
   current_story: null
   blocked: false
@@ -27,4 +27,14 @@ execution_status:
     e06s02: todo
     e06s03: todo
     e07s01: todo
-  notes: "E04 complete. E05/E06/E07 planned. 2 bugs open (BUG-branch-config-dead, BUG-publishers-config-ignored)."
+    e21s01: done
+    e21s02: done
+    e21s03: done
+    e21s04: done
+    e22s01: done
+    e22s02: done
+    e22s03: done
+    e23s01: done
+    e23s02: done
+    e23s03: done
+  notes: "Wave 1 bugs fixed (PRs #29-#33). Epics e21 (#36), e23 (#39), e22 (#40) complete."
