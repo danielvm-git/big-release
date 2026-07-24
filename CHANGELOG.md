@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- big-release managed -->
 
+## [2.2.2] - 2026-07-24
+
+### Fixed
+
+- **core:** default branch type to release to enable github make_latest ([8583209](https://github.com/danielvm-git/big-release/commit/858320924ae145281582b3ab6b3c81b25b5f16e1))
+
 ## [2.2.1] - 2026-07-24
 
 ### Fixed
