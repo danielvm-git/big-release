@@ -1,0 +1,127 @@
+epic: e08
+title: Semantic Release Test Parity
+description: >
+  Close testing gaps identified by comparing big-release against the
+  semantic-release Node.js test suite. Ensures parity in secret masking,
+  git URL auth injection, E2E repository simulation, commit traversal,
+  VerifyConditions error aggregation, and configuration file/CLI loading.
+status: planning
+priority: P1
+bcps: 10
+
+out_of_scope:
+  - Executing big-release.config.js (JS config runtime)
+  - Aggregating errors outside VerifyConditions
+  - Mutating remote.origin.url on disk
+  - Full Node semantic-release suite port
+
+stories:
+  - id: e08s01
+    title: Secret Masking & Redaction Tests
+    description: >
+      Implement tests (and minimal production redaction) verifying that
+      sensitive tokens (GH_TOKEN, NPM_TOKEN, etc.) are redacted from logs
+      and release notes. Introduce internal/secure Redact helpers and wire
+      zap + generator.
+    status: todo
+    files:
+      - internal/secure/
+      - internal/algorithm/generator.go
+      - cmd/big-release/main.go
+
+  - id: e08s02
+    title: Git Authentication & URL Mutation Tests
+    description: >
+      Comprehensive tests for AuthURL(remoteURL, token): HTTPS inject,
+      SSH passthrough, no double-inject, redacted errors. Pure function
+      in internal/git/auth_url.go.
+    status: todo
+    files:
+      - internal/git/auth_url.go
+      - internal/git/auth_url_test.go
+
+  - id: e08s03
+    title: E2E Git Repository Simulation Tests
+    description: >
+      Programmatically create a temp dir, git init, commit, tag, and run
+      the pipeline dry-run to assert real git operations without live
+      checkout coupling. Uses internal/git/testrepo helper.
+    status: todo
+    files:
+      - pkg/release/e2e_test.go
+      - internal/git/testrepo/
+
+  - id: e08s04
+    title: Git Commit Traversal & Filtering Tests
+    description: >
+      Verify finding the last release tag and correctly filtering commits
+      between that tag and HEAD (from..HEAD range, empty range). Fix
+      GetLastRelease sort if tests prove it wrong.
+    status: todo
+    files:
+      - internal/git/commits_test.go
+      - internal/git/client.go
+      - internal/git/testrepo/
+
+  - id: e08s05
+    title: Aggregate Pipeline Error Handling Tests
+    description: >
+      When ≥2 VerifyConditions plugins fail, the pipeline collects and
+      returns all errors in an AggregateError (errors.Join). Stubs for
+      unit coverage.
+    status: todo
+    files:
+      - pkg/release/errors.go
+      - pkg/release/release.go
+      - pkg/release/aggregate_error_test.go
+
+  - id: e08s06
+    title: Configuration Loading (File + CLI) Tests
+    description: >
+      Test parsing/loading/merging of YAML/JSON config files, parent
+      directory discovery, and CLI path + dry-run merge. No JS execution.
+    status: todo
+    files:
+      - internal/config/config_test.go
+      - internal/config/
+
+verification:
+  - step: All tests pass
+    command: make test
+    expected: All tests pass
+
+  - step: Build binary
+    command: make build
+    expected: Binary exists in bin/big-release
+
+  - step: Lint
+    command: make lint
+    expected: No lint errors
+
+  - step: Preflight
+    command: make preflight
+    expected: Preflight green
+
+  - step: Masking package tests
+    command: go test ./internal/... -run TestMasking
+    expected: Pass
+
+  - step: Auth URL package tests
+    command: go test ./internal/git -run TestGitAuthURL
+    expected: Pass
+
+  - step: E2E package tests
+    command: go test ./pkg/release -run TestE2E
+    expected: Pass
+
+  - step: Commit traversal tests
+    command: go test ./internal/git -run TestCommitTraversal
+    expected: Pass
+
+  - step: AggregateError tests
+    command: go test ./pkg/release -run TestAggregateErrors
+    expected: Pass
+
+  - step: Config loading tests
+    command: go test ./internal/config -run TestFileLoading
+    expected: Pass

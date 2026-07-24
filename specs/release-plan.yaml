@@ -45,3 +45,7 @@ release_plan:
       title: pnpm Support
       priority: P2
       status: complete
+    - epic: e08
+      title: Semantic Release Test Parity
+      priority: P1
+      status: planning
