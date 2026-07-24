@@ -161,26 +161,26 @@ stories:
     description: >
       Update all documentation to include pnpm as a supported publisher.
       Add pnpm examples to how-to guides, update the reference docs,
-      and add pnpm to the supported publishers list.
-    status: planning
+      and add pnpm to the supported publishers list. Document npm Detect
+      precedence when pnpm markers exist.
+    status: in_progress
     files:
       - docs/reference/publishers.md
-      - docs/how-to/publishers/
+      - docs/how-to/publishers/README.md
       - README.md
     tasks:
       - id: e24s04t01
         title: Update publishers reference
         description: >
-          Add pnpm section to docs/reference/publishers.md with
-          configuration options, environment variables, and behavior.
+          Create docs/reference/publishers.md with pnpm section covering
+          configuration options, environment variables, and Detect precedence.
         verify: grep -q "pnpm" docs/reference/publishers.md
         status: planning
 
       - id: e24s04t02
         title: Update how-to guides
         description: >
-          Add pnpm examples to relevant how-to guides under
-          docs/how-to/publishers/. Show pnpm-specific configuration.
+          Add pnpm row and section to docs/how-to/publishers/README.md.
         verify: grep -q "pnpm" docs/how-to/publishers/*.md
         status: planning
 
