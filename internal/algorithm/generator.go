@@ -4,15 +4,11 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/danielvm-git/big-release/internal/secure"
 )
 
 var (
-	// Sensitive patterns to hide
-	sensitivePatterns = []*regexp.Regexp{
-		regexp.MustCompile(`(?i)(token|password|credential|secret|private).*[=:]\s*\S+`),
-		regexp.MustCompile(`(?i)(token|password|credential|secret|private)=\S+`),
-	}
-
 	// IssueRefPattern matches bare or keyword-prefixed issue references:
 	//   #123, fixes #123, closes #123, resolves #123
 	// Captures the keyword prefix (group 1) and the issue number (group 2).
@@ -221,10 +217,7 @@ func (g *Generator) linkifyIssues(text string) string {
 
 // hideSensitive hides sensitive information in release notes.
 func (g *Generator) hideSensitive(text string) string {
-	for _, pattern := range sensitivePatterns {
-		text = pattern.ReplaceAllString(text, "[secure]")
-	}
-	return text
+	return secure.RedactKnownSecrets(text)
 }
 
 // DefaultCommitTypes returns the seed list of commit type configurations

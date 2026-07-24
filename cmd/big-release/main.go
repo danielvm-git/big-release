@@ -11,6 +11,7 @@ import (
 
 	"github.com/danielvm-git/big-release/internal/config"
 	"github.com/danielvm-git/big-release/internal/git"
+	"github.com/danielvm-git/big-release/internal/secure"
 	"github.com/danielvm-git/big-release/pkg/release"
 )
 
@@ -88,11 +89,17 @@ func main() {
 }
 
 func runRelease(dryRun, verbose bool, configFile string) error {
-	// Initialize logger
-	logger, err := zap.NewProduction()
+	// Initialize logger with secret redaction (e08s01).
+	prodCfg := zap.NewProductionConfig()
+	prodCfg.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	if verbose {
+		prodCfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	}
+	core, err := prodCfg.Build(zap.WrapCore(secure.WrapCore))
 	if err != nil {
 		return fmt.Errorf("failed to initialize logger: %w", err)
 	}
+	logger := core
 	defer func() { _ = logger.Sync() }()
 
 	// Load configuration
