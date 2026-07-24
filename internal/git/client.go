@@ -3,8 +3,11 @@ package git
 import (
 	"fmt"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
+
+	"github.com/Masterminds/semver/v3"
 
 	"github.com/danielvm-git/big-release/internal/algorithm"
 )
@@ -235,36 +238,55 @@ func (c *Client) GetLastRelease(tagFormat string) (*algorithm.Release, error) {
 		return nil, err
 	}
 
-	// Determine the prefix from tag format
-	// e.g., "v${version}" -> prefix "v", "${version}" -> prefix ""
-	prefix := ""
-	if idx := strings.Index(tagFormat, "${version}"); idx > 0 {
-		prefix = tagFormat[:idx]
+	prefix := tagPrefix(tagFormat)
+
+	type candidate struct {
+		tag     string
+		version *semver.Version
 	}
+	var matches []candidate
 
-	// Find the last tag matching the format
-	for i := len(tags) - 1; i >= 0; i-- {
-		tag := tags[i]
-		if strings.HasPrefix(tag, prefix) {
-			version := strings.TrimPrefix(tag, prefix)
-			// Validate it looks like a semver version
-			if version == "" || !strings.Contains(version, ".") {
-				continue
-			}
-			head, err := c.GetTagHead(tag)
-			if err != nil {
-				continue
-			}
-
-			return &algorithm.Release{
-				Version: version,
-				GitTag:  tag,
-				GitHead: head,
-			}, nil
+	for _, tag := range tags {
+		if !strings.HasPrefix(tag, prefix) {
+			continue
 		}
+		versionStr := strings.TrimPrefix(tag, prefix)
+		if versionStr == "" || !strings.Contains(versionStr, ".") {
+			continue
+		}
+		v, err := semver.NewVersion(versionStr)
+		if err != nil {
+			continue
+		}
+		matches = append(matches, candidate{tag: tag, version: v})
 	}
 
-	return nil, nil
+	if len(matches) == 0 {
+		return nil, nil
+	}
+
+	sort.Slice(matches, func(i, j int) bool {
+		return matches[i].version.GreaterThan(matches[j].version)
+	})
+
+	best := matches[0]
+	head, err := c.GetTagHead(best.tag)
+	if err != nil {
+		return nil, err
+	}
+
+	return &algorithm.Release{
+		Version: best.version.String(),
+		GitTag:  best.tag,
+		GitHead: head,
+	}, nil
+}
+
+func tagPrefix(tagFormat string) string {
+	if idx := strings.Index(tagFormat, "${version}"); idx > 0 {
+		return tagFormat[:idx]
+	}
+	return ""
 }
 
 // GetCurrentTime returns the current time formatted for git
