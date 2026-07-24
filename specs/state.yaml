@@ -14,8 +14,8 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'e08 Phase 0 bootstrap — state + capsule shaped; threat model + plan-tests next. Active story e08s01.'
-  next_skill: security-review
+  context: 'e08 Phase 0 complete — capsule shaped, threat model + TEST_PLAN landed, preflight gated. Next: parallel plan-work/IMPACT (if not already) then kickoff/TDD waves (parent).'
+  next_skill: plan-work
 release:
   commit_landed: true
   ci_verified: true
