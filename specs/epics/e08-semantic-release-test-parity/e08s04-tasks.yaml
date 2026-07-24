@@ -1,0 +1,15 @@
+tasks:
+  - id: e08s04-t01
+    description: Commit traversal integration tests
+    status: failing
+    verify: go test ./internal/git -run TestCommitTraversal
+    risk: medium
+    security: E08-TRAV-01
+    allure: SC-e08s04-P0-01
+  - id: e08s04-t02
+    description: Fix GetLastRelease semver sort if red
+    status: failing
+    verify: go test ./internal/git -run TestCommitTraversal
+    risk: medium
+    security: E08-TRAV-01
+    allure: SC-e08s04-P0-01

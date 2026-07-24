@@ -1,0 +1,8 @@
+tasks:
+  - id: e08s03-t01
+    description: E2E dry-run pipeline test with testrepo
+    status: failing
+    verify: go test ./pkg/release -run TestE2E
+    risk: medium
+    security: E08-E2E-01
+    allure: SC-e08s03-P0-01

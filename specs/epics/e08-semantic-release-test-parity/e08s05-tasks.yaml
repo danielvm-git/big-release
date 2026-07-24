@@ -1,0 +1,8 @@
+tasks:
+  - id: e08s05-t01
+    description: AggregateError type and VerifyConditions collect-all
+    status: failing
+    verify: go test ./pkg/release -run TestAggregateErrors
+    risk: medium
+    security: E08-AGG-01
+    allure: SC-e08s05-P0-01
