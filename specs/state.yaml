@@ -12,8 +12,8 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'Epic e08 semantic-release test parity complete — PR ready for review.'
-  next_skill: release-branch
+  context: 'Epic e08 semantic-release test parity complete and merged. Bug release workflow softprops also fixed.'
+  next_skill: survey-context
 release:
   commit_landed: true
   ci_verified: true

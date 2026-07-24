@@ -178,8 +178,37 @@ func (r *Release) Run() error {
 
 	if !r.ctx.DryRun {
 		r.callSuccessHooks(algoCtx, state)
+		// Expose the published version to the CI runner (GitHub Actions
+		// $GITHUB_OUTPUT) so downstream steps can observe a release
+		// (BUG-release-workflow-softprops-and-verbose).
+		if err := r.writeStepOutput(state); err != nil {
+			r.ctx.Logger.Warn("failed to write step output", zap.Error(err))
+		}
 	}
 
+	return nil
+}
+
+// writeStepOutput exposes the computed version (and a published flag) to the
+// enclosing CI runner by appending to the file named by $GITHUB_OUTPUT.
+// Outside GitHub Actions the env var is unset and this is a silent no-op.
+func (r *Release) writeStepOutput(state *algorithm.MutableState) error {
+	if state == nil || state.NextRelease == nil || state.NextRelease.Version == "" {
+		return nil
+	}
+	out := os.Getenv("GITHUB_OUTPUT")
+	if out == "" {
+		return nil
+	}
+	line := fmt.Sprintf("version=%s\npublished=true\n", state.NextRelease.Version)
+	f, err := os.OpenFile(out, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("open GITHUB_OUTPUT: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	if _, err := f.WriteString(line); err != nil {
+		return fmt.Errorf("write GITHUB_OUTPUT: %w", err)
+	}
 	return nil
 }
 
@@ -303,6 +332,12 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 			return fmt.Errorf("failed to calculate next version: %w", err)
 		}
 		state.NextRelease.Version = version
+		// Narrate the computed version so a successful release is visible in
+		// CI output (BUG-release-workflow-softprops-and-verbose).
+		r.ctx.Logger.Info("Computed next release",
+			zap.String("version", version),
+			zap.String("type", string(releaseType)),
+		)
 	}
 
 	// Phase 4: VerifyRelease
@@ -362,6 +397,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 			if rel != nil {
 				state.NextRelease = rel
 			}
+			r.ctx.Logger.Info("Plugin published", zap.String("plugin", name))
 		}
 	}
 
