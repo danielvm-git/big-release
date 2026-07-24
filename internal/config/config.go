@@ -1,9 +1,11 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -65,11 +67,18 @@ func Load(configFile string) (*algorithm.Config, error) {
 	}
 
 	cfg := DefaultConfig()
-	if err := yaml.Unmarshal(data, cfg); err != nil {
+	if err := unmarshalConfig(data, configFile, cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
 	return cfg, nil
+}
+
+func unmarshalConfig(data []byte, configFile string, cfg *algorithm.Config) error {
+	if strings.HasSuffix(strings.ToLower(configFile), ".json") {
+		return json.Unmarshal(data, cfg)
+	}
+	return yaml.Unmarshal(data, cfg)
 }
 
 // findConfigFile searches for configuration file in current directory and parents
