@@ -1,11 +1,11 @@
 workflow_mode: solo-git
 active_flow: build_epic
 active_epic: e24
-active_story: e24s02
+active_story: e24s03
 epic_cycle:
   step: 3
   epic: e24
-  story: e24s02
+  story: e24s03
   steps: [0, 1, 2, 3, 4, 5, 6, 7, 8]
   status: in_progress
   fast_mode: true
@@ -20,7 +20,7 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'e24s01 landed (350a0bb). Starting e24s02 full unit suite.'
+  context: 'e24s02 landed (983473b). Starting e24s03 nodeutil extract (impact risk 5).'
   next_skill: kickoff-branch
 release:
   commit_landed: true

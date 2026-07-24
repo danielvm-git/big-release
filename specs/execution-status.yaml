@@ -1,7 +1,7 @@
 execution_status:
   last_updated: "2026-07-24"
   current_epic: e24
-  current_story: e24s02
+  current_story: e24s03
   blocked: false
   stories:
     e02s01: done
@@ -42,8 +42,11 @@ execution_status:
       started_at: "2026-07-24T13:42:00-03:00"
       completed_at: "2026-07-24T13:50:00-03:00"
     e24s02:
-      status: in_progress
+      status: done
       started_at: "2026-07-24T13:50:00-03:00"
-    e24s03: todo
+      completed_at: "2026-07-24T13:55:00-03:00"
+    e24s03:
+      status: in_progress
+      started_at: "2026-07-24T13:55:00-03:00"
     e24s04: todo
-  notes: "e24s01 landed. Building e24s02 unit suite."
+  notes: "e24s01–s02 landed. Building e24s03 nodeutil extract."

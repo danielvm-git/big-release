@@ -130,28 +130,31 @@ stories:
       readPackageName, isValidPackageName) into
       internal/publishers/nodeutil/nodeutil.go. Update npm publisher to
       import from nodeutil. This avoids code duplication.
-    status: planning
+    status: in_progress
     files:
       - internal/publishers/nodeutil/nodeutil.go
       - internal/publishers/nodeutil/nodeutil_test.go
       - internal/publishers/npm/npm.go
-      - internal/publishers/npm/npm_test.go
+      - internal/publishers/pnpm/pnpm.go
     tasks:
       - id: e24s03t01
         title: Create nodeutil package
         description: >
           Extract readPackageJSON, writePackageJSON, readPackageName,
           isValidPackageName into internal/publishers/nodeutil/.
+          Helpers accept a publisher prefix for error messages.
         verify: go test ./internal/publishers/nodeutil/
         status: planning
+        security: medium
 
       - id: e24s03t02
-        title: Update npm publisher to use nodeutil
+        title: Update npm and pnpm publishers to use nodeutil
         description: >
-          Refactor npm publisher to import from nodeutil instead of
-          local implementations. Verify all npm tests still pass.
-        verify: go test ./internal/publishers/npm/
+          Refactor npm and pnpm publishers to import from nodeutil instead of
+          local implementations. Verify all npm and pnpm tests still pass.
+        verify: go test ./internal/publishers/npm/ ./internal/publishers/pnpm/
         status: planning
+        security: low
 
   - id: e24s04
     title: Documentation updates
