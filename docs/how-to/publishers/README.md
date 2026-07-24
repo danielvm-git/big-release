@@ -10,7 +10,8 @@ Publishers handle the actual package publishing to registries. big-release auto-
 
 | Publisher | Manifest File | Registry | Environment Variable |
 |-----------|---------------|----------|---------------------|
-| npm | `package.json` | npmjs.com | `NPM_TOKEN` |
+| npm | `package.json` (no pnpm markers) | npmjs.com | `NPM_TOKEN` |
+| pnpm | `pnpm-lock.yaml` or `pnpm-workspace.yaml` | npm-compatible | `NPM_TOKEN` / `.npmrc` |
 | PyPI | `pyproject.toml`, `setup.py` | pypi.org | `PYPI_TOKEN` |
 | crates.io | `Cargo.toml` | crates.io | `CARGO_TOKEN` |
 | Go Proxy | `go.mod` | proxy.golang.org | - |
@@ -39,6 +40,26 @@ publishers:
 1. Update `package.json` version
 2. Run `npm publish`
 3. Verify publication
+
+### pnpm
+
+```yaml
+publishers:
+  pnpm:
+    enabled: true
+```
+
+**Detection:** `pnpm-lock.yaml` or `pnpm-workspace.yaml`. When these markers exist, the **npm** publisher does not Detect — pnpm owns the project to avoid double publish.
+
+**Environment Variables:**
+- Same as npm (`NPM_TOKEN` / `.npmrc`) for npm-compatible registries
+
+**Steps:**
+1. Update `package.json` version
+2. Run `pnpm publish --no-git-checks` (optional `--tag` from release channel)
+3. Verify with `pnpm view <name> version`
+
+See also the [publishers reference](../../reference/publishers.md).
 
 ### PyPI
 

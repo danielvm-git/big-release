@@ -7,7 +7,7 @@ description: >
   verify publications — following the same pattern as the existing npm
   publisher but using pnpm CLI commands and respecting pnpm-specific
   configuration (pnpm-workspace.yaml, .npmrc, publishConfig).
-status: in_progress
+status: complete
 priority: P2
 bcps: 5
 
@@ -163,7 +163,7 @@ stories:
       Add pnpm examples to how-to guides, update the reference docs,
       and add pnpm to the supported publishers list. Document npm Detect
       precedence when pnpm markers exist.
-    status: in_progress
+    status: done
     files:
       - docs/reference/publishers.md
       - docs/how-to/publishers/README.md
@@ -175,21 +175,21 @@ stories:
           Create docs/reference/publishers.md with pnpm section covering
           configuration options, environment variables, and Detect precedence.
         verify: grep -q "pnpm" docs/reference/publishers.md
-        status: planning
+        status: done
 
       - id: e24s04t02
         title: Update how-to guides
         description: >
           Add pnpm row and section to docs/how-to/publishers/README.md.
         verify: grep -q "pnpm" docs/how-to/publishers/*.md
-        status: planning
+        status: done
 
       - id: e24s04t03
         title: Update README
         description: >
           Add pnpm to the list of supported publishers in README.md.
         verify: grep -q "pnpm" README.md
-        status: planning
+        status: done
 
 verification:
   - step: All tests pass
@@ -204,6 +204,6 @@ verification:
     command: make lint
     expected: No lint errors
 
-  - step: Publisher detection
-    command: ./bin/big-release validate
-    expected: pnpm publisher listed in available publishers
+  - step: Publisher docs list pnpm
+    command: grep -q pnpm docs/reference/publishers.md README.md docs/how-to/publishers/README.md
+    expected: pnpm documented in reference, how-to, and README

@@ -14,7 +14,7 @@
 - 🔢 **Determines the next version** (patch, minor, major)
 - 📝 **Generates changelogs** in [Keep a Changelog](https://keepachangelog.com/) format
 - 🏷️ **Creates git tags** with proper formatting
-- 📦 **Publishes packages** to any registry (npm, PyPI, crates.io, Maven, Go, Swift, Packagist, Godot)
+- 📦 **Publishes packages** to any registry (npm, pnpm, PyPI, crates.io, Maven, Go, Swift, Packagist, Godot)
 - 🎯 **Creates GitHub releases** with assets, templates, and issue commenting
 - 🔀 **Supports GitLab releases** with assets and issue commenting
 - 📢 **Multi-channel releases** via git notes and dist-tags
@@ -34,6 +34,7 @@
 | Language | Publisher | Registry |
 |----------|-----------|----------|
 | JavaScript/TypeScript | `npm` | npmjs.com |
+| JavaScript/TypeScript (pnpm) | `pnpm` | npm-compatible registries |
 | Python | `pypi` | pypi.org |
 | Rust | `crates` | crates.io |
 | Go | `goproxy` | proxy.golang.org |
@@ -202,6 +203,7 @@ release:
 
 - [Getting Started](docs/tutorials/getting-started.md)
 - [Configuration Reference](docs/reference/configuration.md)
+- [Publishers Reference](docs/reference/publishers.md)
 - [Plugin Development](docs/how-to/develop-plugins.md)
 - [Publisher Guide](docs/how-to/publishers/README.md)
 - [Algorithm Deep Dive](docs/explanation/algorithm.md)
@@ -229,6 +231,8 @@ big-release/
 │   │   └── registry.go       # Plugin registry
 │   └── publishers/           # Language-specific publishers
 │       ├── npm/              # npm publishing
+│       ├── pnpm/             # pnpm publishing
+│       ├── nodeutil/         # shared package.json helpers
 │       ├── pypi/             # PyPI publishing
 │       ├── crates/           # crates.io publishing
 │       ├── goproxy/          # Go proxy publishing

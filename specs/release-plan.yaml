@@ -44,4 +44,4 @@ release_plan:
     - epic: e24
       title: pnpm Support
       priority: P2
-      status: planning
+      status: complete

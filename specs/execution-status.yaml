@@ -1,7 +1,7 @@
 execution_status:
   last_updated: "2026-07-24"
-  current_epic: e24
-  current_story: e24s04
+  current_epic: null
+  current_story: null
   blocked: false
   stories:
     e02s01: done
@@ -50,6 +50,7 @@ execution_status:
       started_at: "2026-07-24T13:55:00-03:00"
       completed_at: "2026-07-24T14:00:00-03:00"
     e24s04:
-      status: in_progress
+      status: done
       started_at: "2026-07-24T14:00:00-03:00"
-  notes: "e24s01–s03 landed. Building e24s04 docs."
+      completed_at: "2026-07-24T14:10:00-03:00"
+  notes: "Epic e24 (pnpm Support) complete — s01–s04 landed."
