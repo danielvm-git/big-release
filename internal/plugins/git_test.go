@@ -338,6 +338,37 @@ func TestGitPluginCommitAssets(t *testing.T) {
 	})
 }
 
+func TestGitPluginAddChannel(t *testing.T) {
+	t.Run("SC-e22s01-P1-01: AddChannel writes git note for channel", func(t *testing.T) {
+		fg := &fakeGit{isRepo: true, head: "abc123"}
+		p := NewGitPlugin(fg)
+		ctx := &algorithm.ReadOnlyContext{DryRun: false}
+		state := &algorithm.MutableState{NextRelease: &algorithm.Release{Version: "1.0.0", Channel: "next"}}
+		if err := p.AddChannel(ctx, state); err != nil {
+			t.Fatalf("AddChannel: %v", err)
+		}
+		if fg.lastNote != "next" || fg.lastNoteRef != "abc123" {
+			t.Errorf("note = %q@%q, want next@abc123", fg.lastNote, fg.lastNoteRef)
+		}
+	})
+
+	t.Run("SC-e22s01-P1-02: Publish pushes channel notes after tag push", func(t *testing.T) {
+		fg := &fakeGit{isRepo: true, head: "deadbeef"}
+		p := NewGitPlugin(fg)
+		_ = p.AddChannel(&algorithm.ReadOnlyContext{}, &algorithm.MutableState{
+			NextRelease: &algorithm.Release{Version: "2.0.0", Channel: "beta"},
+		})
+		ctx := &algorithm.ReadOnlyContext{DryRun: false}
+		state := &algorithm.MutableState{NextRelease: &algorithm.Release{Version: "2.0.0", Channel: "beta"}}
+		if _, err := p.Publish(ctx, state); err != nil {
+			t.Fatalf("Publish: %v", err)
+		}
+		if len(fg.pushedNotes) != 1 || fg.pushedNotes[0] != "origin:deadbeef" {
+			t.Errorf("pushed notes = %v, want [origin:deadbeef]", fg.pushedNotes)
+		}
+	})
+}
+
 func TestGitPluginRegistration(t *testing.T) {
 	t.Run("SC-e03s01-P1-13: GitPlugin can be registered", func(t *testing.T) {
 		// Clear the registry for this test
@@ -377,6 +408,9 @@ type fakeGit struct {
 	modifiedFiles []string
 	stagedPaths   []string
 	lastCommitMsg string
+	lastNote      string
+	lastNoteRef   string
+	pushedNotes   []string
 	createErr     error
 	pushErr       error
 	deleteErr     error
@@ -450,4 +484,15 @@ func (f *fakeGit) PushTags(remote string) error {
 
 func (f *fakeGit) DeleteTag(tag string) error {
 	return f.deleteErr
+}
+
+func (f *fakeGit) AddNote(note, ref string) error {
+	f.lastNote = note
+	f.lastNoteRef = ref
+	return nil
+}
+
+func (f *fakeGit) PushNotes(remote, ref string) error {
+	f.pushedNotes = append(f.pushedNotes, remote+":"+ref)
+	return nil
 }

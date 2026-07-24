@@ -172,6 +172,40 @@ func TestNpmPublish(t *testing.T) {
 	})
 }
 
+func TestNpmPublishChannel(t *testing.T) {
+	t.Run("SC-e22s02-P1-01: Publish uses npm dist-tag from channel", func(t *testing.T) {
+		var args []string
+		p := npm.NewPublisher()
+		p.SetChannel("next")
+		p.ExecCommand = func(name string, a ...string) *exec.Cmd {
+			args = a
+			return exec.Command("true")
+		}
+		if err := p.Publish("1.0.0"); err != nil {
+			t.Fatalf("Publish: %v", err)
+		}
+		if strings.Join(args, " ") != "publish --tag next" {
+			t.Errorf("args = %v, want publish --tag next", args)
+		}
+	})
+
+	t.Run("SC-e22s02-P1-02: latest channel omits dist-tag flag", func(t *testing.T) {
+		var args []string
+		p := npm.NewPublisher()
+		p.SetChannel("latest")
+		p.ExecCommand = func(name string, a ...string) *exec.Cmd {
+			args = a
+			return exec.Command("true")
+		}
+		if err := p.Publish("1.0.0"); err != nil {
+			t.Fatalf("Publish: %v", err)
+		}
+		if strings.Join(args, " ") != "publish" {
+			t.Errorf("args = %v, want publish", args)
+		}
+	})
+}
+
 func TestNpmVerify(t *testing.T) {
 	t.Run("SC-e02-npm-I04: Verify version match", func(t *testing.T) {
 		dir := t.TempDir()

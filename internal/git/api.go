@@ -21,4 +21,6 @@ type GitAPI interface {
 	Push(remote string) error
 	PushTags(remote string) error
 	DeleteTag(tag string) error
+	AddNote(note, ref string) error
+	PushNotes(remote, ref string) error
 }
