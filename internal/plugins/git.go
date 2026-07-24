@@ -1,4 +1,4 @@
-// story: e03s01 e21s03 e21s04
+// story: e03s01 e21s03 e21s04 e22s01
 package plugins
 
 import (
@@ -20,6 +20,7 @@ type GitPlugin struct {
 	commitMessage  string
 	commitAssets   []string
 	assetsExplicit bool
+	channelNoteRef string
 }
 
 // NewGitPlugin creates a new GitPlugin.
@@ -161,6 +162,22 @@ func (p *GitPlugin) Prepare(ctx *algorithm.ReadOnlyContext, state *algorithm.Mut
 	return p.commitRelease(ctx, state)
 }
 
+// AddChannel records the release channel in a git note on HEAD (e22s01).
+func (p *GitPlugin) AddChannel(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
+	if ctx.DryRun || state.NextRelease == nil || state.NextRelease.Channel == "" {
+		return nil
+	}
+	head, err := p.Git.GetHead()
+	if err != nil {
+		return fmt.Errorf("git plugin: failed to get HEAD for channel note: %w", err)
+	}
+	if err := p.Git.AddNote(state.NextRelease.Channel, head); err != nil {
+		return fmt.Errorf("git plugin: failed to add channel note: %w", err)
+	}
+	p.channelNoteRef = head
+	return nil
+}
+
 func (p *GitPlugin) createTag(version string) error {
 	return p.Git.CreateTag(version, fmt.Sprintf("release %s", version))
 }
@@ -183,6 +200,11 @@ func (p *GitPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.Mut
 	if err := p.pushRefs(); err != nil {
 		_ = p.deleteTag(state.NextRelease.Version)
 		return nil, fmt.Errorf("push failed, local tag %s removed: %w", state.NextRelease.Version, err)
+	}
+	if p.channelNoteRef != "" {
+		if err := p.Git.PushNotes("origin", p.channelNoteRef); err != nil {
+			return nil, fmt.Errorf("git plugin: failed to push channel notes: %w", err)
+		}
 	}
 	return nil, nil
 }

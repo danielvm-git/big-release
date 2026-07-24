@@ -314,6 +314,19 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 		}
 	}
 
+	// Phase 4.5: AddChannel — record distribution channel metadata (e22).
+	for _, name := range pluginNames {
+		p, err := plugins.Get(name)
+		if err != nil {
+			return fmt.Errorf("plugin %q not found: %w", name, err)
+		}
+		if cm, ok := p.(plugins.ChannelManager); ok {
+			if err := cm.AddChannel(ctx, state); err != nil {
+				return fmt.Errorf("plugin %q add channel failed: %w", name, err)
+			}
+		}
+	}
+
 	// Phase 5 + 6: Prepare and Publish (skipped in dry-run mode)
 	if r.ctx.DryRun {
 		r.ctx.Logger.Info("Dry run: skipping plugin prepare and publish")
@@ -368,6 +381,15 @@ func (r *Release) runPublishers(ctx *algorithm.ReadOnlyContext, state *algorithm
 	for _, p := range filtered {
 		if setter, ok := p.(interface{ SetDryRun(bool) }); ok {
 			setter.SetDryRun(r.ctx.DryRun)
+		}
+	}
+	channel := ""
+	if state.NextRelease != nil {
+		channel = state.NextRelease.Channel
+	}
+	for _, p := range filtered {
+		if setter, ok := p.(interface{ SetChannel(string) }); ok {
+			setter.SetChannel(channel)
 		}
 	}
 

@@ -1,4 +1,4 @@
-// story: e03s02 e21s01 e21s02
+// story: e03s02 e21s01 e21s02 e22s03
 package plugins
 
 import (
@@ -189,6 +189,9 @@ func (p *GitHubPlugin) resolveMakeLatest(ctx *algorithm.ReadOnlyContext) string 
 		if *p.makeLatest {
 			return "true"
 		}
+		return "false"
+	}
+	if ctx.Branch != nil && ctx.Branch.Channel != "" && ctx.Branch.Channel != "latest" {
 		return "false"
 	}
 	if ctx.Branch != nil &&

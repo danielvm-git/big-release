@@ -37,6 +37,11 @@ type Preparer interface {
 	Prepare(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error
 }
 
+// ChannelManager records distribution-channel metadata before publish (e22).
+type ChannelManager interface {
+	AddChannel(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error
+}
+
 // Publisher publishes the release (creates tags, GitHub releases, etc.).
 type Publisher interface {
 	Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (*algorithm.Release, error)

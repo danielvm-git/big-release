@@ -986,6 +986,14 @@ func TestGitHubPlugin_resolveMakeLatest(t *testing.T) {
 		}
 	})
 
+	t.Run("SC-e22s03-P1-01: non-latest channel defaults make_latest false", func(t *testing.T) {
+		p := NewGitHubPlugin()
+		ctx := &algorithm.ReadOnlyContext{Branch: &algorithm.Branch{Name: "main", Type: algorithm.BranchTypeRelease, Channel: "next"}}
+		if got := p.resolveMakeLatest(ctx); got != "false" {
+			t.Errorf("got %q, want false for channel next", got)
+		}
+	})
+
 	t.Run("SC-e21s02-P1-03: explicit makeLatest config overrides default", func(t *testing.T) {
 		p := NewGitHubPlugin()
 		trueVal := true
