@@ -1,0 +1,197 @@
+epic: e24
+title: pnpm Support
+description: >
+  Add first-class pnpm publisher support to big-release. pnpm is a fast,
+  disk-efficient package manager widely used in monorepos. The publisher
+  must detect pnpm projects, prepare versions, publish packages, and
+  verify publications — following the same pattern as the existing npm
+  publisher but using pnpm CLI commands and respecting pnpm-specific
+  configuration (pnpm-workspace.yaml, .npmrc, publishConfig).
+status: in_progress
+priority: P2
+bcps: 5
+
+out_of_scope:
+  - pnpm workspace monorepo orchestration (individual packages only)
+  - pnpm global installation or bootstrapping
+  - Migration tooling from npm to pnpm
+
+stories:
+  - id: e24s01
+    title: Implement pnpm publisher
+    description: >
+      Create internal/publishers/pnpm/pnpm.go implementing the Publisher
+      interface. Detection checks for pnpm-lock.yaml OR pnpm-workspace.yaml.
+      Prepare updates version in package.json (same as npm). Publish runs
+      `pnpm publish --no-git-checks` with optional --tag for dist-tag.
+      Verify runs `pnpm view <name> version` and compares. Support DryRun
+      mode. Use ExecCommand indirection for testability.
+    status: planning
+    files:
+      - internal/publishers/pnpm/pnpm.go
+    tasks:
+      - id: e24s01t01
+        title: Publisher struct and interface implementation
+        description: >
+          Create Publisher struct with DryRun, channel, ExecCommand fields.
+          Implement Name() returning "pnpm", Detect() checking pnpm-lock.yaml.
+        verify: go test ./internal/publishers/pnpm/ -run TestPnpmDetect
+        status: planning
+
+      - id: e24s01t02
+        title: Prepare implementation
+        description: >
+          Implement Prepare(version) to update package.json version field.
+          Reuse or extract shared readPackageJSON/writePackageJSON logic
+          from npm publisher to avoid duplication.
+        verify: go test ./internal/publishers/pnpm/ -run TestPnpmPrepare
+        status: planning
+
+      - id: e24s01t03
+        title: Publish implementation
+        description: >
+          Implement Publish(version) running `pnpm publish --no-git-checks`
+          with --tag flag when channel is set. Handle stderr capture and
+          error wrapping consistent with other publishers.
+        verify: go test ./internal/publishers/pnpm/ -run TestPnpmPublish
+        status: planning
+
+      - id: e24s01t04
+        title: Verify implementation
+        description: >
+          Implement Verify(version) running `pnpm view <name> version` and
+          comparing output to expected version. Return error on mismatch
+          or command failure.
+        verify: go test ./internal/publishers/pnpm/ -run TestPnpmVerify
+        status: planning
+
+  - id: e24s02
+    title: Unit tests for pnpm publisher
+    description: >
+      Create internal/publishers/pnpm/pnpm_test.go with full test coverage.
+      Follow F.I.R.S.T principles. Test all interface methods, error paths,
+      dry-run behavior, dist-tag handling, and auto-registration.
+    status: planning
+    files:
+      - internal/publishers/pnpm/pnpm_test.go
+    tasks:
+      - id: e24s02t01
+        title: Detection tests
+        description: >
+          Test Detect returns true with pnpm-lock.yaml, false without.
+          Test Detect returns true with pnpm-workspace.yaml.
+        verify: go test ./internal/publishers/pnpm/ -run TestPnpmDetect
+        status: planning
+
+      - id: e24s02t02
+        title: Prepare tests
+        description: >
+          Test Prepare updates package.json version. Test error on missing
+          file. Test error on malformed JSON.
+        verify: go test ./internal/publishers/pnpm/ -run TestPnpmPrepare
+        status: planning
+
+      - id: e24s02t03
+        title: Publish tests
+        description: >
+          Test Publish success, auth error, dry-run skip, dist-tag flag.
+          Mock exec.Command for deterministic testing.
+        verify: go test ./internal/publishers/pnpm/ -run TestPnpmPublish
+        status: planning
+
+      - id: e24s02t04
+        title: Verify tests
+        description: >
+          Test Verify version match, mismatch, command failure, dry-run skip.
+        verify: go test ./internal/publishers/pnpm/ -run TestPnpmVerify
+        status: planning
+
+      - id: e24s02t05
+        title: Auto-registration test
+        description: >
+          Verify pnpm publisher is auto-registered in global registry via init().
+        verify: go test ./internal/publishers/pnpm/ -run TestPnpmAutoRegistration
+        status: planning
+
+  - id: e24s03
+    title: Extract shared package.json utilities
+    description: >
+      The npm and pnpm publishers both need to read/write package.json.
+      Extract shared helpers (readPackageJSON, writePackageJSON,
+      readPackageName, isValidPackageName) into
+      internal/publishers/nodeutil/nodeutil.go. Update npm publisher to
+      import from nodeutil. This avoids code duplication.
+    status: planning
+    files:
+      - internal/publishers/nodeutil/nodeutil.go
+      - internal/publishers/nodeutil/nodeutil_test.go
+      - internal/publishers/npm/npm.go
+      - internal/publishers/npm/npm_test.go
+    tasks:
+      - id: e24s03t01
+        title: Create nodeutil package
+        description: >
+          Extract readPackageJSON, writePackageJSON, readPackageName,
+          isValidPackageName into internal/publishers/nodeutil/.
+        verify: go test ./internal/publishers/nodeutil/
+        status: planning
+
+      - id: e24s03t02
+        title: Update npm publisher to use nodeutil
+        description: >
+          Refactor npm publisher to import from nodeutil instead of
+          local implementations. Verify all npm tests still pass.
+        verify: go test ./internal/publishers/npm/
+        status: planning
+
+  - id: e24s04
+    title: Documentation updates
+    description: >
+      Update all documentation to include pnpm as a supported publisher.
+      Add pnpm examples to how-to guides, update the reference docs,
+      and add pnpm to the supported publishers list.
+    status: planning
+    files:
+      - docs/reference/publishers.md
+      - docs/how-to/publishers/
+      - README.md
+    tasks:
+      - id: e24s04t01
+        title: Update publishers reference
+        description: >
+          Add pnpm section to docs/reference/publishers.md with
+          configuration options, environment variables, and behavior.
+        verify: grep -q "pnpm" docs/reference/publishers.md
+        status: planning
+
+      - id: e24s04t02
+        title: Update how-to guides
+        description: >
+          Add pnpm examples to relevant how-to guides under
+          docs/how-to/publishers/. Show pnpm-specific configuration.
+        verify: grep -q "pnpm" docs/how-to/publishers/*.md
+        status: planning
+
+      - id: e24s04t03
+        title: Update README
+        description: >
+          Add pnpm to the list of supported publishers in README.md.
+        verify: grep -q "pnpm" README.md
+        status: planning
+
+verification:
+  - step: All tests pass
+    command: make test
+    expected: All tests pass including new pnpm tests
+
+  - step: Build binary
+    command: make build
+    expected: Binary exists in bin/big-release
+
+  - step: Lint
+    command: make lint
+    expected: No lint errors
+
+  - step: Publisher detection
+    command: ./bin/big-release validate
+    expected: pnpm publisher listed in available publishers

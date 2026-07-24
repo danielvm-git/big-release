@@ -41,3 +41,7 @@ release_plan:
       title: GitLab Support
       priority: P2
       status: complete
+    - epic: e24
+      title: pnpm Support
+      priority: P2
+      status: planning
