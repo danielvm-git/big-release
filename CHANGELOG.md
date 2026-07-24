@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- big-release managed -->
 
+## [2.1.0] - 2026-07-24
+
+### Added
+
+- **pnpm:** add publisher with Detect Prepare Publish Verify ([350a0bb](https://github.com/danielvm-git/big-release/commit/350a0bbbfb079e52c2db789d8ce1e10dc2cf0ef7))
+
+### Fixed
+
+- **git:** use tagFormat in GetLastRelease ([4df1b30](https://github.com/danielvm-git/big-release/commit/4df1b306c298446d1a299eef883c14cd8210c52d))
+- **config:** commit big-release config for CI ([a533279](https://github.com/danielvm-git/big-release/commit/a5332791780e5d31ca8052067a7bf4dd9d71d40a))
+- **ci:** add debug to allowed commit types ([a110d44](https://github.com/danielvm-git/big-release/commit/a110d44334a8948848df9844f54901bebf1732d2))
+- **ci:** allow merge commits in Conventional Commits check ([cad71cc](https://github.com/danielvm-git/big-release/commit/cad71cc5474d825d6518894572383543921b93c6))
+- **ci:** configure git author for big-release commits ([1b1ef3f](https://github.com/danielvm-git/big-release/commit/1b1ef3f52c79681742ea5c65873d60becdad87e3))
+- **ci:** use 'big-release release' subcommand ([22bfabc](https://github.com/danielvm-git/big-release/commit/22bfabc86c8a8930c23891ec3024c90ea1645d32))
+- **ci:** remove tag gate from release workflow ([7a40792](https://github.com/danielvm-git/big-release/commit/7a407922edb61fce8bd3461fab53e184c81bffb7))
+
 ## [0.1.0] - 2026-07-24
 
 ### Added
