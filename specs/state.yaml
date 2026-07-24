@@ -1,10 +1,8 @@
 workflow_mode: solo-git
-active_flow: build_epic
-active_epic: e08
-active_story: e08s01
-epic_cycle:
-  step: 0
-  fast_mode: true
+active_flow: null
+active_epic: null
+active_story: null
+epic_cycle: null
 bug_id: null
 bug_cycle: null
 bigpowers_version: 2.76.1
@@ -14,8 +12,8 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'e08 Phase 0 bootstrap — state + capsule shaped; threat model + plan-tests next. Active story e08s01.'
-  next_skill: security-review
+  context: 'Fix landed for BUG-release-workflow-softprops-and-verbose.'
+  next_skill: survey-context
 release:
   commit_landed: true
   ci_verified: true

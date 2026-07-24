@@ -87,9 +87,28 @@ func main() {
 	}
 }
 
+// buildLogger constructs the zap logger used for the release run.
+//
+// Without --verbose it uses the production JSON encoder at Info level
+// (machine-parseable, for log shippers). With --verbose it switches to the
+// development console encoder at Debug level so a successful release is
+// legible in CI output — the production logger writes JSON to stderr and,
+// combined with the sparse success-path logs, previously made a release
+// appear completely silent (BUG-release-workflow-softprops-and-verbose).
+func buildLogger(verbose bool) (*zap.Logger, error) {
+	if verbose {
+		devCfg := zap.NewDevelopmentConfig()
+		devCfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+		return devCfg.Build()
+	}
+	prodCfg := zap.NewProductionConfig()
+	prodCfg.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	return prodCfg.Build()
+}
+
 func runRelease(dryRun, verbose bool, configFile string) error {
 	// Initialize logger
-	logger, err := zap.NewProduction()
+	logger, err := buildLogger(verbose)
 	if err != nil {
 		return fmt.Errorf("failed to initialize logger: %w", err)
 	}

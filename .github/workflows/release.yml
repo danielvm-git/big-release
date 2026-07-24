@@ -1,5 +1,5 @@
 name: Release
-# version: 1.0.0 — see workflow-templates/CHANGELOG.md
+# version: 1.1.0 — github plugin owns release+assets; removed softprops step. See workflow-templates/CHANGELOG.md
 
 on:
   push:
@@ -148,6 +148,7 @@ jobs:
           big-release --version
 
       - name: Run big-release
+        id: big-release
         run: big-release release --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -158,14 +159,6 @@ jobs:
           GIT_AUTHOR_EMAIL: big-release-bot@danielvm-git.github.io
           GIT_COMMITTER_NAME: big-release-bot
           GIT_COMMITTER_EMAIL: big-release-bot@danielvm-git.github.io
-
-      - name: Upload release artifacts
-        uses: softprops/action-gh-release@v3
-        with:
-          files: |
-            bin/big-release-linux-amd64
-            bin/big-release-darwin-amd64
-            bin/big-release-darwin-arm64
-            bin/big-release-windows-amd64.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # The github plugin creates the GitHub release and uploads the
+        # configured assets (pluginConfigs.github.assets) via the REST API,
+        # so no separate softprops/action-gh-release step is needed.

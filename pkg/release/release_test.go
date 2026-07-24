@@ -7,12 +7,35 @@ import (
 	"testing"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/danielvm-git/big-release/internal/algorithm"
 	"github.com/danielvm-git/big-release/internal/git"
 	"github.com/danielvm-git/big-release/internal/plugins"
 	"github.com/danielvm-git/big-release/internal/publishers"
 )
+
+// gitClientOrSkip returns a real git client or skips the test when the repo
+// is unavailable. Centralizes the skip boilerplate used across these tests.
+func gitClientOrSkip(t *testing.T) git.GitAPI {
+	t.Helper()
+	gitClient, err := git.NewClient()
+	if err != nil {
+		t.Skipf("skipping: cannot create git client: %v", err)
+	}
+	if !gitClient.IsGitRepo() {
+		t.Skip("skipping: not in a git repo")
+	}
+	return gitClient
+}
+
+// observedCore returns a zapcore core that records every logged entry and
+// the slice to inspect them, so log emissions can be asserted in tests.
+func observedCore() (zapcore.Core, *observer.ObservedLogs) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	return core, logs
+}
 
 // versionTestPlugin is a minimal plugin for testing version calculation.
 type versionTestPlugin struct {
@@ -1163,5 +1186,175 @@ func TestMapBranchConfig_ChannelPropagated(t *testing.T) {
 	}
 	if branch.Prerelease != "beta" {
 		t.Errorf("expected prerelease beta, got %q", branch.Prerelease)
+	}
+}
+
+// --- BUG-release-workflow-softprops-and-verbose: success-path logs ---
+
+// recorderPlugin is a Publisher that records its own Publish call so the
+// orchestrator's "plugin published" log can be asserted on.
+type recorderPlugin struct {
+	versionTestPlugin
+	published bool
+}
+
+func (p *recorderPlugin) Publish(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) (*algorithm.Release, error) {
+	p.published = true
+	return nil, nil
+}
+
+var _ plugins.Publisher = (*recorderPlugin)(nil)
+
+func TestRunPluginLifecycle_LogsComputedVersion(t *testing.T) {
+	// After Phase 3.5 computes the next version, an Info log must carry it so
+	// a successful release is visible in CI (BUG-release-workflow-softprops-and-verbose).
+	core, observed := observedCore()
+	rec := &recorderPlugin{}
+	rec.name = "recorder-version"
+	rec.releaseType = algorithm.ReleaseTypeMinor
+	plugins.Register(rec)
+
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches:       []algorithm.BranchConfig{{Name: "main"}},
+			TagFormat:      "v${version}",
+			InitialVersion: "0.1.0",
+			Plugins:        []string{"recorder-version"},
+		},
+		Git:    gitClientOrSkip(t),
+		Logger: zap.New(core),
+		DryRun: true, // dry-run still runs analyze + version calc
+	}
+
+	r := New(ctx)
+	algoCtx, state, err := r.buildAlgoContext()
+	if err != nil {
+		t.Fatalf("buildAlgoContext failed: %v", err)
+	}
+	if err := r.runPluginLifecycle(algoCtx, state); err != nil {
+		t.Fatalf("runPluginLifecycle failed: %v", err)
+	}
+
+	if state.NextRelease == nil || state.NextRelease.Version == "" {
+		t.Fatal("expected NextRelease.Version to be set")
+	}
+	found := false
+	for _, e := range observed.All() {
+		if e.Message != "Computed next release" {
+			continue
+		}
+		for _, f := range e.Context {
+			if f.Key == "version" && f.String == state.NextRelease.Version {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Errorf("expected Info log 'Computed next release' with version %q", state.NextRelease.Version)
+	}
+}
+
+func TestRunPluginLifecycle_LogsPluginPublished(t *testing.T) {
+	// When a plugin publishes, an Info log naming the plugin is recorded.
+	core, observed := observedCore()
+	rec := &recorderPlugin{}
+	rec.name = "recorder-published"
+	rec.releaseType = algorithm.ReleaseTypePatch
+	plugins.Register(rec)
+
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches:       []algorithm.BranchConfig{{Name: "main"}},
+			TagFormat:      "v${version}",
+			InitialVersion: "0.1.0",
+			Plugins:        []string{"recorder-published"},
+		},
+		Git:    gitClientOrSkip(t),
+		Logger: zap.New(core),
+		// DryRun=false so Prepare+Publish run. buildAlgoContext runs against
+		// the real repo; the recorder's Publish is a no-op side effect.
+		DryRun: false,
+	}
+
+	r := New(ctx)
+	algoCtx, state, err := r.buildAlgoContext()
+	if err != nil {
+		t.Fatalf("buildAlgoContext failed: %v", err)
+	}
+	if err := r.runPluginLifecycle(algoCtx, state); err != nil {
+		t.Fatalf("runPluginLifecycle failed: %v", err)
+	}
+	if !rec.published {
+		t.Fatal("expected recorder Publish to be called")
+	}
+
+	found := false
+	for _, e := range observed.All() {
+		if e.Message == "Plugin published" {
+			for _, f := range e.Context {
+				if f.Key == "plugin" && f.String == "recorder-published" {
+					found = true
+				}
+			}
+		}
+	}
+	if !found {
+		t.Error("expected Info log 'Plugin published' with plugin name")
+	}
+}
+
+// --- BUG-release-workflow-softprops-and-verbose: $GITHUB_OUTPUT ---
+
+func TestWriteStepOutput_WritesVersionAndPublishedFlag(t *testing.T) {
+	// When GITHUB_OUTPUT is set and NextRelease is non-nil, the version and
+	// a published flag must be appended so downstream CI steps can observe it.
+	tmp := t.TempDir() + "/gh-out"
+	t.Setenv("GITHUB_OUTPUT", tmp)
+
+	r := New(&Context{Logger: zap.NewNop()})
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.2.3"},
+	}
+
+	if err := r.writeStepOutput(state); err != nil {
+		t.Fatalf("writeStepOutput failed: %v", err)
+	}
+
+	data, err := os.ReadFile(tmp)
+	if err != nil {
+		t.Fatalf("read GITHUB_OUTPUT: %v", err)
+	}
+	body := string(data)
+	if !strings.Contains(body, "version=1.2.3") {
+		t.Errorf("expected version=1.2.3 in %q", body)
+	}
+	if !strings.Contains(body, "published=true") {
+		t.Errorf("expected published=true in %q", body)
+	}
+}
+
+func TestWriteStepOutput_NoOpWhenNoNextRelease(t *testing.T) {
+	// No NextRelease (e.g. "no relevant changes") must not write anything.
+	tmp := t.TempDir() + "/gh-out-empty"
+	t.Setenv("GITHUB_OUTPUT", tmp)
+
+	r := New(&Context{Logger: zap.NewNop()})
+	if err := r.writeStepOutput(&algorithm.MutableState{}); err != nil {
+		t.Fatalf("writeStepOutput failed: %v", err)
+	}
+	if _, err := os.Stat(tmp); !os.IsNotExist(err) {
+		t.Errorf("expected no GITHUB_OUTPUT file when NextRelease is nil, got stat err: %v", err)
+	}
+}
+
+func TestWriteStepOutput_NoOpWhenEnvUnset(t *testing.T) {
+	// Outside CI (no GITHUB_OUTPUT), writeStepOutput must be a silent no-op.
+	t.Setenv("GITHUB_OUTPUT", "")
+	r := New(&Context{Logger: zap.NewNop()})
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "9.9.9"},
+	}
+	if err := r.writeStepOutput(state); err != nil {
+		t.Errorf("expected nil error when GITHUB_OUTPUT unset, got: %v", err)
 	}
 }
