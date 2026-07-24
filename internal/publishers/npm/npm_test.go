@@ -1,4 +1,4 @@
-// story: e02s07
+// story: e02s07 e24s01
 
 package npm_test
 
@@ -36,6 +36,28 @@ func TestNpmDetect(t *testing.T) {
 		withDir(t, t.TempDir(), func() {
 			if npm.NewPublisher().Detect() {
 				t.Errorf("expected Detect() == false")
+			}
+		})
+	})
+
+	t.Run("SC-e24s01-U07: Detect false when pnpm-lock.yaml present", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, dir, "package.json", `{"name": "test-pkg", "version": "1.0.0"}`)
+		writeFile(t, dir, "pnpm-lock.yaml", "lockfileVersion: '9.0'\n")
+		withDir(t, dir, func() {
+			if npm.NewPublisher().Detect() {
+				t.Errorf("expected Detect() == false when pnpm-lock.yaml exists")
+			}
+		})
+	})
+
+	t.Run("SC-e24s01-U08: Detect false when pnpm-workspace.yaml present", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, dir, "package.json", `{"name": "test-pkg", "version": "1.0.0"}`)
+		writeFile(t, dir, "pnpm-workspace.yaml", "packages:\n  - '*'\n")
+		withDir(t, dir, func() {
+			if npm.NewPublisher().Detect() {
+				t.Errorf("expected Detect() == false when pnpm-workspace.yaml exists")
 			}
 		})
 	})

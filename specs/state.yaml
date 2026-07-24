@@ -3,13 +3,13 @@ active_flow: build_epic
 active_epic: e24
 active_story: e24s01
 epic_cycle:
-  step: 0
+  step: 8
   epic: e24
   story: e24s01
   steps: [0, 1, 2, 3, 4, 5, 6, 7, 8]
   status: in_progress
   fast_mode: true
-  audit_result: null
+  audit_result: pass
   story_bcps: 5
 bug_id: null
 bug_cycle: null
@@ -20,8 +20,8 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'build-epic e24 (pnpm Support) yolo — starting e24s01 step 0 threat model.'
-  next_skill: security-review
+  context: 'e24s01 audit PASS — landing via land-branch.sh'
+  next_skill: release-branch
 release:
   commit_landed: true
   ci_verified: true

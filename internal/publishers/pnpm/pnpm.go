@@ -1,6 +1,6 @@
-// story: e02s07 e22s02 e24s01
+// story: e24s01
 
-package npm
+package pnpm
 
 import (
 	"bytes"
@@ -14,11 +14,11 @@ import (
 	"github.com/danielvm-git/big-release/internal/publishers"
 )
 
-// Publisher publishes to npm.
+// Publisher publishes with pnpm.
 type Publisher struct {
-	// DryRun, when true, skips actual npm publish and npm view calls.
+	// DryRun, when true, skips actual pnpm publish and pnpm view calls.
 	DryRun bool
-	// channel is the npm dist-tag (e22); empty means default "latest".
+	// channel is the npm-compatible dist-tag; empty means default "latest".
 	channel string
 	// ExecCommand is the function used to run external commands. Defaults to exec.Command.
 	ExecCommand func(name string, arg ...string) *exec.Cmd
@@ -31,22 +31,20 @@ func NewPublisher() *Publisher {
 	}
 }
 
-// Name returns the publisher name
+// Name returns the publisher name.
 func (p *Publisher) Name() string {
-	return "npm"
+	return "pnpm"
 }
 
-// Detect detects if this publisher should be used.
-// Returns false when pnpm markers are present so pnpm owns the project (e24s01).
+// Detect returns true when pnpm-lock.yaml or pnpm-workspace.yaml is present.
 func (p *Publisher) Detect() bool {
 	if _, err := os.Stat("pnpm-lock.yaml"); err == nil {
-		return false
+		return true
 	}
 	if _, err := os.Stat("pnpm-workspace.yaml"); err == nil {
-		return false
+		return true
 	}
-	_, err := os.Stat("package.json")
-	return err == nil
+	return false
 }
 
 // Prepare prepares the package for publishing.
@@ -60,11 +58,11 @@ func (p *Publisher) Prepare(version string) error {
 
 	data, err := json.MarshalIndent(pkg, "", "  ")
 	if err != nil {
-		return fmt.Errorf("npm: failed to marshal package.json: %w", err)
+		return fmt.Errorf("pnpm: failed to marshal package.json: %w", err)
 	}
 
 	if err := os.WriteFile("package.json", data, 0644); err != nil {
-		return fmt.Errorf("npm: failed to write package.json: %w", err)
+		return fmt.Errorf("pnpm: failed to write package.json: %w", err)
 	}
 
 	return nil
@@ -76,15 +74,15 @@ func (p *Publisher) Publish(version string) error {
 		return nil
 	}
 
-	args := []string{"publish"}
+	args := []string{"publish", "--no-git-checks"}
 	if tag := p.distTag(); tag != "" {
 		args = append(args, "--tag", tag)
 	}
-	cmd := p.ExecCommand("npm", args...)
+	cmd := p.ExecCommand("pnpm", args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("npm: publish failed: %w: %s", err, strings.TrimSpace(stderr.String()))
+		return fmt.Errorf("pnpm: publish failed: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 
 	return nil
@@ -109,15 +107,15 @@ func (p *Publisher) Verify(version string) error {
 		return nil
 	}
 
-	cmd := p.ExecCommand("npm", "view", "--", name, "version")
+	cmd := p.ExecCommand("pnpm", "view", name, "version")
 	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("npm: failed to verify publication: %w", err)
+		return fmt.Errorf("pnpm: failed to verify publication: %w", err)
 	}
 
 	publishedVersion := strings.TrimSpace(string(output))
 	if publishedVersion != version {
-		return fmt.Errorf("npm: published version %s does not match expected version %s", publishedVersion, version)
+		return fmt.Errorf("pnpm: published version %s does not match expected version %s", publishedVersion, version)
 	}
 
 	return nil
@@ -128,7 +126,7 @@ func (p *Publisher) SetDryRun(dryRun bool) {
 	p.DryRun = dryRun
 }
 
-// SetChannel sets the npm dist-tag from the release channel (e22s02).
+// SetChannel sets the dist-tag from the release channel.
 func (p *Publisher) SetChannel(channel string) {
 	p.channel = channel
 }
@@ -137,16 +135,9 @@ func init() {
 	publishers.Register(NewPublisher())
 }
 
-// npmNamePattern matches valid npm package names per the npm registry spec.
-// Does not include scope prefix; for scoped names use isValidPackageName.
 var npmNamePattern = regexp.MustCompile(`^[a-z0-9][-a-z0-9._]*$`)
-
-// npmScopePattern matches valid npm scope names (after the initial @ and before /).
 var npmScopePattern = regexp.MustCompile(`^@[a-z0-9][-a-z0-9._]*$`)
 
-// isValidPackageName validates an npm package name.
-// Supports both unscoped ("my-package") and scoped ("@scope/my-package") formats.
-// Enforces npm's name rules to prevent flag injection via crafted names.
 func isValidPackageName(name string) bool {
 	if len(name) == 0 || len(name) > 214 {
 		return false
@@ -169,22 +160,20 @@ func isValidPackageName(name string) bool {
 	return npmNamePattern.MatchString(name)
 }
 
-// readPackageJSON reads and parses the package.json file in the working directory.
 func readPackageJSON() (map[string]interface{}, error) {
 	data, err := os.ReadFile("package.json")
 	if err != nil {
-		return nil, fmt.Errorf("npm: failed to read package.json: %w", err)
+		return nil, fmt.Errorf("pnpm: failed to read package.json: %w", err)
 	}
 
 	var pkg map[string]interface{}
 	if err := json.Unmarshal(data, &pkg); err != nil {
-		return nil, fmt.Errorf("npm: failed to parse package.json: %w", err)
+		return nil, fmt.Errorf("pnpm: failed to parse package.json: %w", err)
 	}
 
 	return pkg, nil
 }
 
-// readPackageName reads and validates the package name from package.json.
 func readPackageName() (string, error) {
 	pkg, err := readPackageJSON()
 	if err != nil {
@@ -193,10 +182,10 @@ func readPackageName() (string, error) {
 
 	name, ok := pkg["name"].(string)
 	if !ok || name == "" {
-		return "", fmt.Errorf("npm: package name not found or not a string in package.json")
+		return "", fmt.Errorf("pnpm: package name not found or not a string in package.json")
 	}
 	if !isValidPackageName(name) {
-		return "", fmt.Errorf("npm: invalid package name %q in package.json", name)
+		return "", fmt.Errorf("pnpm: invalid package name %q in package.json", name)
 	}
 
 	return name, nil
