@@ -1,10 +1,8 @@
 workflow_mode: solo-git
-active_flow: build_epic
-active_epic: e08
-active_story: e08s01
-epic_cycle:
-  step: 0
-  fast_mode: true
+active_flow: null
+active_epic: null
+active_story: null
+epic_cycle: null
 bug_id: null
 bug_cycle: null
 bigpowers_version: 2.76.1
@@ -14,8 +12,8 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'e08 Phase 0 complete — capsule shaped, threat model + TEST_PLAN landed, preflight gated. Next: parallel plan-work/IMPACT (if not already) then kickoff/TDD waves (parent).'
-  next_skill: plan-work
+  context: 'Epic e08 semantic-release test parity complete — PR ready for review.'
+  next_skill: release-branch
 release:
   commit_landed: true
   ci_verified: true
