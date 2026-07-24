@@ -144,7 +144,7 @@ jobs:
           big-release --version
 
       - name: Run big-release
-        run: big-release release
+        run: big-release release --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
