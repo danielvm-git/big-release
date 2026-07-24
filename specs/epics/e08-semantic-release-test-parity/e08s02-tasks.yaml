@@ -1,0 +1,15 @@
+tasks:
+  - id: e08s02-t01
+    description: Implement AuthURL pure function
+    status: failing
+    verify: go test ./internal/git -run TestGitAuthURL
+    risk: low
+    security: E08-AUTH-01
+    allure: SC-e08s02-P0-01
+  - id: e08s02-t02
+    description: Edge cases SSH, double-inject, redacted errors
+    status: failing
+    verify: go test ./internal/git -run TestGitAuthURL
+    risk: low
+    security: E08-AUTH-02
+    allure: SC-e08s02-P1-01

@@ -1,0 +1,15 @@
+tasks:
+  - id: e08s01-t01
+    description: Create internal/secure Redact and RedactKnownSecrets
+    status: failing
+    verify: go test ./internal/secure -run TestMasking
+    risk: medium
+    security: E08-MASK-01
+    allure: SC-e08s01-P0-01
+  - id: e08s01-t02
+    description: Wire generator and zap wrapper
+    status: failing
+    verify: go test ./internal/... -run TestMasking
+    risk: low
+    security: E08-MASK-01
+    allure: SC-e08s01-P1-02

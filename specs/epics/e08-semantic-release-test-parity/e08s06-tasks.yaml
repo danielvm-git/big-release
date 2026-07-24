@@ -1,0 +1,8 @@
+tasks:
+  - id: e08s06-t01
+    description: TestFileLoading YAML JSON parent explicit path
+    status: failing
+    verify: go test ./internal/config -run TestFileLoading
+    risk: low
+    security: none
+    allure: SC-e08s06-P0-01
