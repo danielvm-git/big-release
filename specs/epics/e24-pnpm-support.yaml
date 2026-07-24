@@ -130,7 +130,7 @@ stories:
       readPackageName, isValidPackageName) into
       internal/publishers/nodeutil/nodeutil.go. Update npm publisher to
       import from nodeutil. This avoids code duplication.
-    status: in_progress
+    status: done
     files:
       - internal/publishers/nodeutil/nodeutil.go
       - internal/publishers/nodeutil/nodeutil_test.go
@@ -144,7 +144,7 @@ stories:
           isValidPackageName into internal/publishers/nodeutil/.
           Helpers accept a publisher prefix for error messages.
         verify: go test ./internal/publishers/nodeutil/
-        status: planning
+        status: done
         security: medium
 
       - id: e24s03t02
@@ -153,7 +153,7 @@ stories:
           Refactor npm and pnpm publishers to import from nodeutil instead of
           local implementations. Verify all npm and pnpm tests still pass.
         verify: go test ./internal/publishers/npm/ ./internal/publishers/pnpm/
-        status: planning
+        status: done
         security: low
 
   - id: e24s04

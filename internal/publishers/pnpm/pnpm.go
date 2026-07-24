@@ -1,17 +1,16 @@
-// story: e24s01
+// story: e24s01 e24s03
 
 package pnpm
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 
 	"github.com/danielvm-git/big-release/internal/publishers"
+	"github.com/danielvm-git/big-release/internal/publishers/nodeutil"
 )
 
 // Publisher publishes with pnpm.
@@ -49,23 +48,13 @@ func (p *Publisher) Detect() bool {
 
 // Prepare prepares the package for publishing.
 func (p *Publisher) Prepare(version string) error {
-	pkg, err := readPackageJSON()
+	pkg, err := nodeutil.ReadPackageJSON("pnpm")
 	if err != nil {
 		return err
 	}
 
 	pkg["version"] = version
-
-	data, err := json.MarshalIndent(pkg, "", "  ")
-	if err != nil {
-		return fmt.Errorf("pnpm: failed to marshal package.json: %w", err)
-	}
-
-	if err := os.WriteFile("package.json", data, 0644); err != nil {
-		return fmt.Errorf("pnpm: failed to write package.json: %w", err)
-	}
-
-	return nil
+	return nodeutil.WritePackageJSON("pnpm", pkg)
 }
 
 // Publish publishes the package.
@@ -98,7 +87,7 @@ func (p *Publisher) distTag() string {
 
 // Verify verifies the publication.
 func (p *Publisher) Verify(version string) error {
-	name, err := readPackageName()
+	name, err := nodeutil.ReadPackageName("pnpm")
 	if err != nil {
 		return err
 	}
@@ -133,60 +122,4 @@ func (p *Publisher) SetChannel(channel string) {
 
 func init() {
 	publishers.Register(NewPublisher())
-}
-
-var npmNamePattern = regexp.MustCompile(`^[a-z0-9][-a-z0-9._]*$`)
-var npmScopePattern = regexp.MustCompile(`^@[a-z0-9][-a-z0-9._]*$`)
-
-func isValidPackageName(name string) bool {
-	if len(name) == 0 || len(name) > 214 {
-		return false
-	}
-	if name[0] == '@' {
-		if !strings.Contains(name, "/") {
-			return false
-		}
-		scopeEnd := strings.Index(name, "/")
-		scope := name[:scopeEnd]
-		if !npmScopePattern.MatchString(scope) {
-			return false
-		}
-		rest := name[scopeEnd+1:]
-		if len(rest) == 0 {
-			return false
-		}
-		return npmNamePattern.MatchString(rest)
-	}
-	return npmNamePattern.MatchString(name)
-}
-
-func readPackageJSON() (map[string]interface{}, error) {
-	data, err := os.ReadFile("package.json")
-	if err != nil {
-		return nil, fmt.Errorf("pnpm: failed to read package.json: %w", err)
-	}
-
-	var pkg map[string]interface{}
-	if err := json.Unmarshal(data, &pkg); err != nil {
-		return nil, fmt.Errorf("pnpm: failed to parse package.json: %w", err)
-	}
-
-	return pkg, nil
-}
-
-func readPackageName() (string, error) {
-	pkg, err := readPackageJSON()
-	if err != nil {
-		return "", err
-	}
-
-	name, ok := pkg["name"].(string)
-	if !ok || name == "" {
-		return "", fmt.Errorf("pnpm: package name not found or not a string in package.json")
-	}
-	if !isValidPackageName(name) {
-		return "", fmt.Errorf("pnpm: invalid package name %q in package.json", name)
-	}
-
-	return name, nil
 }
