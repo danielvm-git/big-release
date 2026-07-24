@@ -1,0 +1,37 @@
+# Discussion category form for the "General" Q&A category.
+# GitHub Discussions form schema: https://docs.github.com/discussions
+#
+# This defines the form shown when someone starts a discussion in the
+# "General" category. Adjust fields per category as needed.
+
+title: General question or discussion
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for starting a discussion! For questions about how to configure
+        big-release, which publisher to use, or migrating from semantic-release,
+        you're in the right place.
+
+        For **bugs** or **release defects**, use an Issue instead.
+  - type: textarea
+    id: body
+    attributes:
+      label: Your question or topic
+      description: Be specific — mention the publisher, config, or command you're asking about.
+      placeholder: "How do I configure big-release to publish to <registry> on the `next` branch…?"
+    validations:
+      required: true
+  - type: dropdown
+    id: topic
+    attributes:
+      label: What is this about?
+      options:
+        - Release / versioning
+        - A specific publisher
+        - Configuration
+        - Migration from semantic-release
+        - CI / GitHub Action setup
+        - General / not sure
+    validations:
+      required: false
