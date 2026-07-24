@@ -23,11 +23,11 @@ func DefaultConfig() *algorithm.Config {
 	return &algorithm.Config{
 		Branches: []algorithm.BranchConfig{
 			{Name: "main"},
-			{Name: "next"},
-			{Name: "N.x"},
-			{Name: "next-major"},
-			{Name: "beta", Prerelease: "beta"},
-			{Name: "alpha", Prerelease: "alpha"},
+			{Name: "next", Type: "release"},
+			{Name: "N.x", Type: "maintenance"},
+			{Name: "next-major", Type: "release"},
+			{Name: "beta", Type: "prerelease", Prerelease: "beta"},
+			{Name: "alpha", Type: "prerelease", Prerelease: "alpha"},
 		},
 		TagFormat:      DefaultTagFormat,
 		InitialVersion: "0.1.0",
