@@ -2,3 +2,18 @@
 # Tags in this repo use format "2.0.0" (no "v" prefix)
 tagFormat: "${version}"
 initialVersion: "0.1.0"
+
+# Publish release binaries as GitHub release assets via the github plugin
+# (mirrors @semantic-release/github: release + asset upload via the REST API,
+# replacing the redundant softprops/action-gh-release workflow step).
+plugins:
+  - changelog
+  - git
+  - github
+pluginConfigs:
+  github:
+    assets:
+      - path: bin/big-release-linux-amd64
+      - path: bin/big-release-darwin-amd64
+      - path: bin/big-release-darwin-arm64
+      - path: bin/big-release-windows-amd64.exe
