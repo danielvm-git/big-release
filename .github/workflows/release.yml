@@ -132,33 +132,18 @@ jobs:
           go-version: '${{ env.GO_VERSION }}'
           cache: true
 
-      - name: Check tag exists
-        id: check-tag
-        run: |
-          if git describe --exact-match --tags HEAD >/dev/null 2>&1; then
-            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
-            echo "Tag found on this commit, proceeding with release."
-          else
-            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
-            echo "No tag on this commit, skipping release."
-          fi
-
       - name: Build host binary
-        if: steps.check-tag.outputs.tag_exists == 'true'
         run: make build
 
       - name: Cross-compile release assets
-        if: steps.check-tag.outputs.tag_exists == 'true'
         run: make release
 
       - name: Install big-release
-        if: steps.check-tag.outputs.tag_exists == 'true'
         run: |
           sudo cp bin/big-release /usr/local/bin/
           big-release --version
 
       - name: Run big-release
-        if: steps.check-tag.outputs.tag_exists == 'true'
         run: big-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -167,7 +152,6 @@ jobs:
           CARGO_TOKEN: ${{ secrets.CARGO_TOKEN }}
 
       - name: Upload release artifacts
-        if: steps.check-tag.outputs.tag_exists == 'true'
         uses: softprops/action-gh-release@v3
         with:
           files: |
