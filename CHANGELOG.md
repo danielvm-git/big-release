@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- big-release managed -->
 
+## [2.2.0] - 2026-07-24
+
+### Added
+
+- **e08:** semantic-release test parity ([#51](https://github.com/danielvm-git/big-release/issues/51)) ([736955e](https://github.com/danielvm-git/big-release/commit/736955ea14d6fa71f6d041a373c505740e98847d))
+
 ## [2.1.1] - 2026-07-24
 
 ### Fixed
