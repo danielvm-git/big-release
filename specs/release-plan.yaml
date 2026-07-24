@@ -29,3 +29,15 @@ release_plan:
       title: Context Discipline
       priority: P2
       status: planning
+    - epic: e21
+      title: Advanced GitHub
+      priority: P2
+      status: complete
+    - epic: e22
+      title: Channel Management
+      priority: P2
+      status: complete
+    - epic: e23
+      title: GitLab Support
+      priority: P2
+      status: complete

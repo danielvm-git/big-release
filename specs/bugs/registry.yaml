@@ -70,3 +70,51 @@ bugs:
       - pkg/release/release_test.go
     commit_message: "fix(release): wire Analyzer fallback and nil guard in resolveNotes"
     source: "https://github.com/danielvm-git/big-release/issues/6"
+
+  - id: BUG-ci-binary-missing
+    status: fixed
+    severity: high
+    scope: ci
+    title: Release workflow missing cross-platform binaries
+    approach: Cross-compile matrix in Makefile; upload bin/big-release-{os}-{arch} in release.yml (#30)
+    commit_message: "fix(ci): ship platform binaries and bump checkout to v7"
+
+  - id: BUG-gha-versions
+    status: fixed
+    severity: low
+    scope: ci
+    title: Outdated actions/checkout@v4 in workflows
+    approach: Folded into BUG-ci-binary-missing PR; bumped to checkout@v7 (#30)
+    commit_message: "fix(ci): ship platform binaries and bump checkout to v7"
+
+  - id: BUG-pr-detection
+    status: fixed
+    severity: medium
+    scope: pkg/release
+    title: Release runs on pull request CI builds
+    approach: detectPR() skips release with log for GitHub/GitLab/Azure PR env vars (#33)
+    commit_message: "fix(release): skip release on pull request CI builds"
+
+  - id: BUG-changelog-format
+    status: fixed
+    severity: high
+    scope: plugins
+    title: Changelog format not Keep-a-Changelog 1.1.0
+    approach: Rewrote generator and changelog plugin for Added/Fixed/Changed/Removed sections (#32)
+    commit_message: "fix(changelog): Keep-a-Changelog 1.1.0 format and configurable title"
+
+  - id: BUG-changelog-title
+    status: fixed
+    severity: low
+    scope: plugins
+    title: Non-configurable CHANGELOG title
+    approach: Absorbed into BUG-changelog-format; configurable changelogTitle (#32)
+    commit_message: "fix(changelog): Keep-a-Changelog 1.1.0 format and configurable title"
+
+  - id: BUG-branch-validation-gaps
+    status: fixed
+    severity: low
+    scope: config
+    title: Duplicate branch names not rejected in ValidateConfig
+    approach: Added duplicate-name check in config.ValidateConfig (#29)
+    commit_message: "fix(config): reject duplicate branch names in ValidateConfig"
