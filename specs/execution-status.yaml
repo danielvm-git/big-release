@@ -53,4 +53,28 @@ execution_status:
       status: done
       started_at: "2026-07-24T14:00:00-03:00"
       completed_at: "2026-07-24T14:10:00-03:00"
-  notes: "Epic e24 (pnpm Support) complete — s01–s04 landed."
+    e08s01:
+      status: done
+      started_at: "2026-07-24T15:35:00-03:00"
+      completed_at: "2026-07-24T15:45:00-03:00"
+    e08s02:
+      status: done
+      started_at: "2026-07-24T15:35:00-03:00"
+      completed_at: "2026-07-24T15:45:00-03:00"
+    e08s03:
+      status: done
+      started_at: "2026-07-24T15:50:00-03:00"
+      completed_at: "2026-07-24T15:55:00-03:00"
+    e08s04:
+      status: done
+      started_at: "2026-07-24T15:46:00-03:00"
+      completed_at: "2026-07-24T15:50:00-03:00"
+    e08s05:
+      status: done
+      started_at: "2026-07-24T15:46:00-03:00"
+      completed_at: "2026-07-24T15:50:00-03:00"
+    e08s06:
+      status: done
+      started_at: "2026-07-24T15:35:00-03:00"
+      completed_at: "2026-07-24T15:45:00-03:00"
+  notes: "Epic e08 (Semantic Release Test Parity) complete — s01–s06 landed."

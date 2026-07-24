@@ -5,7 +5,7 @@ description: >
   semantic-release Node.js test suite. Ensures parity in secret masking,
   git URL auth injection, E2E repository simulation, commit traversal,
   VerifyConditions error aggregation, and configuration file/CLI loading.
-status: planning
+status: complete
 priority: P1
 bcps: 10
 
@@ -23,7 +23,7 @@ stories:
       sensitive tokens (GH_TOKEN, NPM_TOKEN, etc.) are redacted from logs
       and release notes. Introduce internal/secure Redact helpers and wire
       zap + generator.
-    status: todo
+    status: done
     files:
       - internal/secure/
       - internal/algorithm/generator.go
@@ -35,7 +35,7 @@ stories:
       Comprehensive tests for AuthURL(remoteURL, token): HTTPS inject,
       SSH passthrough, no double-inject, redacted errors. Pure function
       in internal/git/auth_url.go.
-    status: todo
+    status: done
     files:
       - internal/git/auth_url.go
       - internal/git/auth_url_test.go
@@ -46,7 +46,7 @@ stories:
       Programmatically create a temp dir, git init, commit, tag, and run
       the pipeline dry-run to assert real git operations without live
       checkout coupling. Uses internal/git/testrepo helper.
-    status: todo
+    status: done
     files:
       - pkg/release/e2e_test.go
       - internal/git/testrepo/
@@ -57,7 +57,7 @@ stories:
       Verify finding the last release tag and correctly filtering commits
       between that tag and HEAD (from..HEAD range, empty range). Fix
       GetLastRelease sort if tests prove it wrong.
-    status: todo
+    status: done
     files:
       - internal/git/commits_test.go
       - internal/git/client.go
@@ -69,7 +69,7 @@ stories:
       When ≥2 VerifyConditions plugins fail, the pipeline collects and
       returns all errors in an AggregateError (errors.Join). Stubs for
       unit coverage.
-    status: todo
+    status: done
     files:
       - pkg/release/errors.go
       - pkg/release/release.go
@@ -80,7 +80,7 @@ stories:
     description: >
       Test parsing/loading/merging of YAML/JSON config files, parent
       directory discovery, and CLI path + dry-run merge. No JS execution.
-    status: todo
+    status: done
     files:
       - internal/config/config_test.go
       - internal/config/

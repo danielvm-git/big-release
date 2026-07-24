@@ -48,4 +48,4 @@ release_plan:
     - epic: e08
       title: Semantic Release Test Parity
       priority: P1
-      status: planning
+      status: complete
