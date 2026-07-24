@@ -25,45 +25,54 @@ stories:
       Prepare updates version in package.json (same as npm). Publish runs
       `pnpm publish --no-git-checks` with optional --tag for dist-tag.
       Verify runs `pnpm view <name> version` and compares. Support DryRun
-      mode. Use ExecCommand indirection for testability.
-    status: planning
+      mode. Use ExecCommand indirection for testability. Update npm Detect
+      to return false when pnpm markers exist (dual-detect guard).
+    status: in_progress
     files:
       - internal/publishers/pnpm/pnpm.go
+      - internal/publishers/pnpm/pnpm_test.go
+      - internal/publishers/pnpm/pnpm_test_support_test.go
+      - internal/publishers/npm/npm.go
+      - internal/publishers/npm/npm_test.go
     tasks:
       - id: e24s01t01
         title: Publisher struct and interface implementation
         description: >
           Create Publisher struct with DryRun, channel, ExecCommand fields.
-          Implement Name() returning "pnpm", Detect() checking pnpm-lock.yaml.
-        verify: go test ./internal/publishers/pnpm/ -run TestPnpmDetect
+          Implement Name() returning "pnpm", Detect() checking pnpm-lock.yaml
+          OR pnpm-workspace.yaml. Update npm Detect to exclude pnpm markers.
+        verify: go test ./internal/publishers/pnpm/ -run TestPnpmDetect && go test ./internal/publishers/npm/ -run TestNpmDetect
         status: planning
+        security: medium
 
       - id: e24s01t02
         title: Prepare implementation
         description: >
           Implement Prepare(version) to update package.json version field.
-          Reuse or extract shared readPackageJSON/writePackageJSON logic
-          from npm publisher to avoid duplication.
+          Inline readPackageJSON helpers (nodeutil extract deferred to e24s03).
         verify: go test ./internal/publishers/pnpm/ -run TestPnpmPrepare
         status: planning
+        security: low
 
       - id: e24s01t03
         title: Publish implementation
         description: >
           Implement Publish(version) running `pnpm publish --no-git-checks`
           with --tag flag when channel is set. Handle stderr capture and
-          error wrapping consistent with other publishers.
+          error wrapping consistent with other publishers. DryRun no-ops.
         verify: go test ./internal/publishers/pnpm/ -run TestPnpmPublish
         status: planning
+        security: medium
 
       - id: e24s01t04
         title: Verify implementation
         description: >
           Implement Verify(version) running `pnpm view <name> version` and
-          comparing output to expected version. Return error on mismatch
-          or command failure.
+          comparing output to expected version. Validate package name.
+          Return error on mismatch or command failure. DryRun no-ops exec.
         verify: go test ./internal/publishers/pnpm/ -run TestPnpmVerify
         status: planning
+        security: medium
 
   - id: e24s02
     title: Unit tests for pnpm publisher
