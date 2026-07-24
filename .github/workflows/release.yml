@@ -94,8 +94,15 @@ jobs:
 
       - name: Check no AI agent attribution
         run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)
-          if git log "$LAST_TAG"..HEAD --format="%B" | grep -qiE '^co[- ]authored[- ]by:'; then
+          # PR: scan all commits since last tag. Push to main: only the landing commit
+          # (avoids blocking release on historical Co-authored-by in unreleased range).
+          if [ "${{ github.event_name }}" = "push" ]; then
+            LOG_RANGE="-1"
+          else
+            LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)
+            LOG_RANGE="$LAST_TAG..HEAD"
+          fi
+          if git log $LOG_RANGE --format="%B" | grep -qiE '^co[- ]authored[- ]by:'; then
             echo "FAIL: Co-authored-by: footer found — blocked by CONVENTIONS.md"
             exit 1
           fi

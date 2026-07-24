@@ -22,6 +22,12 @@ func TestDefaultConfig_Branches(t *testing.T) {
 	}
 }
 
+func TestDefaultConfig_PassesValidate(t *testing.T) {
+	if err := ValidateConfig(DefaultConfig()); err != nil {
+		t.Fatalf("DefaultConfig should pass ValidateConfig: %v", err)
+	}
+}
+
 func TestDefaultConfig_TagFormat(t *testing.T) {
 	cfg := DefaultConfig()
 	if cfg.TagFormat != "v${version}" {
