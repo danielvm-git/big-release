@@ -1,0 +1,15 @@
+# Issue template chooser configuration.
+# Docs: https://docs.github.com/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository
+
+# When a user opens a blank issue (no template), show this message and these links.
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question
+    url: https://github.com/danielvm-git/big-release/discussions
+    about: Questions about configuring or using big-release belong in Discussions, not Issues.
+  - name: Report a security vulnerability
+    url: https://github.com/danielvm-git/big-release/security/advisories/new
+    about: Found a security issue? Use private vulnerability reporting — do NOT open a public issue. See SECURITY.md.
+  - name: Read the docs first
+    url: https://github.com/danielvm-git/big-release/blob/main/README.md#configuration
+    about: Most "how do I configure…" questions are answered in the README and docs/.

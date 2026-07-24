@@ -10,7 +10,7 @@ Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before contributing.
 
 ### Prerequisites
 
-- Go 1.22 or later
+- Go 1.26 or later
 - Git
 - Make
 - golangci-lint (for linting)

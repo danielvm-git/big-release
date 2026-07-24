@@ -1,0 +1,34 @@
+# CODEOWNERS — code ownership rules for big-release.
+#
+# Each line: <path pattern> @<owner>
+# GitHub requests review from the owner(s) for any PR touching the path.
+# See https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# This project currently has a single maintainer. Add handles here as the
+# team grows; pair path ownership with the "Require review from Code Owners"
+# branch-protection rule.
+
+# Default — everything not matched below
+*                           @danielvm-git
+
+# Entry point and public API — the CLI surface and the library others import.
+/cmd/                       @danielvm-git
+/pkg/                       @danielvm-git
+
+# The release algorithm — highest-stakes code; 35+ repos depend on its behavior.
+/internal/algorithm/        @danielvm-git
+
+# Other core internals.
+/internal/                  @danielvm-git
+
+# Conventions and agent context — governs how work lands in this repo.
+/CONVENTIONS.md             @danielvm-git
+/AGENTS.md                  @danielvm-git
+
+# Documentation and planning surfaces.
+/docs/                      @danielvm-git
+/specs/                     @danielvm-git
+
+# CI and release pipelines — changes here affect every consuming repo.
+/.github/                   @danielvm-git
+/Makefile                   @danielvm-git

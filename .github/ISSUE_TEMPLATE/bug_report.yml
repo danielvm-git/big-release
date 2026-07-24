@@ -1,0 +1,68 @@
+name: Bug report
+description: Report a defect — a release misbehaves, a publisher fails, or output is wrong
+title: "[bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report! Before you continue,
+        please search existing issues to avoid duplicates.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the defect. What did you expect, and what happened instead? Paste the relevant command output.
+      placeholder: "Running `big-release` on main bumped the version to 2.0.0 when it should have been 1.1.0…"
+    validations:
+      required: true
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The smallest set of steps that reproduces the problem. Include your `.big-release.yml` if relevant.
+      placeholder: "1. Configure .big-release.yml with…\n2. Commit `feat: …`\n3. Run `big-release --dry-run`\n4. …"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you expected big-release to do.
+    validations:
+      required: true
+  - type: dropdown
+    id: publisher
+    attributes:
+      label: Which publisher or area?
+      description: Where in big-release does this happen? Pick the closest match.
+      options:
+        - Algorithm (version / changelog / branch matching)
+        - npm
+        - pypi
+        - crates
+        - goproxy
+        - packagist
+        - maven
+        - swift
+        - godot
+        - GitHub release / tags
+        - Configuration / CLI
+        - Not applicable
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: big-release version
+      description: Output of `big-release version`, or the binary/commit you built from.
+      placeholder: "e.g. 1.2.3 or commit abc1234"
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Logs (`--verbose` output), registry tokens used (names only — never paste secrets), OS/arch, anything else relevant.
+    validations:
+      required: false
