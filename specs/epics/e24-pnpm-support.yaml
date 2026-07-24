@@ -80,7 +80,7 @@ stories:
       Create internal/publishers/pnpm/pnpm_test.go with full test coverage.
       Follow F.I.R.S.T principles. Test all interface methods, error paths,
       dry-run behavior, dist-tag handling, and auto-registration.
-    status: in_progress
+    status: done
     files:
       - internal/publishers/pnpm/pnpm_test.go
     tasks:
@@ -90,7 +90,7 @@ stories:
           Test Detect returns true with pnpm-lock.yaml, false without.
           Test Detect returns true with pnpm-workspace.yaml.
         verify: go test ./internal/publishers/pnpm/ -run TestPnpmDetect
-        status: planning
+        status: done
 
       - id: e24s02t02
         title: Prepare tests
@@ -98,7 +98,7 @@ stories:
           Test Prepare updates package.json version. Test error on missing
           file. Test error on malformed JSON.
         verify: go test ./internal/publishers/pnpm/ -run TestPnpmPrepare
-        status: planning
+        status: done
 
       - id: e24s02t03
         title: Publish tests
@@ -106,21 +106,21 @@ stories:
           Test Publish success, auth error, dry-run skip, dist-tag flag.
           Mock exec.Command for deterministic testing.
         verify: go test ./internal/publishers/pnpm/ -run TestPnpmPublish
-        status: planning
+        status: done
 
       - id: e24s02t04
         title: Verify tests
         description: >
           Test Verify version match, mismatch, command failure, dry-run skip.
         verify: go test ./internal/publishers/pnpm/ -run TestPnpmVerify
-        status: planning
+        status: done
 
       - id: e24s02t05
         title: Auto-registration test
         description: >
           Verify pnpm publisher is auto-registered in global registry via init().
         verify: go test ./internal/publishers/pnpm/ -run TestPnpmAutoRegistration
-        status: planning
+        status: done
 
   - id: e24s03
     title: Extract shared package.json utilities

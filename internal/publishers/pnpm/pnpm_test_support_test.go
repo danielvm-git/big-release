@@ -1,4 +1,4 @@
-// story: e24s01
+// story: e24s01 e24s02
 
 package pnpm_test
 
