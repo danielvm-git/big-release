@@ -134,12 +134,13 @@ func ValidateConfig(c *algorithm.Config) error {
 	// Validate release branches (max 3)
 	releaseCount := 0
 	seen := map[string]bool{}
-	for _, branch := range c.Branches {
+	for i, branch := range c.Branches {
 		if seen[branch.Name] {
 			return fmt.Errorf("duplicate branch name %q", branch.Name)
 		}
 		seen[branch.Name] = true
 		if branch.Type == "" || branch.Type == "release" {
+			c.Branches[i].Type = "release"
 			releaseCount++
 		}
 	}

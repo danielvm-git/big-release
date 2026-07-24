@@ -100,6 +100,8 @@ func mapBranchConfig(branchName string, configs []algorithm.BranchConfig) *algor
 		if matchBranch(bc.Name, branchName) {
 			if bc.Type != "" {
 				branch.Type = algorithm.BranchType(bc.Type)
+			} else {
+				branch.Type = algorithm.BranchTypeRelease
 			}
 			branch.Channel = bc.Channel
 			branch.Prerelease = bc.Prerelease
