@@ -309,3 +309,4 @@ MIT License - see [LICENSE](LICENSE)
 ---
 
 Built with ❤️ by [danielvm-git](https://github.com/danielvm-git)
+# Trigger release
