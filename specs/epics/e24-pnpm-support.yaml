@@ -80,7 +80,7 @@ stories:
       Create internal/publishers/pnpm/pnpm_test.go with full test coverage.
       Follow F.I.R.S.T principles. Test all interface methods, error paths,
       dry-run behavior, dist-tag handling, and auto-registration.
-    status: planning
+    status: in_progress
     files:
       - internal/publishers/pnpm/pnpm_test.go
     tasks:

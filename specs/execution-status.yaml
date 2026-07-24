@@ -1,7 +1,7 @@
 execution_status:
   last_updated: "2026-07-24"
   current_epic: e24
-  current_story: e24s01
+  current_story: e24s02
   blocked: false
   stories:
     e02s01: done
@@ -38,9 +38,12 @@ execution_status:
     e23s02: done
     e23s03: done
     e24s01:
-      status: in_progress
+      status: done
       started_at: "2026-07-24T13:42:00-03:00"
-    e24s02: todo
+      completed_at: "2026-07-24T13:50:00-03:00"
+    e24s02:
+      status: in_progress
+      started_at: "2026-07-24T13:50:00-03:00"
     e24s03: todo
     e24s04: todo
-  notes: "Wave 1 bugs fixed (PRs #29-#33). Epics e21 (#36), e23 (#39), e22 (#40) complete. Starting e24 pnpm Support."
+  notes: "e24s01 landed. Building e24s02 unit suite."
