@@ -235,12 +235,22 @@ func (c *Client) GetLastRelease(tagFormat string) (*algorithm.Release, error) {
 		return nil, err
 	}
 
-	// Parse tag format to extract version
-	// Simple implementation: assume tags are like "v1.2.3"
+	// Determine the prefix from tag format
+	// e.g., "v${version}" -> prefix "v", "${version}" -> prefix ""
+	prefix := ""
+	if idx := strings.Index(tagFormat, "${version}"); idx > 0 {
+		prefix = tagFormat[:idx]
+	}
+
+	// Find the last tag matching the format
 	for i := len(tags) - 1; i >= 0; i-- {
 		tag := tags[i]
-		if strings.HasPrefix(tag, "v") {
-			version := strings.TrimPrefix(tag, "v")
+		if strings.HasPrefix(tag, prefix) {
+			version := strings.TrimPrefix(tag, prefix)
+			// Validate it looks like a semver version
+			if version == "" || !strings.Contains(version, ".") {
+				continue
+			}
 			head, err := c.GetTagHead(tag)
 			if err != nil {
 				continue
