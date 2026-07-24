@@ -1,10 +1,12 @@
 workflow_mode: solo-git
-active_flow: null
+active_flow: fix_bug
 active_epic: null
 active_story: null
 epic_cycle: null
-bug_id: null
-bug_cycle: null
+bug_id: BUG-release-workflow-softprops-and-verbose
+bug_cycle:
+  current_step: 3
+  completed_steps: [1, 2]
 bigpowers_version: 2.76.1
 environment:
   go: 1.26.3
@@ -12,8 +14,8 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'e24 (pnpm Support) complete — all stories s01–s04 landed. Ready for next epic.'
-  next_skill: survey-context
+  context: 'Fixing two release-workflow bugs: softprops tag error + --verbose no output.'
+  next_skill: develop-tdd
 release:
   commit_landed: true
   ci_verified: true
