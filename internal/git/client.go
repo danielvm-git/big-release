@@ -1,6 +1,7 @@
 package git
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -30,6 +31,22 @@ func gitCmd(args ...string) *exec.Cmd {
 	cmd := exec.Command("git", args...)
 	cmd.Env = scrubGitEnv()
 	return cmd
+}
+
+// runGit runs cmd and, on failure, appends any stderr git produced to the
+// error. cmd.Run() alone connects a nil Stderr to /dev/null, so callers
+// otherwise only ever see the bare "exit status 1" — the actual reason
+// (rejected push, auth failure, etc.) is silently discarded.
+func runGit(cmd *exec.Cmd) error {
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return fmt.Errorf("%w: %s", err, msg)
+		}
+		return err
+	}
+	return nil
 }
 
 func scrubGitEnv() []string {
@@ -143,7 +160,7 @@ func (c *Client) GetHead() (string, error) {
 // CreateTag creates an annotated git tag
 func (c *Client) CreateTag(tag, message string) error {
 	cmd := gitCmd("tag", "-a", tag, "-m", message)
-	if err := cmd.Run(); err != nil {
+	if err := runGit(cmd); err != nil {
 		return fmt.Errorf("failed to create tag: %w", err)
 	}
 
@@ -153,7 +170,7 @@ func (c *Client) CreateTag(tag, message string) error {
 // Push pushes commits to the remote
 func (c *Client) Push(remote string) error {
 	cmd := gitCmd("push", remote)
-	if err := cmd.Run(); err != nil {
+	if err := runGit(cmd); err != nil {
 		return fmt.Errorf("failed to push: %w", err)
 	}
 
@@ -163,7 +180,7 @@ func (c *Client) Push(remote string) error {
 // AddNote adds a note to a ref
 func (c *Client) AddNote(note, ref string) error {
 	cmd := gitCmd("notes", "--ref", "big-release-"+ref, "add", "-f", "-m", note, ref)
-	if err := cmd.Run(); err != nil {
+	if err := runGit(cmd); err != nil {
 		return fmt.Errorf("failed to add note: %w", err)
 	}
 
@@ -173,7 +190,7 @@ func (c *Client) AddNote(note, ref string) error {
 // PushNotes pushes notes to remote
 func (c *Client) PushNotes(remote, ref string) error {
 	cmd := gitCmd("push", remote, "refs/notes/big-release-"+ref)
-	if err := cmd.Run(); err != nil {
+	if err := runGit(cmd); err != nil {
 		return fmt.Errorf("failed to push notes: %w", err)
 	}
 
@@ -183,7 +200,7 @@ func (c *Client) PushNotes(remote, ref string) error {
 // VerifyAuth verifies push authentication
 func (c *Client) VerifyAuth(remote, branch string) error {
 	cmd := gitCmd("push", "--dry-run", "--no-verify", remote, "HEAD:"+branch)
-	if err := cmd.Run(); err != nil {
+	if err := runGit(cmd); err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
 	}
 
@@ -224,13 +241,13 @@ func (c *Client) IsBranchUpToDate(remote, branch string) (bool, error) {
 func (c *Client) Commit(message string) error {
 	// Stage all changes
 	stageCmd := gitCmd("add", "-A")
-	if err := stageCmd.Run(); err != nil {
+	if err := runGit(stageCmd); err != nil {
 		return fmt.Errorf("failed to stage changes: %w", err)
 	}
 
 	// Create commit
 	commitCmd := gitCmd("commit", "-m", message, "--author="+c.authorName+" <"+c.authorEmail+">")
-	if err := commitCmd.Run(); err != nil {
+	if err := runGit(commitCmd); err != nil {
 		return fmt.Errorf("failed to commit: %w", err)
 	}
 
@@ -340,7 +357,7 @@ func GetCurrentTime() string {
 // StageChanges stages all changes in the working directory.
 func (c *Client) StageChanges() error {
 	cmd := gitCmd("add", ".")
-	if err := cmd.Run(); err != nil {
+	if err := runGit(cmd); err != nil {
 		return fmt.Errorf("failed to stage changes: %w", err)
 	}
 	return nil
@@ -378,7 +395,7 @@ func (c *Client) StagePaths(paths []string) error {
 	}
 	args := append([]string{"add", "--"}, paths...)
 	cmd := gitCmd(args...)
-	if err := cmd.Run(); err != nil {
+	if err := runGit(cmd); err != nil {
 		return fmt.Errorf("failed to stage paths: %w", err)
 	}
 	return nil
@@ -397,7 +414,7 @@ func (c *Client) HasChangesToCommit() (bool, error) {
 // PushTags pushes tags to the remote.
 func (c *Client) PushTags(remote string) error {
 	cmd := gitCmd("push", remote, "--tags")
-	if err := cmd.Run(); err != nil {
+	if err := runGit(cmd); err != nil {
 		return fmt.Errorf("failed to push tags: %w", err)
 	}
 	return nil
@@ -406,7 +423,7 @@ func (c *Client) PushTags(remote string) error {
 // DeleteTag deletes a local git tag.
 func (c *Client) DeleteTag(tag string) error {
 	cmd := gitCmd("tag", "-d", tag)
-	if err := cmd.Run(); err != nil {
+	if err := runGit(cmd); err != nil {
 		return fmt.Errorf("failed to delete tag: %w", err)
 	}
 	return nil
