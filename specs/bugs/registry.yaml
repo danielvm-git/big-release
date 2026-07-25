@@ -1,4 +1,24 @@
 bugs:
+  - id: BUG-tag-ignores-tagformat
+    status: fixed
+    severity: high
+    scope: internal/plugins, internal/git
+    title: git plugin's CreateTag ignores tagFormat, breaking every second release with a non-default prefix
+    approach: |
+      Added git.FormatTag(tagFormat, version) as the single shared source of truth for
+      turning a semver version into a tag name, used by both the read path
+      (GetLastRelease, unchanged) and the write path (GitPlugin.createTag/deleteTag,
+      GitHubPlugin.buildReleasePayload's TagName). Default release display name keeps
+      its existing hardcoded "v{version}" convention (cosmetic, independent of the
+      actual tag) per TestGitHubPluginPublish_DefaultNameTemplatePreservesVPrefix.
+    risk_level: low
+    files_changed:
+      - internal/git/client.go
+      - internal/plugins/git.go
+      - internal/plugins/git_test.go
+      - internal/plugins/github.go
+    commit_message: "fix(release): apply tagFormat when creating git tags, not just when reading them"
+
   - id: BUG-cli-hardening
     status: fixed
     severity: high

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -42,10 +43,34 @@ func runGit(t *testing.T, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = "."
+	// Strip git worktree/hook context vars so this always operates on the
+	// tempdir at cmd.Dir, never an ambient repo leaked from a calling git
+	// hook (e.g. running `go test` from inside a pre-commit hook).
+	cmd.Env = scrubGitEnv()
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git %v failed: %v\n%s", args, err, out)
 	}
+}
+
+func scrubGitEnv() []string {
+	env := os.Environ()
+	out := make([]string, 0, len(env))
+	for _, e := range env {
+		switch {
+		case strings.HasPrefix(e, "GIT_DIR="),
+			strings.HasPrefix(e, "GIT_WORK_TREE="),
+			strings.HasPrefix(e, "GIT_INDEX_FILE="),
+			strings.HasPrefix(e, "GIT_PREFIX="),
+			strings.HasPrefix(e, "GIT_COMMON_DIR="),
+			strings.HasPrefix(e, "GIT_OBJECT_DIRECTORY="),
+			strings.HasPrefix(e, "GIT_ALTERNATE_OBJECT_DIRECTORIES="):
+			continue
+		default:
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 // Commit writes a file and creates a commit with the given message.

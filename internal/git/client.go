@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"sort"
 	"strings"
@@ -16,6 +17,39 @@ import (
 type Client struct {
 	authorName  string
 	authorEmail string
+}
+
+// gitCmd builds a git command with the calling process's git worktree/hook
+// context stripped from its environment (GIT_DIR, GIT_WORK_TREE,
+// GIT_INDEX_FILE, etc.). Without this, a Client invoked from inside a git
+// hook (e.g. big-release running from a pre-commit hook, or any test run
+// while a commit is in flight) inherits those variables and silently
+// operates on the hook's repository instead of the one at the command's Dir
+// (see BUG-tag-ignores-tagformat investigation).
+func gitCmd(args ...string) *exec.Cmd {
+	cmd := exec.Command("git", args...)
+	cmd.Env = scrubGitEnv()
+	return cmd
+}
+
+func scrubGitEnv() []string {
+	env := os.Environ()
+	out := make([]string, 0, len(env))
+	for _, e := range env {
+		switch {
+		case strings.HasPrefix(e, "GIT_DIR="),
+			strings.HasPrefix(e, "GIT_WORK_TREE="),
+			strings.HasPrefix(e, "GIT_INDEX_FILE="),
+			strings.HasPrefix(e, "GIT_PREFIX="),
+			strings.HasPrefix(e, "GIT_COMMON_DIR="),
+			strings.HasPrefix(e, "GIT_OBJECT_DIRECTORY="),
+			strings.HasPrefix(e, "GIT_ALTERNATE_OBJECT_DIRECTORIES="):
+			continue
+		default:
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 // NewClient creates a new git Client
@@ -35,7 +69,7 @@ func (c *Client) GetCommits(from, to string) ([]*algorithm.Commit, error) {
 		range_spec = to
 	}
 
-	cmd := exec.Command("git", "log", range_spec, "--pretty=format:%H|%s|%an|%ae|%ai|%b")
+	cmd := gitCmd("log", range_spec, "--pretty=format:%H|%s|%an|%ae|%ai|%b")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get commits: %w", err)
@@ -67,7 +101,7 @@ func (c *Client) GetCommits(from, to string) ([]*algorithm.Commit, error) {
 
 // GetTags retrieves all tags
 func (c *Client) GetTags() ([]string, error) {
-	cmd := exec.Command("git", "tag", "--list")
+	cmd := gitCmd("tag", "--list")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tags: %w", err)
@@ -86,7 +120,7 @@ func (c *Client) GetTags() ([]string, error) {
 
 // GetTagHead retrieves the commit hash for a tag
 func (c *Client) GetTagHead(tag string) (string, error) {
-	cmd := exec.Command("git", "rev-list", "-1", tag)
+	cmd := gitCmd("rev-list", "-1", tag)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get tag head: %w", err)
@@ -97,7 +131,7 @@ func (c *Client) GetTagHead(tag string) (string, error) {
 
 // GetHead retrieves the current HEAD commit hash
 func (c *Client) GetHead() (string, error) {
-	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd := gitCmd("rev-parse", "HEAD")
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get HEAD: %w", err)
@@ -108,7 +142,7 @@ func (c *Client) GetHead() (string, error) {
 
 // CreateTag creates an annotated git tag
 func (c *Client) CreateTag(tag, message string) error {
-	cmd := exec.Command("git", "tag", "-a", tag, "-m", message)
+	cmd := gitCmd("tag", "-a", tag, "-m", message)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to create tag: %w", err)
 	}
@@ -118,7 +152,7 @@ func (c *Client) CreateTag(tag, message string) error {
 
 // Push pushes commits to the remote
 func (c *Client) Push(remote string) error {
-	cmd := exec.Command("git", "push", remote)
+	cmd := gitCmd("push", remote)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to push: %w", err)
 	}
@@ -128,7 +162,7 @@ func (c *Client) Push(remote string) error {
 
 // AddNote adds a note to a ref
 func (c *Client) AddNote(note, ref string) error {
-	cmd := exec.Command("git", "notes", "--ref", "big-release-"+ref, "add", "-f", "-m", note, ref)
+	cmd := gitCmd("notes", "--ref", "big-release-"+ref, "add", "-f", "-m", note, ref)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to add note: %w", err)
 	}
@@ -138,7 +172,7 @@ func (c *Client) AddNote(note, ref string) error {
 
 // PushNotes pushes notes to remote
 func (c *Client) PushNotes(remote, ref string) error {
-	cmd := exec.Command("git", "push", remote, "refs/notes/big-release-"+ref)
+	cmd := gitCmd("push", remote, "refs/notes/big-release-"+ref)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to push notes: %w", err)
 	}
@@ -148,7 +182,7 @@ func (c *Client) PushNotes(remote, ref string) error {
 
 // VerifyAuth verifies push authentication
 func (c *Client) VerifyAuth(remote, branch string) error {
-	cmd := exec.Command("git", "push", "--dry-run", "--no-verify", remote, "HEAD:"+branch)
+	cmd := gitCmd("push", "--dry-run", "--no-verify", remote, "HEAD:"+branch)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
 	}
@@ -165,7 +199,7 @@ func (c *Client) IsBranchUpToDate(remote, branch string) (bool, error) {
 	}
 
 	// Get remote HEAD
-	cmd := exec.Command("git", "ls-remote", "--heads", remote, branch)
+	cmd := gitCmd("ls-remote", "--heads", remote, branch)
 	output, err := cmd.Output()
 	if err != nil {
 		return false, fmt.Errorf("failed to get remote HEAD: %w", err)
@@ -189,13 +223,13 @@ func (c *Client) IsBranchUpToDate(remote, branch string) (bool, error) {
 // Commit creates a commit with the configured author
 func (c *Client) Commit(message string) error {
 	// Stage all changes
-	stageCmd := exec.Command("git", "add", "-A")
+	stageCmd := gitCmd("add", "-A")
 	if err := stageCmd.Run(); err != nil {
 		return fmt.Errorf("failed to stage changes: %w", err)
 	}
 
 	// Create commit
-	commitCmd := exec.Command("git", "commit", "-m", message, "--author="+c.authorName+" <"+c.authorEmail+">")
+	commitCmd := gitCmd("commit", "-m", message, "--author="+c.authorName+" <"+c.authorEmail+">")
 	if err := commitCmd.Run(); err != nil {
 		return fmt.Errorf("failed to commit: %w", err)
 	}
@@ -205,7 +239,7 @@ func (c *Client) Commit(message string) error {
 
 // GetRepositoryURL retrieves the repository URL
 func (c *Client) GetRepositoryURL() (string, error) {
-	cmd := exec.Command("git", "config", "--get", "remote.origin.url")
+	cmd := gitCmd("config", "--get", "remote.origin.url")
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get repository URL: %w", err)
@@ -216,7 +250,7 @@ func (c *Client) GetRepositoryURL() (string, error) {
 
 // GetCurrentBranch retrieves the current branch name
 func (c *Client) GetCurrentBranch() (string, error) {
-	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd := gitCmd("rev-parse", "--abbrev-ref", "HEAD")
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get current branch: %w", err)
@@ -227,7 +261,7 @@ func (c *Client) GetCurrentBranch() (string, error) {
 
 // IsGitRepo checks if the current directory is a git repository
 func (c *Client) IsGitRepo() bool {
-	cmd := exec.Command("git", "rev-parse", "--git-dir")
+	cmd := gitCmd("rev-parse", "--git-dir")
 	return cmd.Run() == nil
 }
 
@@ -282,6 +316,15 @@ func (c *Client) GetLastRelease(tagFormat string) (*algorithm.Release, error) {
 	}, nil
 }
 
+// FormatTag applies tagFormat to a semver version string, e.g.
+// FormatTag("v${version}", "1.0.0") -> "v1.0.0". Empty tagFormat falls back
+// to the bare version, matching the pre-existing default behavior.
+// Shared by GetLastRelease (read path) and plugins.GitPlugin (write path) so
+// the two can't drift out of sync again (see BUG-tag-ignores-tagformat).
+func FormatTag(tagFormat, version string) string {
+	return tagPrefix(tagFormat) + version
+}
+
 func tagPrefix(tagFormat string) string {
 	if idx := strings.Index(tagFormat, "${version}"); idx > 0 {
 		return tagFormat[:idx]
@@ -296,7 +339,7 @@ func GetCurrentTime() string {
 
 // StageChanges stages all changes in the working directory.
 func (c *Client) StageChanges() error {
-	cmd := exec.Command("git", "add", ".")
+	cmd := gitCmd("add", ".")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to stage changes: %w", err)
 	}
@@ -305,7 +348,7 @@ func (c *Client) StageChanges() error {
 
 // GetModifiedFiles returns paths with unstaged or staged modifications.
 func (c *Client) GetModifiedFiles() ([]string, error) {
-	cmd := exec.Command("git", "status", "--porcelain")
+	cmd := gitCmd("status", "--porcelain")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get modified files: %w", err)
@@ -334,7 +377,7 @@ func (c *Client) StagePaths(paths []string) error {
 		return nil
 	}
 	args := append([]string{"add", "--"}, paths...)
-	cmd := exec.Command("git", args...)
+	cmd := gitCmd(args...)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to stage paths: %w", err)
 	}
@@ -343,7 +386,7 @@ func (c *Client) StagePaths(paths []string) error {
 
 // HasChangesToCommit checks if there are any changes to commit.
 func (c *Client) HasChangesToCommit() (bool, error) {
-	cmd := exec.Command("git", "status", "--porcelain")
+	cmd := gitCmd("status", "--porcelain")
 	output, err := cmd.Output()
 	if err != nil {
 		return false, fmt.Errorf("failed to check status: %w", err)
@@ -353,7 +396,7 @@ func (c *Client) HasChangesToCommit() (bool, error) {
 
 // PushTags pushes tags to the remote.
 func (c *Client) PushTags(remote string) error {
-	cmd := exec.Command("git", "push", remote, "--tags")
+	cmd := gitCmd("push", remote, "--tags")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to push tags: %w", err)
 	}
@@ -362,7 +405,7 @@ func (c *Client) PushTags(remote string) error {
 
 // DeleteTag deletes a local git tag.
 func (c *Client) DeleteTag(tag string) error {
-	cmd := exec.Command("git", "tag", "-d", tag)
+	cmd := gitCmd("tag", "-d", tag)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to delete tag: %w", err)
 	}

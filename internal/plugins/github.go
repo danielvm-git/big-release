@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/danielvm-git/big-release/internal/algorithm"
+	"github.com/danielvm-git/big-release/internal/git"
 )
 
 // GitHubPlugin creates GitHub releases via the API.
@@ -146,6 +147,14 @@ func (p *GitHubPlugin) buildReleasePayload(ctx *algorithm.ReadOnlyContext, state
 	notes := state.NextRelease.Notes
 	releaseType := string(state.NextRelease.Type)
 
+	tagFormat := ""
+	if ctx.Config != nil {
+		tagFormat = ctx.Config.TagFormat
+	}
+	// Tag actually created by the git plugin (BUG-tag-ignores-tagformat) —
+	// must match exactly, or GitHub creates a second, orphan tag for this release.
+	tag := git.FormatTag(tagFormat, version)
+
 	tctx := templateContext{
 		Version:     version,
 		Date:        time.Now().UTC().Format(time.RFC3339),
@@ -157,6 +166,8 @@ func (p *GitHubPlugin) buildReleasePayload(ctx *algorithm.ReadOnlyContext, state
 		tctx.Branch = ctx.Branch.Name
 	}
 
+	// Default display name is always "v{version}" regardless of tagFormat —
+	// a cosmetic convention, independent of the actual tag_name below.
 	name, err := p.renderTemplate("release name", p.releaseNameTemplate, "v"+version, tctx)
 	if err != nil {
 		return nil, err
@@ -167,7 +178,7 @@ func (p *GitHubPlugin) buildReleasePayload(ctx *algorithm.ReadOnlyContext, state
 	}
 
 	req := &createReleaseRequest{
-		TagName:              version,
+		TagName:              tag,
 		Name:                 name,
 		Body:                 body,
 		Draft:                p.draftRelease,

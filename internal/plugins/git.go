@@ -178,8 +178,9 @@ func (p *GitPlugin) AddChannel(ctx *algorithm.ReadOnlyContext, state *algorithm.
 	return nil
 }
 
-func (p *GitPlugin) createTag(version string) error {
-	return p.Git.CreateTag(version, fmt.Sprintf("release %s", version))
+func (p *GitPlugin) createTag(tagFormat, version string) error {
+	tag := git.FormatTag(tagFormat, version)
+	return p.Git.CreateTag(tag, fmt.Sprintf("release %s", version))
 }
 
 func (p *GitPlugin) pushRefs() error {
@@ -194,12 +195,16 @@ func (p *GitPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.Mut
 	if ctx.DryRun {
 		return nil, nil
 	}
-	if err := p.createTag(state.NextRelease.Version); err != nil {
+	tagFormat := ""
+	if ctx.Config != nil {
+		tagFormat = ctx.Config.TagFormat
+	}
+	if err := p.createTag(tagFormat, state.NextRelease.Version); err != nil {
 		return nil, err
 	}
 	if err := p.pushRefs(); err != nil {
-		_ = p.deleteTag(state.NextRelease.Version)
-		return nil, fmt.Errorf("push failed, local tag %s removed: %w", state.NextRelease.Version, err)
+		_ = p.deleteTag(tagFormat, state.NextRelease.Version)
+		return nil, fmt.Errorf("push failed, local tag %s removed: %w", git.FormatTag(tagFormat, state.NextRelease.Version), err)
 	}
 	if p.channelNoteRef != "" {
 		if err := p.Git.PushNotes("origin", p.channelNoteRef); err != nil {
@@ -209,8 +214,8 @@ func (p *GitPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.Mut
 	return nil, nil
 }
 
-func (p *GitPlugin) deleteTag(version string) error {
-	return p.Git.DeleteTag(version)
+func (p *GitPlugin) deleteTag(tagFormat, version string) error {
+	return p.Git.DeleteTag(git.FormatTag(tagFormat, version))
 }
 
 // Success is called after a successful release.

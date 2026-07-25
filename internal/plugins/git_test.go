@@ -245,6 +245,120 @@ func TestGitPluginPublish(t *testing.T) {
 			t.Errorf("expected tag cleanup message, got: %v", err)
 		}
 	})
+
+	t.Run("BUG-tag-ignores-tagformat: Publish applies configured tagFormat to the created tag", func(t *testing.T) {
+		fg := &fakeGit{isRepo: true}
+		p := NewGitPlugin(fg)
+		ctx := &algorithm.ReadOnlyContext{
+			DryRun: false,
+			Config: &algorithm.Config{TagFormat: "v${version}"},
+		}
+		state := &algorithm.MutableState{
+			NextRelease: &algorithm.Release{Version: "1.2.3"},
+		}
+
+		if _, err := p.Publish(ctx, state); err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+		if fg.lastCreatedTag != "v1.2.3" {
+			t.Errorf("expected tag %q (tagFormat applied), got %q", "v1.2.3", fg.lastCreatedTag)
+		}
+	})
+
+	t.Run("BUG-tag-ignores-tagformat: Publish falls back to bare version when tagFormat unset", func(t *testing.T) {
+		fg := &fakeGit{isRepo: true}
+		p := NewGitPlugin(fg)
+		ctx := &algorithm.ReadOnlyContext{DryRun: false}
+		state := &algorithm.MutableState{
+			NextRelease: &algorithm.Release{Version: "1.2.3"},
+		}
+
+		if _, err := p.Publish(ctx, state); err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+		if fg.lastCreatedTag != "1.2.3" {
+			t.Errorf("expected bare tag %q, got %q", "1.2.3", fg.lastCreatedTag)
+		}
+	})
+
+	t.Run("BUG-tag-ignores-tagformat: rollback deletes the same formatted tag that was created", func(t *testing.T) {
+		fg := &fakeGit{
+			isRepo:  true,
+			pushErr: fmt.Errorf("git push: exit status 128"),
+		}
+		p := NewGitPlugin(fg)
+		ctx := &algorithm.ReadOnlyContext{
+			DryRun: false,
+			Config: &algorithm.Config{TagFormat: "v${version}"},
+		}
+		state := &algorithm.MutableState{
+			NextRelease: &algorithm.Release{Version: "1.2.3"},
+		}
+
+		if _, err := p.Publish(ctx, state); err == nil {
+			t.Fatal("expected error from push failure")
+		}
+		if fg.lastDeletedTag != fg.lastCreatedTag {
+			t.Errorf("rollback deleted %q but created tag was %q — must match", fg.lastDeletedTag, fg.lastCreatedTag)
+		}
+	})
+}
+
+// TestFormatTag_RoundTripsWithGetLastRelease is the exact scenario from
+// BUG-tag-ignores-tagformat: whatever git.FormatTag writes, the real
+// client's GetLastRelease(tagFormat) must be able to read back — using a
+// real git repo and the real internal/git client, not fakes, since the bug
+// was precisely a mismatch between the write path (git.go's CreateTag call)
+// and the read path (GetLastRelease) that no fake would catch.
+func TestFormatTag_RoundTripsWithGetLastRelease(t *testing.T) {
+	dir := setupTestGitRepo(t)
+	prevWD, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(prevWD) }()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	writeFileInDir(t, dir, "initial.txt", "initial")
+	execInDir(t, dir, "git", "add", ".")
+	execInDir(t, dir, "git", "commit", "-m", "initial commit")
+
+	const tagFormat = "v${version}"
+	gitClient, err := git.NewClient()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// First release: tag exactly as the git plugin's Publish now would.
+	firstTag := git.FormatTag(tagFormat, "1.0.0")
+	if firstTag != "v1.0.0" {
+		t.Fatalf("FormatTag(%q, %q) = %q, want v1.0.0", tagFormat, "1.0.0", firstTag)
+	}
+	execInDir(t, dir, "git", "tag", "-a", firstTag, "-m", "release "+firstTag)
+
+	last, err := gitClient.GetLastRelease(tagFormat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if last == nil || last.Version != "1.0.0" || last.GitTag != firstTag {
+		t.Fatalf("GetLastRelease after first tag = %+v, want version 1.0.0 / tag %s", last, firstTag)
+	}
+
+	// Second release: this is where BUG-tag-ignores-tagformat broke — a bare
+	// second tag ("1.0.1") would go unrecognized by GetLastRelease, causing
+	// the caller to recompute the same version and fail on tag re-creation.
+	secondTag := git.FormatTag(tagFormat, "1.0.1")
+	execInDir(t, dir, "git", "tag", "-a", secondTag, "-m", "release "+secondTag)
+
+	last2, err := gitClient.GetLastRelease(tagFormat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if last2 == nil || last2.Version != "1.0.1" || last2.GitTag != secondTag {
+		t.Fatalf("GetLastRelease after second tag = %+v, want version 1.0.1 / tag %s", last2, secondTag)
+	}
 }
 
 func TestGitPluginSuccess(t *testing.T) {
@@ -396,24 +510,26 @@ func TestGitPluginRegistration(t *testing.T) {
 
 // fakeGit implements git.GitAPI for testing.
 type fakeGit struct {
-	commits       []*algorithm.Commit
-	tags          []string
-	tagHead       string
-	head          string
-	release       *algorithm.Release
-	repoURL       string
-	branch        string
-	isRepo        bool
-	changes       bool
-	modifiedFiles []string
-	stagedPaths   []string
-	lastCommitMsg string
-	lastNote      string
-	lastNoteRef   string
-	pushedNotes   []string
-	createErr     error
-	pushErr       error
-	deleteErr     error
+	commits        []*algorithm.Commit
+	tags           []string
+	tagHead        string
+	head           string
+	release        *algorithm.Release
+	repoURL        string
+	branch         string
+	isRepo         bool
+	changes        bool
+	modifiedFiles  []string
+	stagedPaths    []string
+	lastCommitMsg  string
+	lastNote       string
+	lastNoteRef    string
+	pushedNotes    []string
+	createErr      error
+	pushErr        error
+	deleteErr      error
+	lastCreatedTag string
+	lastDeletedTag string
 }
 
 func (f *fakeGit) GetCommits(from, to string) ([]*algorithm.Commit, error) {
@@ -471,6 +587,7 @@ func (f *fakeGit) Commit(message string) error {
 }
 
 func (f *fakeGit) CreateTag(tag, message string) error {
+	f.lastCreatedTag = tag
 	return f.createErr
 }
 
@@ -483,6 +600,7 @@ func (f *fakeGit) PushTags(remote string) error {
 }
 
 func (f *fakeGit) DeleteTag(tag string) error {
+	f.lastDeletedTag = tag
 	return f.deleteErr
 }
 
