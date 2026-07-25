@@ -52,4 +52,4 @@ release_plan:
     - epic: e09
       title: Version File Sync
       priority: P1
-      status: planning
+      status: complete
