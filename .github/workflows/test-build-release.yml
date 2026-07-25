@@ -143,6 +143,7 @@ jobs:
 
       - name: Install big-release
         run: |
+          chmod +x bin/big-release
           sudo cp bin/big-release /usr/local/bin/
           big-release --version
 
