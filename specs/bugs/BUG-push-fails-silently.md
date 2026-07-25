@@ -1,3 +1,11 @@
+---
+bug_id: BUG-push-fails-silently
+status: fixed
+severity: high
+scope: internal/git
+title: git push fails silently in CI with exit status 1
+---
+
 # BUG-2026-07-25T060000: Git push fails silently in CI with exit status 1
 
 ## Problem
@@ -93,4 +101,8 @@ The first `git push origin` is trying to push the current branch. In CI, the che
 
 ## Resolution
 
-<!-- filled in by validate-fix -->
+**Fixed in:** `4e77fed fix(git): push tags independently of commit push` and `bb3c0cb fix(git): surface real git stderr instead of bare exit-status errors`
+
+**Status:** RESOLVED — CI is green (run 30170487583). Tags are pushed independently, stderr is surfaced in error messages.
+
+**Verified:** 2026-07-25

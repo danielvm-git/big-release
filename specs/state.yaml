@@ -1,12 +1,10 @@
 workflow_mode: solo-git
-active_flow: fix_bug
+active_flow: null
 active_epic: null
 active_story: null
 epic_cycle: null
-bug_id: BUG-push-fails-silently
-bug_cycle:
-  current_step: 3
-  completed_steps: [1, 2]
+bug_id: null
+bug_cycle: null
 bigpowers_version: 2.76.1
 environment:
   go: 1.26.3
