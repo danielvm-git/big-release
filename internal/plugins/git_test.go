@@ -450,6 +450,32 @@ func TestGitPluginCommitAssets(t *testing.T) {
 			t.Errorf("staged paths = %v, want [CHANGELOG.md]", fg.stagedPaths)
 		}
 	})
+
+	t.Run("BUG-git-push-error-swallowed: Prepare stages nothing without explicit assets config", func(t *testing.T) {
+		// With no `assets` configured, committing must be a no-op — matching
+		// semantic-release's default (no plugin implements `prepare` unless
+		// the user opts into @semantic-release/git). A fresh install must
+		// never push a surprise commit to the release branch: on a protected
+		// branch that's rejected outright for any non-admin pusher, with no
+		// GitHub-side config able to avoid it short of an explicit opt-in.
+		// changes: false mirrors the real Client, where HasChangesToCommit
+		// now reflects the index (git diff --cached) rather than overall
+		// working-tree dirtiness — with nothing staged, it correctly reports
+		// no changes even if some other plugin wrote files to disk.
+		fg := &fakeGit{isRepo: true, changes: false}
+		p := NewGitPlugin(fg)
+		ctx := &algorithm.ReadOnlyContext{DryRun: false}
+		state := &algorithm.MutableState{NextRelease: &algorithm.Release{Version: "1.0.0"}}
+		if err := p.Prepare(ctx, state); err != nil {
+			t.Fatalf("Prepare: %v", err)
+		}
+		if fg.stageChangesCalled {
+			t.Error("Prepare called StageChanges() (stage-everything) with no assets configured")
+		}
+		if fg.lastCommitMsg != "" {
+			t.Errorf("Prepare committed %q with no assets configured, want no commit", fg.lastCommitMsg)
+		}
+	})
 }
 
 func TestGitPluginAddChannel(t *testing.T) {
@@ -510,26 +536,27 @@ func TestGitPluginRegistration(t *testing.T) {
 
 // fakeGit implements git.GitAPI for testing.
 type fakeGit struct {
-	commits        []*algorithm.Commit
-	tags           []string
-	tagHead        string
-	head           string
-	release        *algorithm.Release
-	repoURL        string
-	branch         string
-	isRepo         bool
-	changes        bool
-	modifiedFiles  []string
-	stagedPaths    []string
-	lastCommitMsg  string
-	lastNote       string
-	lastNoteRef    string
-	pushedNotes    []string
-	createErr      error
-	pushErr        error
-	deleteErr      error
-	lastCreatedTag string
-	lastDeletedTag string
+	commits            []*algorithm.Commit
+	tags               []string
+	tagHead            string
+	head               string
+	release            *algorithm.Release
+	repoURL            string
+	branch             string
+	isRepo             bool
+	changes            bool
+	modifiedFiles      []string
+	stagedPaths        []string
+	stageChangesCalled bool
+	lastCommitMsg      string
+	lastNote           string
+	lastNoteRef        string
+	pushedNotes        []string
+	createErr          error
+	pushErr            error
+	deleteErr          error
+	lastCreatedTag     string
+	lastDeletedTag     string
 }
 
 func (f *fakeGit) GetCommits(from, to string) ([]*algorithm.Commit, error) {
@@ -565,6 +592,7 @@ func (f *fakeGit) IsGitRepo() bool {
 }
 
 func (f *fakeGit) StageChanges() error {
+	f.stageChangesCalled = true
 	return nil
 }
 

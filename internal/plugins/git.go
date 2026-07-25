@@ -82,9 +82,17 @@ func (p *GitPlugin) GenerateNotes(ctx *algorithm.ReadOnlyContext, state *algorit
 	return "", nil
 }
 
+// stageChanges stages files for the release commit. Committing is opt-in:
+// with no configured `assets` globs, nothing is staged and Prepare becomes a
+// no-op, matching semantic-release's default (no plugin implements `prepare`
+// unless the user explicitly adds @semantic-release/git). This keeps a fresh
+// install from ever pushing a surprise commit to the release branch — which,
+// on a protected branch, is rejected outright for any non-admin pusher (see
+// BUG-git-push-error-swallowed) with no GitHub-side configuration possible
+// to avoid it short of opting in and accommodating branch protection.
 func (p *GitPlugin) stageChanges(ctx *algorithm.ReadOnlyContext) error {
 	if !p.assetsExplicit {
-		return p.Git.StageChanges()
+		return nil
 	}
 
 	modified, err := p.Git.GetModifiedFiles()

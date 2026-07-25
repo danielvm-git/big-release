@@ -237,15 +237,14 @@ func (c *Client) IsBranchUpToDate(remote, branch string) (bool, error) {
 	return false, nil
 }
 
-// Commit creates a commit with the configured author
+// Commit creates a commit from whatever the caller has already staged.
+// It intentionally does not stage anything itself (previously an unconditional
+// `git add -A`) — that silently re-broadened every commit to the entire
+// working tree regardless of what a caller had deliberately staged, defeating
+// selective staging via StagePaths/matchModifiedAssets (see
+// BUG-git-push-error-swallowed). Callers that want everything staged still
+// call StageChanges explicitly first.
 func (c *Client) Commit(message string) error {
-	// Stage all changes
-	stageCmd := gitCmd("add", "-A")
-	if err := runGit(stageCmd); err != nil {
-		return fmt.Errorf("failed to stage changes: %w", err)
-	}
-
-	// Create commit
 	commitCmd := gitCmd("commit", "-m", message, "--author="+c.authorName+" <"+c.authorEmail+">")
 	if err := runGit(commitCmd); err != nil {
 		return fmt.Errorf("failed to commit: %w", err)
@@ -401,9 +400,14 @@ func (c *Client) StagePaths(paths []string) error {
 	return nil
 }
 
-// HasChangesToCommit checks if there are any changes to commit.
+// HasChangesToCommit checks whether anything is staged for commit. This
+// deliberately looks at the index (git diff --cached), not overall working
+// tree dirtiness (git status --porcelain would also be true from files an
+// earlier plugin wrote but nobody chose to stage) — otherwise a caller that
+// intentionally staged nothing would still trigger a commit attempt (see
+// BUG-git-push-error-swallowed).
 func (c *Client) HasChangesToCommit() (bool, error) {
-	cmd := gitCmd("status", "--porcelain")
+	cmd := gitCmd("diff", "--cached", "--name-only")
 	output, err := cmd.Output()
 	if err != nil {
 		return false, fmt.Errorf("failed to check status: %w", err)
