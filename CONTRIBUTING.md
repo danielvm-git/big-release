@@ -169,14 +169,16 @@ This is enforced by pre-tool-use hooks and CI.
 
 ## Release Process
 
-Releases are automated using big-release itself:
+Releases are automated by `.github/workflows/test-build-release.yml` using big-release itself:
 
-1. Push to `main`, `next`, or maintenance branches
-2. big-release analyzes commits
-3. Determines next version
-4. Creates git tag
-5. Publishes package
-6. Creates GitHub release
+1. Push to `main` (or merge a PR) — trunk-based; no separate `deploy.yml`
+2. CI runs **lint → test → build**; build uploads artifact `big-release-<sha>`
+3. `release` job downloads that artifact (no rebuild) and runs `big-release release`
+4. big-release analyzes commits, determines the next version, tags, and creates the GitHub release
+
+### Branch protection
+
+`main` requires status checks **lint**, **test**, and **build**. Solo owner may push directly to `main` (`enforce_admins: false`); prefer PRs so the checks run before merge.
 
 ## Getting Help
 
