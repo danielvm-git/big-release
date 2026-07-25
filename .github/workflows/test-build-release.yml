@@ -54,7 +54,7 @@ jobs:
           if [ -f scripts/preflight.sh ]; then
             bash scripts/preflight.sh
           elif [ -f Makefile ] && grep -q '^preflight:' Makefile; then
-            make preflight
+            make vet test
           else
             echo "WARN: No preflight script found"
           fi
