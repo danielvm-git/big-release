@@ -138,11 +138,15 @@ jobs:
           name: big-release-${{ github.sha }}
           path: bin
 
+      - name: Ensure host binary is executable
+        run: chmod +x bin/big-release
+
       - name: Cross-compile release assets
         run: make release
 
       - name: Install big-release
         run: |
+          chmod +x bin/big-release
           sudo cp bin/big-release /usr/local/bin/
           big-release --version
 
