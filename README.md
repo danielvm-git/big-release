@@ -2,7 +2,7 @@
 
 > 🚀 Unified, multi-language release automation — one tool, all languages.
 
-[![CI](https://github.com/danielvm-git/big-release/actions/workflows/ci.yml/badge.svg)](https://github.com/danielvm-git/big-release/actions/workflows/ci.yml)
+[![CI](https://github.com/danielvm-git/big-release/actions/workflows/test-build-release.yml/badge.svg)](https://github.com/danielvm-git/big-release/actions/workflows/test-build-release.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/danielvm-git/big-release)](https://goreportcard.com/report/github.com/danielvm-git/big-release)
 [![Release](https://img.shields.io/github/v/release/danielvm-git/big-release)](https://github.com/danielvm-git/big-release/releases)
 
@@ -145,15 +145,24 @@ commitTypes:
     hidden: true
 ```
 
-## GitHub Action
+## CI / CD
+
+Pipeline: `.github/workflows/test-build-release.yml` — **lint → test → build → release** (explicit `needs:`).
+
+- **PRs / push to `main`:** lint, test, build. Build uploads host binary artifact `big-release-<sha>`.
+- **Push to `main` only:** `release` downloads that artifact, cross-compiles release assets (`make release`), then runs `big-release release` — **no second host compile**.
+- **No `deploy.yml`:** this is a CLI; it publishes via the release job (GitHub Releases). Deploy checklist (host environment, post-deploy smoke, rollback) is N/A.
+
+`main` branch protection requires the `lint`, `test`, and `build` status checks. As solo owner, direct push to `main` remains allowed (`enforce_admins: false`); contributors should still use PRs.
+
+### Using big-release in another repo
 
 ```yaml
-# .github/workflows/release.yml
+# Example consumer workflow (install published binary, then release)
 name: Release
 on:
   push:
-    branches: [main, next, 'N.x', beta, alpha]
-    tags: ['*']
+    branches: [main]
 
 jobs:
   release:
@@ -165,17 +174,13 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.26'
-      
+
       - name: Install big-release
         run: |
           curl -sL https://github.com/danielvm-git/big-release/releases/latest/download/big-release-linux-amd64 -o big-release
           chmod +x big-release
           sudo mv big-release /usr/local/bin/
-      
+
       - name: Run big-release
         run: big-release
         env:
