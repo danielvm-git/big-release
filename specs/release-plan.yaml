@@ -49,3 +49,7 @@ release_plan:
       title: Semantic Release Test Parity
       priority: P1
       status: complete
+    - epic: e09
+      title: Version File Sync
+      priority: P1
+      status: planning

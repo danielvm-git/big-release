@@ -77,4 +77,9 @@ execution_status:
       status: done
       started_at: "2026-07-24T15:35:00-03:00"
       completed_at: "2026-07-24T15:45:00-03:00"
-  notes: "Epic e08 (Semantic Release Test Parity) complete — s01–s06 landed."
+    e09s01: todo
+    e09s02: todo
+    e09s03: todo
+    e09s04: todo
+    e09s05: todo
+  notes: "Epic e08 (Semantic Release Test Parity) complete — s01–s06 landed. Epic e09 (Version File Sync) planned."

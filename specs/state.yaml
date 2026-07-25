@@ -1,8 +1,11 @@
 workflow_mode: solo-git
-active_flow: null
-active_epic: null
-active_story: null
-epic_cycle: null
+active_flow: build_epic
+active_epic: e09
+active_story: e09s01
+epic_cycle:
+  current_step: 1
+  completed_steps: []
+  story_bcps: 5
 bug_id: null
 bug_cycle: null
 bigpowers_version: 2.76.1
@@ -12,8 +15,8 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'Epic e08 semantic-release test parity complete and merged. Bug release workflow softprops also fixed.'
-  next_skill: survey-context
+  context: 'Epic e09 (Version File Sync) created from issue #62. 5 stories planned. Starting with e09s01 PostPublisher plugin interface.'
+  next_skill: plan-work
 release:
   commit_landed: true
   ci_verified: true

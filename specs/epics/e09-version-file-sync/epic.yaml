@@ -1,0 +1,104 @@
+epic: e09
+title: Version File Sync
+description: >
+  big-release computes the next version, tags it, and updates CHANGELOG.md —
+  but nothing propagates that version number into an app-readable file at
+  runtime. Any app that wants to display its own version (a footer, /about
+  endpoint, health-check payload) has no supported way to get it from
+  big-release directly. This epic adds a post-tag plugin phase and a built-in
+  versionFile plugin, plus documents the CI workaround for immediate use.
+refs:
+  - https://github.com/danielvm-git/big-release/issues/62
+status: planning
+priority: P1
+bcps: 5
+
+out_of_scope:
+  - Modifying the exec plugin's config location (separate issue)
+  - Version file sync for monorepo workspaces
+  - Automatic detection of version file format
+
+stories:
+  - id: e09s01
+    title: PostPublisher plugin interface
+    description: >
+      Add a new plugin interface `PostPublisher` that runs after the git tag
+      is created and pushed (Phase 6), but before Success hooks. This allows
+      plugins to write version-derived files that reference the finalized
+      version. The interface has a single method:
+      `PostPublish(ctx, state) error`. Wire it into runPluginLifecycle as
+      Phase 6.5.
+    status: planning
+    files:
+      - internal/plugins/registry.go
+      - pkg/release/release.go
+
+  - id: e09s02
+    title: versionFile built-in plugin
+    description: >
+      Create `internal/plugins/versionfile.go` implementing `PostPublisher`.
+      Reads config `path` (default: "VERSION") and `template` (default:
+      "{{.Version}}"). After the tag is created, writes the rendered template
+      to the specified path. Does NOT commit — that's the git plugin's job.
+      Register as "versionfile" in the plugin registry.
+    status: planning
+    files:
+      - internal/plugins/versionfile.go
+      - internal/plugins/versionfile_test.go
+
+  - id: e09s03
+    title: Git plugin post-tag commit support
+    description: >
+      Extend GitPlugin to support a second commit pass after Publish. Add a
+      new config option `postTagAssets` (list of globs). After the tag is
+      created, stage and commit any files matching postTagAssets with message
+      "chore(release): update version files [skip ci]". This allows the
+      VERSION file to be committed with the correct version after tagging.
+    status: planning
+    files:
+      - internal/plugins/git.go
+      - internal/plugins/git_test.go
+
+  - id: e09s04
+    title: Config schema and documentation
+    description: >
+      Add `versionFile` config block to the Config struct and .big-release.yml
+      schema. Document the feature in docs/reference/configuration.md and
+      docs/how-to/version-file-sync.md. Include examples for Go, Node, and
+      Python projects. Also document the CI workaround pattern for users who
+      don't want the plugin approach.
+    status: planning
+    files:
+      - internal/algorithm/types.go
+      - internal/config/config.go
+      - docs/reference/configuration.md
+      - docs/how-to/version-file-sync.md
+      - README.md
+
+  - id: e09s05
+    title: E2E test for version file sync
+    description: >
+      Add an E2E test that: (1) creates a temp repo, (2) configures
+      versionFile plugin, (3) runs a release, (4) verifies VERSION file
+      contains the correct version, (5) verifies the commit exists after the
+      tag. Uses the testrepo helper from e08.
+    status: planning
+    files:
+      - pkg/release/e2e_test.go
+
+verification:
+  - step: All tests pass
+    command: make test
+    expected: All tests pass including new versionfile tests
+
+  - step: E2E version file sync
+    command: go test ./pkg/release/ -run TestE2E_VersionFileSync
+    expected: VERSION file written with correct version after tag
+
+  - step: Build binary
+    command: make build
+    expected: Binary exists in bin/big-release
+
+  - step: Lint
+    command: make lint
+    expected: No lint errors
