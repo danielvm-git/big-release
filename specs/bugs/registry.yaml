@@ -140,17 +140,20 @@ bugs:
     commit_message: "fix(config): reject duplicate branch names in ValidateConfig"
 
   - id: BUG-push-fails-silently
-    status: open
+    status: fixed
     severity: high
     scope: internal/plugins, internal/git, ci
     title: Git push fails silently in CI — tags never pushed to remote
     approach: |
-      pushRefs() pushes commits AND tags sequentially. If commit push fails
-      (branch protection, no new commits, credential issue), tag push is never
-      attempted. Tags should be pushed independently of commits.
-    risk_level: medium
+      pushRefs() now pushes tags FIRST, then commits. If tag push fails,
+      the error is returned. If commit push fails (no new commits or
+      branch protection), it's logged but not fatal. Also surfaced
+      git stderr in error messages.
+    risk_level: low
     files_changed:
       - internal/plugins/git.go
       - internal/git/client.go
     commit_message: "fix(git): push tags independently of commit push"
     source: "https://github.com/danielvm-git/big-release/actions/runs/30146351433/job/89650041613"
+    fixed_in: "4e77fed, bb3c0cb"
+    verified: "2026-07-25"
