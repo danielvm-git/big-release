@@ -157,3 +157,48 @@ bugs:
     source: "https://github.com/danielvm-git/big-release/actions/runs/30146351433/job/89650041613"
     fixed_in: "4e77fed, bb3c0cb"
     verified: "2026-07-25"
+
+  - id: BUG-branch-config-dead
+    status: fixed
+    severity: high
+    scope: pkg/release
+    title: Branch config Type/Channel/Prerelease never propagated to algorithm layer
+    approach: |
+      Added mapBranchConfig() function that copies Type, Channel, and
+      Prerelease from BranchConfig to algorithm.Branch.
+    risk_level: low
+    files_changed:
+      - pkg/release/release.go
+    commit_message: "fix(release): propagate branch config Type/Channel/Prerelease"
+    verified: "2026-07-25"
+
+  - id: BUG-publishers-config-ignored
+    status: fixed
+    severity: medium
+    scope: pkg/release
+    title: Config publishers.enabled flag silently ignored — detection is file-based only
+    approach: |
+      Added filter in runPublishers() to skip publishers with enabled: false
+      in config. Detected publishers not in config still run (backward compatible).
+    risk_level: low
+    files_changed:
+      - pkg/release/release.go
+    commit_message: "fix(release): filter publishers against config.Enabled flag"
+    verified: "2026-07-25"
+
+  - id: BUG-release-workflow-softprops-and-verbose
+    status: fixed
+    severity: high
+    scope: ci
+    title: "Release workflow: softprops upload fails on missing tag, and --verbose emits no output"
+    approach: |
+      1. Removed softprops/action-gh-release step (redundant with github plugin)
+      2. Added buildLogger() with zap.NewDevelopmentConfig() for verbose mode
+      3. Added success-path Info logs in release.go
+    risk_level: low
+    files_changed:
+      - .github/workflows/test-build-release.yml
+      - cmd/big-release/main.go
+      - pkg/release/release.go
+    commit_message: "fix(ci): remove softprops, improve verbose logging"
+    verified: "2026-07-25"

@@ -12,10 +12,15 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'Epic e09 (Version File Sync) created from issue #62. 5 stories planned. Starting with e09s01 PostPublisher plugin interface.'
-  next_skill: plan-work
+  context: 'All bugs fixed. v2.3.0 released. CI green. Ready for next epic or feature work.'
+  next_skill: null
 release:
   commit_landed: true
   ci_verified: true
   security_gate: PASS
   traceability_gate: WAIVED
+bugs:
+  total: 14
+  fixed: 14
+  open: 0
+  last_verified: "2026-07-25"

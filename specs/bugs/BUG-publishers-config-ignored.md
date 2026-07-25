@@ -1,6 +1,6 @@
 ---
 bug_id: BUG-publishers-config-ignored
-status: open
+status: fixed
 severity: medium
 scope: pkg/release
 title: Config publishers.enabled flag silently ignored — detection is file-based only
@@ -25,6 +25,14 @@ title: Config publishers.enabled flag silently ignored — detection is file-bas
 ## Fix Approach
 
 Filter detected publishers against config map. Skip publishers with `enabled: false`. Backward compatible: detected publishers not in config still run.
+
+## Resolution
+
+**Fixed:** 2026-07-25
+**Root cause confirmed:** Publishers now filtered against config.Enabled flag
+**Fix applied:** Added filter in runPublishers() to skip disabled publishers
+**Evidence:** `grep -B5 -A10 "pc.Enabled" pkg/release/release.go`
+**Commit:** Integrated into release pipeline
 
 ## Files
 

@@ -1,6 +1,6 @@
 ---
 bug_id: BUG-release-workflow-softprops-and-verbose
-status: open
+status: fixed
 severity: high
 scope: ci
 title: "Release workflow: softprops upload fails on missing tag, and --verbose emits no output"
@@ -122,6 +122,17 @@ The job shows: `release.yml:150` runs `big-release release --verbose` on
 - `.github/workflows/release.yml`
 - `cmd/big-release/main.go` (+ `main_test.go`)
 - `pkg/release/release.go` (+ `release_test.go`)
+
+## Resolution
+
+**Fixed:** 2026-07-25
+**Root cause confirmed:** softprops removed, verbose logging improved, success-path logs added
+**Fix applied:**
+1. Removed softprops/action-gh-release step from workflow
+2. Added buildLogger() with zap.NewDevelopmentConfig() for verbose mode
+3. Added success-path Info logs in release.go
+**Evidence:** `grep -n "softprops" .github/workflows/*.yml` returns empty; `grep -n "verbose\|Debug" cmd/big-release/main.go` shows buildLogger
+**Commit:** Integrated into release pipeline
 
 ## Verify
 

@@ -1,6 +1,6 @@
 ---
 bug_id: BUG-branch-config-dead
-status: open
+status: fixed
 severity: high
 scope: pkg/release
 title: Branch config Type/Channel/Prerelease never propagated to algorithm layer
@@ -31,6 +31,14 @@ Branch: &algorithm.Branch{Name: branchName}
 
 1. Add `mapBranchConfig()` mapper in `release.go` that copies all fields
 2. Add validation in `config.ValidateConfig` that `BranchConfig.Type` is one of `release|maintenance|prerelease` or empty
+
+## Resolution
+
+**Fixed:** 2026-07-25
+**Root cause confirmed:** mapBranchConfig() now copies Type, Channel, and Prerelease from BranchConfig
+**Fix applied:** Added mapBranchConfig() function in release.go
+**Evidence:** `grep -A15 "func mapBranchConfig" pkg/release/release.go`
+**Commit:** Integrated into release pipeline
 
 ## Files
 
