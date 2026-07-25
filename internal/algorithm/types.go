@@ -81,6 +81,13 @@ type Config struct {
 	PluginConfigs  map[string]map[string]interface{} `yaml:"pluginConfigs,omitempty" json:"pluginConfigs,omitempty"`
 	InitialVersion string                            `yaml:"initialVersion,omitempty" json:"initialVersion,omitempty"`
 	ChangelogTitle string                            `yaml:"changelogTitle,omitempty" json:"changelogTitle,omitempty"`
+	VersionFile    *VersionFileConfig                `yaml:"versionFile,omitempty" json:"versionFile,omitempty"`
+}
+
+// VersionFileConfig configures the versionFile plugin.
+type VersionFileConfig struct {
+	Path     string `yaml:"path,omitempty" json:"path,omitempty"`
+	Template string `yaml:"template,omitempty" json:"template,omitempty"`
 }
 
 // CommitTypeConfig configures how a single conventional commit type is

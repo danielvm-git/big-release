@@ -8,6 +8,7 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/danielvm-git/big-release/internal/algorithm"
@@ -1357,4 +1358,79 @@ func TestWriteStepOutput_NoOpWhenEnvUnset(t *testing.T) {
 	if err := r.writeStepOutput(state); err != nil {
 		t.Errorf("expected nil error when GITHUB_OUTPUT unset, got: %v", err)
 	}
+}
+
+func TestRunPluginLifecycle_PostPublisher(t *testing.T) {
+	// Test that PostPublisher is called after Publish
+	postPublishCalled := false
+	mockPostPub := &mockPostPublisher{
+		name: "mock-postpub",
+		postPublishFn: func(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
+			postPublishCalled = true
+			return nil
+		},
+	}
+	// Also register a mock commit analyzer so the lifecycle doesn't exit early
+	mockAnalyzer := &mockAnalyzerPlugin{
+		name:        "mock-analyzer",
+		releaseType: algorithm.ReleaseTypePatch,
+	}
+	plugins.Register(mockPostPub)
+	plugins.Register(mockAnalyzer)
+
+	gitClient := gitClientOrSkip(t)
+
+	ctx := &Context{
+		Config: &algorithm.Config{
+			Branches:       []algorithm.BranchConfig{{Name: "main"}},
+			TagFormat:      "v${version}",
+			InitialVersion: "0.1.0",
+			Plugins:        []string{"mock-analyzer", "mock-postpub"},
+		},
+		Git:    gitClient,
+		Logger: zaptest.NewLogger(t),
+		DryRun: false,
+	}
+
+	releaser := New(ctx)
+	state := &algorithm.MutableState{}
+
+	algoCtx := &algorithm.ReadOnlyContext{
+		Config:  ctx.Config,
+		Commits: []*algorithm.Commit{{Type: "fix", Message: "test fix"}},
+		Branch:  &algorithm.Branch{Name: "main"},
+	}
+
+	// Run the lifecycle
+	_ = releaser.runPluginLifecycle(algoCtx, state)
+
+	if !postPublishCalled {
+		t.Error("PostPublish was not called")
+	}
+}
+
+type mockPostPublisher struct {
+	name          string
+	postPublishFn func(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error
+}
+
+func (m *mockPostPublisher) Name() string {
+	return m.name
+}
+
+func (m *mockPostPublisher) PostPublish(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
+	return m.postPublishFn(ctx, state)
+}
+
+type mockAnalyzerPlugin struct {
+	name        string
+	releaseType algorithm.ReleaseType
+}
+
+func (m *mockAnalyzerPlugin) Name() string {
+	return m.name
+}
+
+func (m *mockAnalyzerPlugin) AnalyzeCommits(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (algorithm.ReleaseType, error) {
+	return m.releaseType, nil
 }

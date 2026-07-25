@@ -403,6 +403,20 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 		}
 	}
 
+	// Phase 6.5: PostPublish — write version-derived files after tag creation.
+	for _, name := range pluginNames {
+		p, err := plugins.Get(name)
+		if err != nil {
+			return fmt.Errorf("plugin %q not found: %w", name, err)
+		}
+		if pp, ok := p.(plugins.PostPublisher); ok {
+			if err := pp.PostPublish(ctx, state); err != nil {
+				return fmt.Errorf("plugin %q post-publish failed: %w", name, err)
+			}
+			r.ctx.Logger.Info("Plugin post-published", zap.String("plugin", name))
+		}
+	}
+
 	return nil
 }
 

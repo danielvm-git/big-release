@@ -21,6 +21,7 @@ type GitPlugin struct {
 	commitAssets   []string
 	assetsExplicit bool
 	channelNoteRef string
+	postTagAssets  []string
 }
 
 // NewGitPlugin creates a new GitPlugin.
@@ -46,6 +47,7 @@ func (p *GitPlugin) Configure(raw map[string]interface{}) error {
 		p.assetsExplicit = true
 		p.commitAssets = cfg.Assets
 	}
+	p.postTagAssets = cfg.PostTagAssets
 	return nil
 }
 
@@ -275,4 +277,53 @@ func pathMatchesAsset(modified, candidate, pattern string) bool {
 		}
 	}
 	return filepath.Base(modified) == filepath.Base(candidate)
+}
+
+// PostPublish commits version-derived files after the tag is created.
+// This runs in Phase 6.5, after Publish (tag creation) but before Success hooks.
+func (p *GitPlugin) PostPublish(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
+	if len(p.postTagAssets) == 0 {
+		return nil
+	}
+
+	// Stage the post-tag assets
+	for _, pattern := range p.postTagAssets {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			return fmt.Errorf("git plugin: invalid glob %q: %w", pattern, err)
+		}
+		if len(matches) == 0 {
+			continue
+		}
+		if err := p.Git.StagePaths(matches); err != nil {
+			return fmt.Errorf("git plugin: failed to stage post-tag assets: %w", err)
+		}
+	}
+
+	// Check if there are changes to commit
+	hasChanges, err := p.Git.HasChangesToCommit()
+	if err != nil {
+		return fmt.Errorf("git plugin: failed to check for changes: %w", err)
+	}
+	if !hasChanges {
+		return nil
+	}
+
+	// Build commit message
+	version := ""
+	if state.NextRelease != nil {
+		version = state.NextRelease.Version
+	}
+	msg := fmt.Sprintf("chore(release): update version files to %s [skip ci]", version)
+
+	if err := p.Git.Commit(msg); err != nil {
+		return fmt.Errorf("git plugin: post-tag commit failed: %w", err)
+	}
+
+	// Push the commit
+	if err := p.Git.Push("origin"); err != nil {
+		return fmt.Errorf("git plugin: post-tag push failed: %w", err)
+	}
+
+	return nil
 }

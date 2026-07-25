@@ -47,6 +47,12 @@ type Publisher interface {
 	Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) (*algorithm.Release, error)
 }
 
+// PostPublisher runs after the tag is created and pushed (Phase 6.5).
+// Use this to write version-derived files that reference the finalized version.
+type PostPublisher interface {
+	PostPublish(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error
+}
+
 // LifecycleHook is called after success or on failure.
 type LifecycleHook interface {
 	Success(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error

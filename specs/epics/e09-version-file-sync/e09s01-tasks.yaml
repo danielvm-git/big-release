@@ -1,0 +1,42 @@
+story: e09s01
+title: PostPublisher Plugin Interface
+tasks:
+  - id: e09s01t01
+    title: Add PostPublisher interface to registry
+    description: >
+      Add PostPublisher interface to internal/plugins/registry.go with
+      PostPublish(ctx, state) error method.
+    risk: P2
+    security: none
+    status: failing
+    verify: go vet ./internal/plugins/
+    allure:
+      severity: normal
+      categories: ["Plugin System"]
+
+  - id: e09s01t02
+    title: Wire PostPublisher into release lifecycle
+    description: >
+      Add Phase 6.5 in pkg/release/release.go runPluginLifecycle that
+      calls PostPublish on all plugins implementing PostPublisher after
+      Phase 6 (Publish).
+    risk: P1
+    security: none
+    status: failing
+    verify: go test ./pkg/release/ -run TestLifecycle -count=1
+    allure:
+      severity: high
+      categories: ["Release Pipeline"]
+
+  - id: e09s01t03
+    title: Add unit test for PostPublisher phase
+    description: >
+      Create test verifying PostPublish is called after Publish and before
+      Success. Use mock plugin implementing PostPublisher.
+    risk: P2
+    security: none
+    status: failing
+    verify: go test ./internal/plugins/ -run TestPostPublisher -count=1
+    allure:
+      severity: normal
+      categories: ["Plugin System", "Unit Test"]

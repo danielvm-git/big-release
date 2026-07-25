@@ -3,8 +3,8 @@ active_flow: build_epic
 active_epic: e09
 active_story: e09s01
 epic_cycle:
-  current_step: 1
-  completed_steps: []
+  current_step: 3
+  completed_steps: [1, 2]
   story_bcps: 5
 bug_id: null
 bug_cycle: null
