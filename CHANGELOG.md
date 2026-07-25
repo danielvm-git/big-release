@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- big-release managed -->
 
+## [2.2.3] - 2026-07-25
+
+### Fixed
+
+- **release:** apply tagFormat when creating git tags, not just reading them ([8f77dc6](https://github.com/danielvm-git/big-release/commit/8f77dc6a7b4e79ae4be426fb39bdf950e5b061a6))
+
 ## [2.2.2] - 2026-07-24
 
 ### Fixed
