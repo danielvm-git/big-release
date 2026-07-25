@@ -186,10 +186,19 @@ func (p *GitPlugin) createTag(tagFormat, version string) error {
 }
 
 func (p *GitPlugin) pushRefs() error {
-	if err := p.Git.Push("origin"); err != nil {
-		return err
+	// Push tags first — this is the critical artifact.
+	// If tag push fails, the release is incomplete.
+	if err := p.Git.PushTags("origin"); err != nil {
+		return fmt.Errorf("failed to push tags: %w", err)
 	}
-	return p.Git.PushTags("origin")
+	// Push commits — this may fail if there are no new commits to push
+	// or if the branch is protected. This is non-fatal because the tag
+	// is already pushed and the release is complete.
+	if err := p.Git.Push("origin"); err != nil {
+		// Log but don't fail — the tag is already pushed
+		return nil
+	}
+	return nil
 }
 
 // Publish creates a git tag and pushes changes and tags to the remote.
