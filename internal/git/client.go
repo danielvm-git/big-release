@@ -170,11 +170,10 @@ func (c *Client) CreateTag(tag, message string) error {
 // Push pushes commits to the remote
 func (c *Client) Push(remote string) error {
 	cmd := gitCmd("push", remote)
-	if err := runGit(cmd); err != nil {
-		return fmt.Errorf("failed to push: %w", err)
-	}
-
-	return nil
+	// newPushError classifies the failure (policy rejection, non-fast-forward,
+	// missing upstream, auth) while preserving git's stderr. Callers must not
+	// discard it — a swallowed push failure is what BUG-push-fails-silently was.
+	return newPushError(runGit(cmd))
 }
 
 // AddNote adds a note to a ref
@@ -418,10 +417,7 @@ func (c *Client) HasChangesToCommit() (bool, error) {
 // PushTags pushes tags to the remote.
 func (c *Client) PushTags(remote string) error {
 	cmd := gitCmd("push", remote, "--tags")
-	if err := runGit(cmd); err != nil {
-		return fmt.Errorf("failed to push tags: %w", err)
-	}
-	return nil
+	return newPushError(runGit(cmd))
 }
 
 // DeleteTag deletes a local git tag.
