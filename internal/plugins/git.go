@@ -22,6 +22,7 @@ type GitPlugin struct {
 	assetsExplicit bool
 	channelNoteRef string
 	postTagAssets  []string
+	tagOnly        bool
 }
 
 // NewGitPlugin creates a new GitPlugin.
@@ -48,6 +49,7 @@ func (p *GitPlugin) Configure(raw map[string]interface{}) error {
 		p.commitAssets = cfg.Assets
 	}
 	p.postTagAssets = cfg.PostTagAssets
+	p.tagOnly = cfg.TagOnly
 	return nil
 }
 
@@ -199,12 +201,22 @@ func (p *GitPlugin) pushRefs() error {
 	if err := p.Git.PushTags("origin"); err != nil {
 		return fmt.Errorf("failed to push tags: %w", err)
 	}
-	// Push commits — this may fail if there are no new commits to push
-	// or if the branch is protected. This is non-fatal because the tag
-	// is already pushed and the release is complete.
-	if err := p.Git.Push("origin"); err != nil {
-		// Log but don't fail — the tag is already pushed
+
+	// tagOnly is the declared opt-out for remotes the release identity cannot
+	// push commits to. It is deliberately explicit: previously this branch was
+	// taken silently for everyone, which reported success while the release
+	// commit never landed (BUG-push-fails-silently) and diverged from
+	// semantic-release, where a failed push fails the release.
+	if p.tagOnly {
 		return nil
+	}
+
+	// Any push failure is real. `git push` with nothing to push exits 0
+	// ("Everything up-to-date"), so reaching here with an error always means
+	// the commit did not land. The error carries git's stderr and, for policy
+	// rejections, a forge-aware hint.
+	if err := p.Git.Push("origin"); err != nil {
+		return fmt.Errorf("failed to push release commit: %w", err)
 	}
 	return nil
 }

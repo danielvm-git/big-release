@@ -554,6 +554,10 @@ type fakeGit struct {
 	pushedNotes        []string
 	createErr          error
 	pushErr            error
+	pushCommitErr      error
+	pushTagsErr        error
+	pushCalled         bool
+	pushTagsCalled     bool
 	deleteErr          error
 	lastCreatedTag     string
 	lastDeletedTag     string
@@ -620,10 +624,18 @@ func (f *fakeGit) CreateTag(tag, message string) error {
 }
 
 func (f *fakeGit) Push(remote string) error {
+	f.pushCalled = true
+	if f.pushCommitErr != nil {
+		return f.pushCommitErr
+	}
 	return f.pushErr
 }
 
 func (f *fakeGit) PushTags(remote string) error {
+	f.pushTagsCalled = true
+	if f.pushTagsErr != nil {
+		return f.pushTagsErr
+	}
 	return f.pushErr
 }
 

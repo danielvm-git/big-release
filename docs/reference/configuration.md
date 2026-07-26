@@ -56,6 +56,36 @@ plugins:
   - github                 # Create GitHub releases
 ```
 
+#### git plugin options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `message` | string | `chore(release): <version> [skip ci]` | Release commit message template |
+| `assets` | []string | none | Globs to stage. With none set, no release commit is made |
+| `postTagAssets` | []string | none | Globs committed after the tag is created |
+| `tagOnly` | bool | `false` | Push tags without pushing the release commit |
+
+##### tagOnly — releasing onto a protected branch
+
+By default a failed push **fails the release**, matching semantic-release. If
+the remote refuses the commit, big-release reports it with git's stderr and a
+hint, and removes the local tag.
+
+Some setups cannot grant the release identity push access to the default
+branch at all — GitHub branch protection or a ruleset with no bypass available
+(bypass actors need an organization), GitLab protected branches, or any
+`pre-receive` policy. Set `tagOnly` to publish the tag and skip the commit:
+
+```yaml
+plugins:
+  - git:
+      tagOnly: true
+```
+
+This is deliberately explicit. The version bump and CHANGELOG will **not** land
+on the branch, so keep them out of `assets` or regenerate them elsewhere.
+Prefer granting push access when you can; reach for `tagOnly` when you can't.
+
 ### publishers
 
 Language-specific package publishers.
