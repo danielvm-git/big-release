@@ -23,6 +23,12 @@ To gitlab.com:acme/app.git
  ! [remote rejected] main -> main (pre-receive hook declined)
 error: failed to push some refs to 'gitlab.com:acme/app.git'`
 
+	// GitHub rulesets (2023+) word the refusal differently from classic branch
+	// protection. Both must classify as policy.
+	fixtureRulesetGitHub = `remote: error: GH013: Repository rule violations found for refs/heads/main.
+remote: error: Changes must be made through a pull request.
+ ! [remote rejected] main -> main (push declined due to repository rule violations)`
+
 	fixtureNonFastForward = ` ! [rejected]        main -> main (fetch first)
 error: failed to push some refs to '../remote.git'
 hint: Updates were rejected because the remote contains work that you do not`
@@ -42,6 +48,7 @@ func TestClassifyPush(t *testing.T) {
 	}{
 		{"github protected branch", fixturePolicyGitHub, PushRejectedPolicy},
 		{"gitlab protected branch", fixturePolicyGitLab, PushRejectedPolicy},
+		{"github ruleset", fixtureRulesetGitHub, PushRejectedPolicy},
 		{"non-fast-forward", fixtureNonFastForward, PushRejectedNonFastForward},
 		{"no upstream", fixtureNoUpstream, PushNoUpstream},
 		{"auth failure", fixtureAuth, PushAuthFailed},
@@ -81,6 +88,7 @@ func TestPushError_HintIsForgeAware(t *testing.T) {
 		wantSub string
 	}{
 		{"github hint", fixturePolicyGitHub, "branch protection"},
+		{"github ruleset hint", fixtureRulesetGitHub, "pull request"},
 		{"gitlab hint", fixturePolicyGitLab, "protected branch"},
 		{"non-fast-forward hint", fixtureNonFastForward, "fetch"},
 		{"auth hint", fixtureAuth, "credential"},
