@@ -40,10 +40,15 @@ func DefaultConfig() *algorithm.Config {
 		},
 		CommitTypes: algorithm.DefaultCommitTypes(),
 		Publishers: map[string]algorithm.PublisherConfig{
-			"npm":     {Enabled: true},
-			"pypi":    {Enabled: true},
-			"crates":  {Enabled: true},
-			"goproxy": {Enabled: true},
+			"npm":       {Enabled: true},
+			"pypi":      {Enabled: true},
+			"crates":    {Enabled: true},
+			"goproxy":   {Enabled: true},
+			"maven":     {Enabled: true},
+			"packagist": {Enabled: true},
+			"swift":     {Enabled: true},
+			"godot":     {Enabled: true},
+			"pnpm":      {Enabled: true},
 		},
 	}
 }
