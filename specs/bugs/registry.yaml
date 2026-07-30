@@ -202,3 +202,598 @@ bugs:
       - pkg/release/release.go
     commit_message: "fix(ci): remove softprops, improve verbose logging"
     verified: "2026-07-25"
+
+  # --- QA Audit 2026-07-30: 14 new bugs found and fixed ---
+
+  - id: BUG-crates-empty-body-publish
+    status: fixed
+    severity: critical
+    scope: internal/publishers/crates
+    title: Crates publisher sends PUT with empty body — crates.io requires tar.gz content
+    approach: |
+      Added buildUploadBody() that creates a minimal tar.gz archive containing
+      Cargo.toml and a placeholder src/lib.rs. Added Content-Type: application/gzip header.
+    risk_level: low
+    files_changed:
+      - internal/publishers/crates/crates.go
+    commit_message: "fix(crates): send tar.gz body in publish request"
+
+  - id: BUG-maven-empty-body-publish
+    status: fixed
+    severity: critical
+    scope: internal/publishers/maven
+    title: Maven publisher sends POST with empty body — Maven Central requires POM content
+    approach: |
+      Now reads pom.xml and sends it as the request body with Content-Type: application/xml.
+    risk_level: low
+    files_changed:
+      - internal/publishers/maven/maven.go
+    commit_message: "fix(maven): send pom.xml content in publish request"
+
+  - id: BUG-packagist-wrong-update-url
+    status: fixed
+    severity: critical
+    scope: internal/publishers/packagist
+    title: Packagist sends API URL as repository URL instead of git repo URL
+    approach: |
+      Added resolveRepositoryURL() that uses GITHUB_REPOSITORY env var or
+      git remote origin URL instead of the Packagist API URL.
+    risk_level: low
+    files_changed:
+      - internal/publishers/packagist/packagist.go
+    commit_message: "fix(packagist): use git repo URL in update request"
+
+  - id: BUG-godot-hardcoded-v-prefix
+    status: fixed
+    severity: high
+    scope: internal/publishers/godot
+    title: Godot hardcodes "v" prefix in tag, ignoring tagFormat config
+    approach: |
+      Added resolveTag() that reads tagFormat from .big-release.yml config,
+      falling back to "v" prefix for backward compatibility.
+    risk_level: low
+    files_changed:
+      - internal/publishers/godot/godot.go
+    commit_message: "fix(godot): respect tagFormat config for release tags"
+
+  - id: BUG-swift-bypasses-tagformat
+    status: fixed
+    severity: high
+    scope: internal/publishers/swift
+    title: Swift publisher creates bare version tags, bypassing FormatTag
+    approach: |
+      Added resolveTag() using git.FormatTag. Now creates annotated tags
+      with -a flag and -m message instead of lightweight tags.
+    risk_level: low
+    files_changed:
+      - internal/publishers/swift/swift.go
+    commit_message: "fix(swift): use FormatTag for consistent tag naming"
+
+  - id: BUG-changelog-duplicate-notes
+    status: fixed
+    severity: high
+    scope: internal/plugins/changelog
+    title: ChangelogPlugin.GenerateNotes returns already-set notes causing duplication
+    approach: |
+      Changed GenerateNotes to return empty string. The orchestrator owns
+      note generation via algorithm.Generator; the changelog plugin only
+      writes to CHANGELOG.md in Prepare().
+    risk_level: low
+    files_changed:
+      - internal/plugins/changelog.go
+      - internal/plugins/changelog_test.go
+    commit_message: "fix(changelog): stop duplicating notes from orchestrator"
+
+  - id: BUG-calculator-maintenance-ignores-type
+    status: fixed
+    severity: medium
+    scope: internal/algorithm/calculator
+    title: Maintenance calculator always bumps patch regardless of release type
+    approach: |
+      Added switch on releaseType: major bumps major, minor bumps minor,
+      patch (default) bumps patch within same major.minor.
+    risk_level: low
+    files_changed:
+      - internal/algorithm/calculator.go
+    commit_message: "fix(algorithm): respect release type in maintenance version calc"
+
+  - id: BUG-pypi-defer-in-loop
+    status: fixed
+    severity: medium
+    scope: internal/publishers/pypi
+    title: PyPI publisher defers file close inside loop — handles leak until function return
+    approach: |
+      Extracted addDistFile() method with proper defer scope. Each file
+      is opened, copied, and closed within the method call.
+    risk_level: low
+    files_changed:
+      - internal/publishers/pypi/pypi.go
+    commit_message: "fix(pypi): close dist files immediately in loop"
+
+  - id: BUG-git-register-global-side-effect
+    status: fixed
+    severity: medium
+    scope: pkg/release
+    title: Git plugin registers globally on every orchestrator run
+    approach: |
+      Added guard: only call plugins.Register if "git" plugin is not
+      already present in the registry.
+    risk_level: low
+    files_changed:
+      - pkg/release/release.go
+    commit_message: "fix(release): guard git plugin registration"
+
+  - id: BUG-config-parent-traversal-unbounded
+    status: fixed
+    severity: medium
+    scope: internal/config
+    title: Config file search traverses parent directories without depth limit
+    approach: |
+      Added maxDepth=10 limit to the parent directory traversal loop.
+    risk_level: low
+    files_changed:
+      - internal/config/config.go
+    commit_message: "fix(config): limit config file search to 10 parent levels"
+
+  - id: BUG-default-publishers-incomplete
+    status: fixed
+    severity: medium
+    scope: internal/config
+    title: Default config only enables 4 of 9 publishers
+    approach: |
+      Added all 9 publishers (npm, pypi, crates, goproxy, maven, packagist,
+      swift, godot, pnpm) to the default config.
+    risk_level: low
+    files_changed:
+      - internal/config/config.go
+    commit_message: "fix(config): enable all publishers in default config"
+
+  - id: BUG-writeStepOutput-permissions
+    status: fixed
+    severity: low
+    scope: pkg/release
+    title: GITHUB_OUTPUT file created with 0644 instead of 0600
+    approach: Changed file permissions from 0644 to 0600.
+    risk_level: low
+    files_changed:
+      - pkg/release/release.go
+    commit_message: "fix(release): use restrictive permissions for GITHUB_OUTPUT"
+
+  - id: BUG-health-degraded-exit-error
+    status: fixed
+    severity: low
+    scope: cmd
+    title: Health command returns error on degraded status
+    approach: |
+      Changed to return nil on degraded status. Degraded means some optional
+      tools are missing but core system works; should not fail CI.
+    risk_level: low
+    files_changed:
+      - cmd/big-release/main.go
+    commit_message: "fix(cli): health check returns nil on degraded status"
+
+  # --- QA Audit 2026-07-30 (round 2): 8 new bugs found and fixed ---
+
+  - id: BUG-calculator-nil-branch
+    status: fixed
+    severity: critical
+    scope: internal/algorithm
+    title: CalculateNextVersion panics on nil branch when lastRelease is non-nil
+    approach: |
+      Added nil guard before switch: if branch == nil, default to
+      BranchTypeRelease. Defense-in-depth for public API callers.
+    risk_level: low
+    files_changed:
+      - internal/algorithm/calculator.go
+    commit_message: "fix(algorithm): guard against nil branch in CalculateNextVersion"
+
+  - id: BUG-calculator-nil-baseversion
+    status: fixed
+    severity: critical
+    scope: internal/algorithm
+    title: calculatePrerelease panics on nil baseVersion when releaseType unrecognized
+    approach: |
+      Added default case to switch that returns an error, matching
+      calculateRegular's pattern. Without it, baseVersion stays nil
+      and .String() panics.
+    risk_level: low
+    files_changed:
+      - internal/algorithm/calculator.go
+    commit_message: "fix(algorithm): add default case to prerelease switch"
+
+  - id: BUG-godot-verify-hardcoded-v
+    status: fixed
+    severity: high
+    scope: internal/publishers/godot
+    title: Godot Verify hardcodes v prefix in URL, ignoring tagFormat
+    approach: |
+      Verify now calls resolveTag(version) to build the tag, matching
+      Publish. Previously hardcoded v%s in the releases/tags/ URL.
+    risk_level: low
+    files_changed:
+      - internal/publishers/godot/godot.go
+    commit_message: "fix(godot): use resolveTag in Verify to match Publish"
+
+  - id: BUG-swift-verify-bare-version
+    status: fixed
+    severity: high
+    scope: internal/publishers/swift
+    title: Swift Verify uses bare version, ignoring tagFormat
+    approach: |
+      Verify now calls resolveTag(version) to build the tag, matching
+      Publish. Previously used bare version for git tag -l lookup.
+    risk_level: low
+    files_changed:
+      - internal/publishers/swift/swift.go
+    commit_message: "fix(swift): use resolveTag in Verify to match Publish"
+
+  - id: BUG-crates-retry-body-empty
+    status: fixed
+    severity: high
+    scope: internal/publishers/crates
+    title: Crates *bytes.Buffer body not rewindable on 429 retry
+    approach: |
+      Changed http.NewRequest body from *bytes.Buffer to
+      bytes.NewReader(body.Bytes()). bytes.NewReader implements
+      io.Seeker, allowing RetryClient to rewind on 429.
+    risk_level: low
+    files_changed:
+      - internal/publishers/crates/crates.go
+    commit_message: "fix(crates): use bytes.NewReader for retry-safe request body"
+
+  - id: BUG-pypi-retry-body-empty
+    status: fixed
+    severity: high
+    scope: internal/publishers/pypi
+    title: PyPI *bytes.Buffer body not rewindable on 429 retry
+    approach: |
+      Changed http.NewRequest body from &buf to bytes.NewReader(buf.Bytes()).
+      Same fix as BUG-crates-retry-body-empty.
+    risk_level: low
+    files_changed:
+      - internal/publishers/pypi/pypi.go
+    commit_message: "fix(pypi): use bytes.NewReader for retry-safe request body"
+
+  - id: BUG-exec-shellsplit-panic
+    status: fixed
+    severity: high
+    scope: internal/plugins
+    title: shellSplit can return empty slice causing index-out-of-range panic
+    approach: |
+      Added len(parts) == 0 guard in runCommand before accessing
+      parts[0]. Returns descriptive error instead of panicking.
+    risk_level: low
+    files_changed:
+      - internal/plugins/exec.go
+    commit_message: "fix(exec): guard against empty shellSplit result"
+
+  # --- QA Audit Round 2 (2026-07-30): 7 new bugs found and fixed ---
+
+  - id: BUG-calculator-nil-branch
+    status: fixed
+    severity: critical
+    scope: internal/algorithm
+    title: CalculateNextVersion panics on nil branch when lastRelease is non-nil
+    approach: |
+      Added nil guard before the switch on branch.Type:
+      if branch == nil { branch = &Branch{Type: BranchTypeRelease} }
+    risk_level: low
+    files_changed:
+      - internal/algorithm/calculator.go
+    commit_message: "fix(algorithm): guard against nil branch in CalculateNextVersion"
+
+  - id: BUG-calculator-nil-baseversion
+    status: fixed
+    severity: high
+    scope: internal/algorithm
+    title: calculatePrerelease panics on nil baseVersion when releaseType unrecognized
+    approach: |
+      Added default case to the switch that returns an error instead of
+      leaving baseVersion nil, matching calculateRegular's pattern.
+    risk_level: low
+    files_changed:
+      - internal/algorithm/calculator.go
+    commit_message: "fix(algorithm): handle unrecognized releaseType in calculatePrerelease"
+
+  - id: BUG-godot-verify-hardcoded-v
+    status: fixed
+    severity: high
+    scope: internal/publishers/godot
+    title: Godot Verify hardcodes v prefix in URL, ignores tagFormat
+    approach: |
+      Verify now calls p.resolveTag(version) to build the correct tag,
+      matching what Publish uses. Previously hardcoded "v%s" in the URL.
+    risk_level: low
+    files_changed:
+      - internal/publishers/godot/godot.go
+    commit_message: "fix(godot): use resolveTag in Verify to match Publish"
+
+  - id: BUG-swift-verify-bare-version
+    status: fixed
+    severity: high
+    scope: internal/publishers/swift
+    title: Swift Verify uses bare version instead of resolveTag
+    approach: |
+      Verify now calls p.resolveTag(version) to search for the correct
+      tag, matching what Publish creates. Previously searched for bare
+      version which never matched when tagFormat had a prefix.
+    risk_level: low
+    files_changed:
+      - internal/publishers/swift/swift.go
+    commit_message: "fix(swift): use resolveTag in Verify to match Publish"
+
+  - id: BUG-crates-retry-body-empty
+    status: fixed
+    severity: high
+    scope: internal/publishers/crates
+    title: Crates *bytes.Buffer body not rewindable on 429 retry
+    approach: |
+      Changed from passing *bytes.Buffer directly to http.NewRequest
+      to bytes.NewReader(body.Bytes()), which implements io.Seeker and
+      allows RetryClient to rewind the body on retry.
+    risk_level: low
+    files_changed:
+      - internal/publishers/crates/crates.go
+    commit_message: "fix(crates): use bytes.NewReader for retry-safe request body"
+
+  - id: BUG-pypi-retry-body-empty
+    status: fixed
+    severity: high
+    scope: internal/publishers/pypi
+    title: PyPI *bytes.Buffer body not rewindable on 429 retry
+    approach: |
+      Changed from &buf to bytes.NewReader(buf.Bytes()) for retry safety,
+      matching the pattern used by maven, packagist, and godot publishers.
+    risk_level: low
+    files_changed:
+      - internal/publishers/pypi/pypi.go
+    commit_message: "fix(pypi): use bytes.NewReader for retry-safe request body"
+
+  - id: BUG-exec-shellsplit-panic
+    status: fixed
+    severity: high
+    scope: internal/plugins
+    title: shellSplit can return empty slice causing index-out-of-range panic
+    approach: |
+      Added len(parts) == 0 guard in runCommand before accessing parts[0].
+      Returns a descriptive error instead of panicking.
+    risk_level: low
+    files_changed:
+      - internal/plugins/exec.go
+    commit_message: "fix(exec): guard against empty shellSplit result"
+
+  # --- QA Audit 2026-07-30: Deep audit — 8 new bugs found and fixed ---
+
+  - id: BUG-calculator-nil-branch
+    status: fixed
+    severity: critical
+    scope: internal/algorithm
+    title: CalculateNextVersion panics on nil branch when lastRelease is non-nil
+    approach: |
+      Added nil guard before the branch.Type switch: if branch is nil,
+      default to BranchTypeRelease. Defense-in-depth for public API callers.
+    risk_level: low
+    files_changed:
+      - internal/algorithm/calculator.go
+    commit_message: "fix(algorithm): guard against nil branch in CalculateNextVersion"
+
+  - id: BUG-calculator-nil-baseversion
+    status: fixed
+    severity: high
+    scope: internal/algorithm
+    title: calculatePrerelease panics on nil baseVersion when releaseType unrecognized
+    approach: |
+      Added default case to the releaseType switch that returns an error
+      instead of leaving baseVersion nil (which panics at .String()).
+    risk_level: low
+    files_changed:
+      - internal/algorithm/calculator.go
+    commit_message: "fix(algorithm): handle unrecognized releaseType in prerelease calc"
+
+  - id: BUG-godot-verify-hardcoded-v
+    status: fixed
+    severity: high
+    scope: internal/publishers/godot
+    title: Godot Verify hardcodes v prefix in tag URL, ignoring tagFormat
+    approach: |
+      Verify now calls p.resolveTag(version) to get the correct tag,
+      matching the Publish path. Previously hardcoded v%s in the URL.
+    risk_level: low
+    files_changed:
+      - internal/publishers/godot/godot.go
+    commit_message: "fix(godot): use resolveTag in Verify to match Publish"
+
+  - id: BUG-swift-verify-bare-version
+    status: fixed
+    severity: high
+    scope: internal/publishers/swift
+    title: Swift Verify uses bare version, ignoring tagFormat
+    approach: |
+      Verify now calls p.resolveTag(version) to get the correct tag,
+      matching the Publish path. Previously used bare version string.
+    risk_level: low
+    files_changed:
+      - internal/publishers/swift/swift.go
+    commit_message: "fix(swift): use resolveTag in Verify to match Publish"
+
+  - id: BUG-crates-retry-body-empty
+    status: fixed
+    severity: high
+    scope: internal/publishers/crates
+    title: Crates *bytes.Buffer body not rewindable on HTTP 429 retry
+    approach: |
+      Changed from passing *bytes.Buffer directly to http.NewRequest
+      (which consumes the body on first read) to bytes.NewReader(body.Bytes())
+      which implements io.Seeker and can be rewound on retry.
+    risk_level: low
+    files_changed:
+      - internal/publishers/crates/crates.go
+    commit_message: "fix(crates): use bytes.NewReader for retry-safe request body"
+
+  - id: BUG-pypi-retry-body-empty
+    status: fixed
+    severity: high
+    scope: internal/publishers/pypi
+    title: PyPI *bytes.Buffer body not rewindable on HTTP 429 retry
+    approach: |
+      Changed from passing &buf to bytes.NewReader(buf.Bytes()) so the
+      RetryClient can rewind the body on 429 retry.
+    risk_level: low
+    files_changed:
+      - internal/publishers/pypi/pypi.go
+    commit_message: "fix(pypi): use bytes.NewReader for retry-safe request body"
+
+  - id: BUG-exec-shellsplit-panic
+    status: fixed
+    severity: high
+    scope: internal/plugins
+    title: shellSplit returns empty slice causing index-out-of-range panic
+    approach: |
+      Added len(parts) == 0 guard in runCommand before accessing parts[0].
+      Returns a descriptive error instead of panicking.
+    risk_level: low
+    files_changed:
+      - internal/plugins/exec.go
+    commit_message: "fix(exec): guard against empty shellSplit result"
+
+  # --- QA Audit 2026-07-30 (deep audit — 6 parallel agents): 7 new bugs found and fixed ---
+
+  - id: BUG-calculator-nil-branch
+    status: fixed
+    severity: critical
+    scope: internal/algorithm
+    title: CalculateNextVersion panics on nil branch when lastRelease is non-nil
+    approach: |
+      Added nil guard before switch on branch.Type: if branch is nil,
+      default to BranchTypeRelease. Defense-in-depth for public API callers.
+    risk_level: low
+    files_changed:
+      - internal/algorithm/calculator.go
+    commit_message: "fix(algorithm): guard against nil branch in CalculateNextVersion"
+
+  - id: BUG-calculator-nil-baseversion
+    status: fixed
+    severity: high
+    scope: internal/algorithm
+    title: calculatePrerelease panics on nil baseVersion when releaseType unrecognized
+    approach: |
+      Added default case to the releaseType switch that returns an error
+      instead of leaving baseVersion nil. Matches calculateRegular's pattern.
+    risk_level: low
+    files_changed:
+      - internal/algorithm/calculator.go
+    commit_message: "fix(algorithm): return error on unrecognized prerelease releaseType"
+
+  - id: BUG-godot-verify-hardcoded-v
+    status: fixed
+    severity: high
+    scope: internal/publishers/godot
+    title: Godot Verify hardcodes "v" prefix in tag URL, ignoring tagFormat config
+    approach: |
+      Verify() now calls p.resolveTag(version) to get the correct tag,
+      matching what Publish() already does. Previously it used "v%s" hardcoded.
+    risk_level: low
+    files_changed:
+      - internal/publishers/godot/godot.go
+    commit_message: "fix(godot): use resolveTag in Verify to match Publish"
+
+  - id: BUG-swift-verify-bare-version
+    status: fixed
+    severity: high
+    scope: internal/publishers/swift
+    title: Swift Verify uses bare version for tag lookup, ignoring tagFormat
+    approach: |
+      Verify() now calls p.resolveTag(version) to get the correct tag name,
+      matching what Publish() already does. Previously it searched for bare version.
+    risk_level: low
+    files_changed:
+      - internal/publishers/swift/swift.go
+    commit_message: "fix(swift): use resolveTag in Verify to match Publish"
+
+  - id: BUG-crates-retry-empty-body
+    status: fixed
+    severity: high
+    scope: internal/publishers/crates
+    title: Crates publish body not rewindable on HTTP 429 retry
+    approach: |
+      Changed from passing *bytes.Buffer directly to http.NewRequest (which
+      consumes the buffer on first Do()) to bytes.NewReader(body.Bytes()),
+      which implements io.Seeker and allows RetryClient to rewind on retry.
+    risk_level: low
+    files_changed:
+      - internal/publishers/crates/crates.go
+    commit_message: "fix(crates): use bytes.NewReader for retry-safe request body"
+
+  - id: BUG-pypi-retry-empty-body
+    status: fixed
+    severity: high
+    scope: internal/publishers/pypi
+    title: PyPI publish body not rewindable on HTTP 429 retry
+    approach: |
+      Same fix as crates: changed from &buf to bytes.NewReader(buf.Bytes())
+      so the RetryClient can rewind the body on retry.
+    risk_level: low
+    files_changed:
+      - internal/publishers/pypi/pypi.go
+    commit_message: "fix(pypi): use bytes.NewReader for retry-safe request body"
+
+  - id: BUG-exec-shellsplit-panic
+    status: fixed
+    severity: high
+    scope: internal/plugins
+    title: shellSplit returns empty slice for empty/whitespace input, causing index-out-of-range panic
+    approach: |
+      Added len(parts) == 0 guard in runCommand() before accessing parts[0].
+      Returns descriptive error instead of panicking.
+    risk_level: low
+    files_changed:
+      - internal/plugins/exec.go
+    commit_message: "fix(exec): guard against empty shellSplit result"
+
+  # --- Deferred findings (identified but not fixed this pass) ---
+
+  - id: BUG-config-explicit-fallback
+    status: deferred
+    severity: high
+    scope: internal/config
+    title: Explicit --config nonexistent.yml silently uses defaults instead of erroring
+    approach: |
+      Needs distinction between user-provided and auto-discovered config paths.
+      When configFile is explicitly provided, should return file-not-found error.
+    risk_level: medium
+    files_changed:
+      - internal/config/config.go
+
+  - id: BUG-getcommits-pipe-delimiter
+    status: deferred
+    severity: medium
+    scope: internal/git
+    title: GetCommits pipe-delimiter parsing corrupts data when commit subject contains pipe
+    approach: |
+      Use NUL byte (%x00) delimiter instead of pipe in --pretty=format,
+      or use git log --format with separate fields.
+    risk_level: low
+    files_changed:
+      - internal/git/client.go
+
+  - id: BUG-detectpr-missing-ci
+    status: deferred
+    severity: medium
+    scope: pkg/release
+    title: detectPR() missing CircleCI, Bitbucket Pipelines, and Jenkins PR indicators
+    approach: |
+      Add CIRCLE_PULL_REQUEST, BITBUCKET_PR_ID, CHANGE_ID env var checks.
+    risk_level: low
+    files_changed:
+      - pkg/release/release.go
+
+  - id: BUG-git-postpublish-tagonly
+    status: deferred
+    severity: medium
+    scope: internal/plugins
+    title: PostPublish ignores tagOnly flag, always pushes commits to remote
+    approach: |
+      Add tagOnly check before push in PostPublish, matching pushRefs() behavior.
+    risk_level: low
+    files_changed:
+      - internal/plugins/git.go
