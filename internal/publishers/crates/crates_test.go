@@ -194,6 +194,7 @@ func TestCratesPublishHTTP(t *testing.T) {
 		defer srv.Close()
 
 		dir := t.TempDir()
+		writeFile(t, dir, "Cargo.toml", cargoTomlContent("test-crate", "0.1.0"))
 		setenv(t, "CARGO_TOKEN", "test-token-123")
 
 		p := crates.NewPublisher()
@@ -216,6 +217,7 @@ func TestCratesPublishHTTP(t *testing.T) {
 		defer srv.Close()
 
 		dir := t.TempDir()
+		writeFile(t, dir, "Cargo.toml", cargoTomlContent("test-crate", "0.1.0"))
 		setenv(t, "CARGO_TOKEN", "test-token-123")
 
 		p := crates.NewPublisher()
@@ -241,6 +243,7 @@ func TestCratesPublishHTTP(t *testing.T) {
 		defer srv.Close()
 
 		dir := t.TempDir()
+		writeFile(t, dir, "Cargo.toml", cargoTomlContent("test-crate", "0.1.0"))
 		setenv(t, "CARGO_TOKEN", "test-token-123")
 
 		p := crates.NewPublisher()
@@ -266,6 +269,7 @@ func TestCratesPublishHTTP(t *testing.T) {
 		defer srv.Close()
 
 		dir := t.TempDir()
+		writeFile(t, dir, "Cargo.toml", cargoTomlContent("test-crate", "0.1.0"))
 		setenv(t, "CARGO_TOKEN", "test-token-123")
 
 		p := crates.NewPublisher()
@@ -297,6 +301,7 @@ func TestCratesPublishHTTP(t *testing.T) {
 		defer srv.Close()
 
 		dir := t.TempDir()
+		writeFile(t, dir, "Cargo.toml", cargoTomlContent("test-crate", "0.1.0"))
 		setenv(t, "CARGO_TOKEN", "test-token-123")
 
 		p := crates.NewPublisher()
@@ -324,6 +329,7 @@ func TestCratesPublishHTTP(t *testing.T) {
 		defer srv.Close()
 
 		dir := t.TempDir()
+		writeFile(t, dir, "Cargo.toml", cargoTomlContent("test-crate", "0.1.0"))
 		setenv(t, "CARGO_TOKEN", "test-token-123")
 
 		p := crates.NewPublisher()

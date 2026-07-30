@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/danielvm-git/big-release/internal/publishers"
 	"github.com/danielvm-git/big-release/internal/publishers/httputil"
@@ -82,9 +84,14 @@ func (p *Publisher) Publish(version string) error {
 		return nil
 	}
 
+	// The repository URL must be the git repo URL, not the Packagist API URL.
+	// Use GITHUB_REPOSITORY env var (owner/repo format) to build the GitHub URL,
+	// falling back to git remote origin URL (BUG-packagist-wrong-update-url).
+	repoURL := p.resolveRepositoryURL()
+
 	body := map[string]interface{}{
 		"repository": map[string]string{
-			"url": p.APIURL,
+			"url": repoURL,
 		},
 	}
 	jsonBody, err := json.Marshal(body)
@@ -198,4 +205,23 @@ func splitPackageName(name string) []string {
 		}
 	}
 	return []string{name}
+}
+
+// resolveRepositoryURL returns the git repository URL for the Packagist
+// update request. It tries GITHUB_REPOSITORY (owner/repo format) first,
+// then falls back to git remote origin URL (BUG-packagist-wrong-update-url).
+func (p *Publisher) resolveRepositoryURL() string {
+	if repo := os.Getenv("GITHUB_REPOSITORY"); repo != "" {
+		return "https://github.com/" + repo
+	}
+	// Fallback: read from git remote.
+	cmd := exec.Command("git", "config", "--get", "remote.origin.url")
+	out, err := cmd.Output()
+	if err == nil {
+		url := strings.TrimSpace(string(out))
+		if url != "" {
+			return url
+		}
+	}
+	return p.APIURL
 }

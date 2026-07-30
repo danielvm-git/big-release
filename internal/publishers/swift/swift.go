@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/danielvm-git/big-release/internal/git"
 	"github.com/danielvm-git/big-release/internal/publishers"
 )
 
@@ -48,13 +49,17 @@ func (p *Publisher) Prepare(version string) error {
 
 // Publish creates a versioned git tag and pushes it to origin.
 // In dry-run mode, the tag is created locally but not pushed.
+// Uses git.FormatTag with the configured tagFormat instead of bare version
+// (BUG-swift-bypasses-tagformat).
 func (p *Publisher) Publish(version string) error {
 	if !isValidVersion(version) {
 		return fmt.Errorf("swift: invalid version %q", version)
 	}
 
+	tag := p.resolveTag(version)
+
 	// Create git tag.
-	cmd := p.ExecCommand("git", "tag", version)
+	cmd := p.ExecCommand("git", "tag", "-a", tag, "-m", "release "+version)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
@@ -66,7 +71,7 @@ func (p *Publisher) Publish(version string) error {
 	}
 
 	// Push git tag.
-	cmd = p.ExecCommand("git", "push", "origin", version)
+	cmd = p.ExecCommand("git", "push", "origin", tag)
 	stderr.Reset()
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
@@ -76,9 +81,34 @@ func (p *Publisher) Publish(version string) error {
 	return nil
 }
 
+// resolveTag returns the git tag for the given version using the configured
+// tagFormat from .big-release.yml, falling back to bare version (BUG-swift-bypasses-tagformat).
+func (p *Publisher) resolveTag(version string) string {
+	cfgPath := ".big-release.yml"
+	if _, err := os.Stat(cfgPath); err == nil {
+		data, err := os.ReadFile(cfgPath)
+		if err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				trimmed := strings.TrimSpace(line)
+				if strings.HasPrefix(trimmed, "tagFormat:") {
+					parts := strings.SplitN(trimmed, ":", 2)
+					if len(parts) == 2 {
+						fmt := strings.TrimSpace(parts[1])
+						fmt = strings.Trim(fmt, `"'`)
+						return git.FormatTag(fmt, version)
+					}
+				}
+			}
+		}
+	}
+	return version
+}
+
 // Verify checks that the versioned git tag exists locally.
+// Uses resolveTag to match the tag created by Publish (BUG-swift-bypasses-tagformat).
 func (p *Publisher) Verify(version string) error {
-	cmd := p.ExecCommand("git", "tag", "-l", version)
+	tag := p.resolveTag(version)
+	cmd := p.ExecCommand("git", "tag", "-l", tag)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -86,9 +116,9 @@ func (p *Publisher) Verify(version string) error {
 		return fmt.Errorf("swift: failed to list git tags: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 
-	tag := strings.TrimSpace(stdout.String())
-	if tag != version {
-		return fmt.Errorf("swift: tag %q not found", version)
+	found := strings.TrimSpace(stdout.String())
+	if found != tag {
+		return fmt.Errorf("swift: tag %q not found", tag)
 	}
 
 	return nil

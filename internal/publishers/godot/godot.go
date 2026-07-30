@@ -85,10 +85,12 @@ func (p *Publisher) Publish(version string) error {
 		return fmt.Errorf("godot: %s and %s environment variables must be set", envOwner, envRepo)
 	}
 
-	// Build release payload.
+	// Build release payload. Use the git tagFormat for the tag name
+	// instead of hardcoding "v" prefix (BUG-godot-hardcoded-v-prefix).
+	tag := p.resolveTag(version)
 	payload := map[string]interface{}{
-		"tag_name":         "v" + version,
-		"name":             "v" + version,
+		"tag_name":         tag,
+		"name":             tag,
 		"target_commitish": "main",
 		"draft":            false,
 		"prerelease":       false,
@@ -128,7 +130,8 @@ func (p *Publisher) Verify(version string) error {
 		return fmt.Errorf("godot: %s and %s environment variables must be set", envOwner, envRepo)
 	}
 
-	url := fmt.Sprintf("%s/repos/%s/%s/releases/tags/v%s", p.GitHubAPI, owner, repo, version)
+	tag := p.resolveTag(version)
+	url := fmt.Sprintf("%s/repos/%s/%s/releases/tags/%s", p.GitHubAPI, owner, repo, tag)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return fmt.Errorf("godot: failed to create verify request: %w", err)
@@ -165,6 +168,33 @@ func init() {
 }
 
 // --- internal helpers ---
+
+// resolveTag returns the git tag for the given version. It reads the
+// tagFormat from the .big-release.yml config, falling back to "v" prefix
+// (BUG-godot-hardcoded-v-prefix).
+func (p *Publisher) resolveTag(version string) string {
+	// Try to read tagFormat from config.
+	cfgPath := ".big-release.yml"
+	if _, err := os.Stat(cfgPath); err == nil {
+		data, err := os.ReadFile(cfgPath)
+		if err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				trimmed := strings.TrimSpace(line)
+				if strings.HasPrefix(trimmed, "tagFormat:") {
+					parts := strings.SplitN(trimmed, ":", 2)
+					if len(parts) == 2 {
+						fmt := strings.TrimSpace(parts[1])
+						fmt = strings.Trim(fmt, `"'`)
+						if idx := strings.Index(fmt, "${version}"); idx > 0 {
+							return fmt[:idx] + version
+						}
+					}
+				}
+			}
+		}
+	}
+	return "v" + version
+}
 
 // updateVersionInProjectGodot reads project.godot, finds config/version,
 // replaces it, and writes the file back.
