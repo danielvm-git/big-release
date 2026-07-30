@@ -203,7 +203,7 @@ func (r *Release) writeStepOutput(state *algorithm.MutableState) error {
 		return nil
 	}
 	line := fmt.Sprintf("version=%s\npublished=true\n", state.NextRelease.Version)
-	f, err := os.OpenFile(out, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(out, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("open GITHUB_OUTPUT: %w", err)
 	}
@@ -217,8 +217,12 @@ func (r *Release) writeStepOutput(state *algorithm.MutableState) error {
 func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	pluginNames := r.ctx.Config.Plugins
 
-	// Register GitPlugin with the GitAPI from the context
-	plugins.Register(plugins.NewGitPlugin(r.ctx.Git))
+	// Register GitPlugin with the GitAPI from the context.
+	// Only register if not already present to avoid polluting global state
+	// on repeated orchestrator invocations (BUG-git-register-global-side-effect).
+	if _, err := plugins.Get("git"); err != nil {
+		plugins.Register(plugins.NewGitPlugin(r.ctx.Git))
+	}
 
 	// Phase 0: Configure plugins that accept typed config (e.g. github assets).
 	for _, name := range pluginNames {

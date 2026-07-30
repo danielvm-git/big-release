@@ -114,18 +114,8 @@ func (p *Publisher) Publish(version string) error {
 	}
 
 	for _, f := range distFiles {
-		fh, openErr := os.Open(f)
-		if openErr != nil {
-			return fmt.Errorf("pypi: failed to open %s: %w", f, openErr)
-		}
-		defer func() { _ = fh.Close() }()
-
-		part, createErr := w.CreateFormFile("content", filepath.Base(f))
-		if createErr != nil {
-			return fmt.Errorf("pypi: failed to create form file %s: %w", f, createErr)
-		}
-		if _, copyErr := io.Copy(part, fh); copyErr != nil {
-			return fmt.Errorf("pypi: failed to copy %s: %w", f, copyErr)
+		if err := p.addDistFile(w, f); err != nil {
+			return err
 		}
 	}
 
@@ -138,7 +128,7 @@ func (p *Publisher) Publish(version string) error {
 		return fmt.Errorf("pypi: failed to close multipart writer: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, p.RegistryURL, &buf)
+	req, err := http.NewRequest(http.MethodPost, p.RegistryURL, bytes.NewReader(buf.Bytes()))
 	if err != nil {
 		return fmt.Errorf("pypi: failed to create request: %w", err)
 	}
@@ -215,6 +205,24 @@ func init() {
 }
 
 // --- internal helpers ---
+
+// addDistFile opens, copies, and closes a single dist file (BUG-pypi-defer-in-loop).
+func (p *Publisher) addDistFile(w *multipart.Writer, f string) error {
+	fh, err := os.Open(f)
+	if err != nil {
+		return fmt.Errorf("pypi: failed to open %s: %w", f, err)
+	}
+	defer func() { _ = fh.Close() }()
+
+	part, err := w.CreateFormFile("content", filepath.Base(f))
+	if err != nil {
+		return fmt.Errorf("pypi: failed to create form file %s: %w", f, err)
+	}
+	if _, err := io.Copy(part, fh); err != nil {
+		return fmt.Errorf("pypi: failed to copy %s: %w", f, err)
+	}
+	return nil
+}
 
 // updateVersionInFile reads the file at the given path, finds the version
 // assignment in the metadata section, replaces it, and writes the file back.

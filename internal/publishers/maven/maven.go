@@ -196,11 +196,19 @@ func (p *Publisher) Publish(version string) error {
 		return nil
 	}
 
-	req, err := http.NewRequest(http.MethodPost, p.RegistryURL, nil)
+	// Maven Central's upload endpoint requires the POM content in the body.
+	// Without it the API returns 400 (BUG-maven-empty-body-publish).
+	pomData, err := os.ReadFile("pom.xml")
+	if err != nil {
+		return fmt.Errorf("maven: failed to read pom.xml for upload: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, p.RegistryURL, bytes.NewReader(pomData))
 	if err != nil {
 		return fmt.Errorf("maven: failed to create request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/xml")
 
 	resp, err := p.Client.Do(req)
 	if err != nil {

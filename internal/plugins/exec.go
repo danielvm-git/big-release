@@ -115,6 +115,9 @@ func shellSplit(line string) []string {
 
 func (p *ExecPlugin) runCommand(line string, idx int) error {
 	parts := shellSplit(line)
+	if len(parts) == 0 {
+		return fmt.Errorf("command %d: empty command after parsing %q", idx+1, line)
+	}
 	out, err := p.runner.Run(parts[0], parts[1:]...)
 	if err != nil {
 		return fmt.Errorf("command %d (%s) failed: %w", idx+1, line, err)

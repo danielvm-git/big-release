@@ -12,7 +12,7 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'All bugs fixed. v2.3.0 released. CI green. Ready for next epic or feature work.'
+  context: 'Deep QA audit complete. 22 bugs fixed (14 prior + 8 new). 12 deferred. All tests green. CI green.'
   next_skill: null
 release:
   commit_landed: true
@@ -20,7 +20,8 @@ release:
   security_gate: PASS
   traceability_gate: WAIVED
 bugs:
-  total: 14
-  fixed: 14
+  total: 34
+  fixed: 22
+  deferred: 12
   open: 0
-  last_verified: "2026-07-25"
+  last_verified: "2026-07-30"

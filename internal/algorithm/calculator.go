@@ -42,7 +42,12 @@ func (c *Calculator) CalculateNextVersion(lastRelease *Release, releaseType Rele
 		return "", fmt.Errorf("invalid last version %q: %w", lastRelease.Version, err)
 	}
 
-	// Calculate next version based on release type
+	// Calculate next version based on release type.
+	// Default to release branch if nil (defense-in-depth for public API callers).
+	if branch == nil {
+		branch = &Branch{Type: BranchTypeRelease}
+	}
+
 	var nextVersion *semver.Version
 
 	switch branch.Type {
@@ -103,6 +108,8 @@ func (c *Calculator) calculatePrerelease(lastVersion *semver.Version, releaseTyp
 		baseVersion = semver.MustParse(fmt.Sprintf("%d.%d.0", lastVersion.Major(), lastVersion.Minor()+1))
 	case ReleaseTypePatch:
 		baseVersion = semver.MustParse(fmt.Sprintf("%d.%d.%d", lastVersion.Major(), lastVersion.Minor(), lastVersion.Patch()+1))
+	default:
+		return nil, fmt.Errorf("cannot start prerelease series for release type %q", releaseType)
 	}
 
 	next, err := semver.NewVersion(fmt.Sprintf("%s-%s.%s", baseVersion.String(), preid, FirstPrerelease))
@@ -112,11 +119,25 @@ func (c *Calculator) calculatePrerelease(lastVersion *semver.Version, releaseTyp
 	return next, nil
 }
 
-// calculateMaintenance calculates the next maintenance version
+// calculateMaintenance calculates the next maintenance version.
+// Unlike regular releases, maintenance branches respect the release type
+// for minor/major bumps but always stay within the same major.minor line
+// for patches (BUG-calculator-maintenance-ignores-type).
 func (c *Calculator) calculateMaintenance(lastVersion *semver.Version, releaseType ReleaseType) (*semver.Version, error) {
-	// Maintenance releases are typically patches
-	nextVersion := *semver.MustParse(fmt.Sprintf("%d.%d.%d", lastVersion.Major(), lastVersion.Minor(), lastVersion.Patch()+1))
-	return &nextVersion, nil
+	switch releaseType {
+	case ReleaseTypeMajor:
+		// Major bump on maintenance: bump major, reset minor+patch.
+		nextVersion := *semver.MustParse(fmt.Sprintf("%d.0.0", lastVersion.Major()+1))
+		return &nextVersion, nil
+	case ReleaseTypeMinor:
+		// Minor bump on maintenance: bump minor, reset patch.
+		nextVersion := *semver.MustParse(fmt.Sprintf("%d.%d.0", lastVersion.Major(), lastVersion.Minor()+1))
+		return &nextVersion, nil
+	default:
+		// Patch (default for maintenance): bump patch within same major.minor.
+		nextVersion := *semver.MustParse(fmt.Sprintf("%d.%d.%d", lastVersion.Major(), lastVersion.Minor(), lastVersion.Patch()+1))
+		return &nextVersion, nil
+	}
 }
 
 // incrementPrerelease increments the prerelease number

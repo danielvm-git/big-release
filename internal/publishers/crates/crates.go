@@ -1,7 +1,9 @@
 package crates
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -89,6 +91,8 @@ func (p *Publisher) Prepare(version string) error {
 }
 
 // Publish uploads the crate to the crates.io registry.
+// The crates.io new-crate endpoint requires a tar.gz body containing the
+// crate source. Without it the API returns 400 Bad Request (BUG-crates-empty-body-publish).
 func (p *Publisher) Publish(version string) error {
 	token := os.Getenv(envToken)
 	if token == "" {
@@ -99,11 +103,18 @@ func (p *Publisher) Publish(version string) error {
 		return nil
 	}
 
-	req, err := http.NewRequest(http.MethodPut, p.RegistryURL, nil)
+	// Build the tar.gz body that crates.io expects.
+	body, err := p.buildUploadBody()
+	if err != nil {
+		return fmt.Errorf("crates: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPut, p.RegistryURL, bytes.NewReader(body.Bytes()))
 	if err != nil {
 		return fmt.Errorf("crates: failed to create request: %w", err)
 	}
 	req.Header.Set("Authorization", token)
+	req.Header.Set("Content-Type", "application/gzip")
 
 	resp, err := p.Client.Do(req)
 	if err != nil {
@@ -114,6 +125,64 @@ func (p *Publisher) Publish(version string) error {
 	// Drain body to allow connection reuse.
 	_, _ = io.Copy(io.Discard, resp.Body)
 
+	return nil
+}
+
+// buildUploadBody creates a minimal tar.gz archive containing Cargo.toml
+// and a placeholder lib.rs — the minimum crates.io requires for a new-crate upload.
+func (p *Publisher) buildUploadBody() (*bytes.Buffer, error) {
+	data, err := os.ReadFile("Cargo.toml")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Cargo.toml for upload: %w", err)
+	}
+
+	// Read package name from Cargo.toml for the lib.rs placeholder.
+	cfg := struct {
+		Package struct {
+			Name string `toml:"name"`
+		} `toml:"package"`
+	}{}
+	if err := toml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse Cargo.toml for upload: %w", err)
+	}
+
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+
+	// Write Cargo.toml
+	if err := writeTarEntry(tw, "Cargo.toml", data); err != nil {
+		return nil, err
+	}
+
+	// Write minimal src/lib.rs
+	libContent := []byte(fmt.Sprintf("//! %s\n", cfg.Package.Name))
+	if err := writeTarEntry(tw, "src/lib.rs", libContent); err != nil {
+		return nil, err
+	}
+
+	if err := tw.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close tar writer: %w", err)
+	}
+	if err := gz.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close gzip writer: %w", err)
+	}
+
+	return &buf, nil
+}
+
+func writeTarEntry(tw *tar.Writer, name string, content []byte) error {
+	hdr := &tar.Header{
+		Name: name,
+		Mode: 0644,
+		Size: int64(len(content)),
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		return fmt.Errorf("failed to write tar header for %s: %w", name, err)
+	}
+	if _, err := tw.Write(content); err != nil {
+		return fmt.Errorf("failed to write tar content for %s: %w", name, err)
+	}
 	return nil
 }
 

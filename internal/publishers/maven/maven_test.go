@@ -135,13 +135,19 @@ func TestMavenPublishHTTP(t *testing.T) {
 		defer srv.Close()
 
 		setenv(t, "MAVEN_TOKEN", "test-token-123")
+
+		dir := t.TempDir()
+		writeFile(t, dir, "pom.xml", pomXMLContent("com.example", "test-artifact", "1.0.0"))
+
 		p := maven.NewPublisher()
 		p.RegistryURL = srv.URL + "/api/v1/publisher/upload"
 
-		err := p.Publish("1.0.0")
-		if err != nil {
-			t.Fatalf("expected nil, got %v", err)
-		}
+		withDir(t, dir, func() {
+			err := p.Publish("1.0.0")
+			if err != nil {
+				t.Fatalf("expected nil, got %v", err)
+			}
+		})
 	})
 
 	t.Run("SC-e02s05-P2-08: Publish auth error on HTTP 401", func(t *testing.T) {
@@ -153,16 +159,22 @@ func TestMavenPublishHTTP(t *testing.T) {
 		defer srv.Close()
 
 		setenv(t, "MAVEN_TOKEN", "test-token-123")
+
+		dir := t.TempDir()
+		writeFile(t, dir, "pom.xml", pomXMLContent("com.example", "test-artifact", "1.0.0"))
+
 		p := maven.NewPublisher()
 		p.RegistryURL = srv.URL + "/api/v1/publisher/upload"
 
-		err := p.Publish("1.0.0")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if !strings.Contains(err.Error(), "401") {
-			t.Errorf("expected error to mention HTTP 401, got %q", err.Error())
-		}
+		withDir(t, dir, func() {
+			err := p.Publish("1.0.0")
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "401") {
+				t.Errorf("expected error to mention HTTP 401, got %q", err.Error())
+			}
+		})
 	})
 
 	t.Run("SC-e02s05-P2-09: Publish forbidden on HTTP 403", func(t *testing.T) {
@@ -174,16 +186,22 @@ func TestMavenPublishHTTP(t *testing.T) {
 		defer srv.Close()
 
 		setenv(t, "MAVEN_TOKEN", "test-token-123")
+
+		dir := t.TempDir()
+		writeFile(t, dir, "pom.xml", pomXMLContent("com.example", "test-artifact", "1.0.0"))
+
 		p := maven.NewPublisher()
 		p.RegistryURL = srv.URL + "/api/v1/publisher/upload"
 
-		err := p.Publish("1.0.0")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if !strings.Contains(err.Error(), "403") {
-			t.Errorf("expected error to mention HTTP 403, got %q", err.Error())
-		}
+		withDir(t, dir, func() {
+			err := p.Publish("1.0.0")
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "403") {
+				t.Errorf("expected error to mention HTTP 403, got %q", err.Error())
+			}
+		})
 	})
 
 	t.Run("SC-e02s05-P2-10: Publish server error on 5xx", func(t *testing.T) {
@@ -195,16 +213,22 @@ func TestMavenPublishHTTP(t *testing.T) {
 		defer srv.Close()
 
 		setenv(t, "MAVEN_TOKEN", "test-token-123")
+
+		dir := t.TempDir()
+		writeFile(t, dir, "pom.xml", pomXMLContent("com.example", "test-artifact", "1.0.0"))
+
 		p := maven.NewPublisher()
 		p.RegistryURL = srv.URL + "/api/v1/publisher/upload"
 
-		err := p.Publish("1.0.0")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if !strings.Contains(err.Error(), "500") {
-			t.Errorf("expected error to mention HTTP 500, got %q", err.Error())
-		}
+		withDir(t, dir, func() {
+			err := p.Publish("1.0.0")
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "500") {
+				t.Errorf("expected error to mention HTTP 500, got %q", err.Error())
+			}
+		})
 	})
 
 	t.Run("SC-e02s05-P2-11: Publish retries on 429 then succeeds", func(t *testing.T) {
@@ -222,16 +246,22 @@ func TestMavenPublishHTTP(t *testing.T) {
 		defer srv.Close()
 
 		setenv(t, "MAVEN_TOKEN", "test-token-123")
+
+		dir := t.TempDir()
+		writeFile(t, dir, "pom.xml", pomXMLContent("com.example", "test-artifact", "1.0.0"))
+
 		p := maven.NewPublisher()
 		p.RegistryURL = srv.URL + "/api/v1/publisher/upload"
 
-		err := p.Publish("1.0.0")
-		if err != nil {
-			t.Fatalf("expected eventual success, got %v", err)
-		}
-		if attempts != 3 {
-			t.Errorf("expected 3 attempts, got %d", attempts)
-		}
+		withDir(t, dir, func() {
+			err := p.Publish("1.0.0")
+			if err != nil {
+				t.Fatalf("expected eventual success, got %v", err)
+			}
+			if attempts != 3 {
+				t.Errorf("expected 3 attempts, got %d", attempts)
+			}
+		})
 	})
 
 	t.Run("SC-e02s05-P2-12: Publish dry-run makes zero HTTP requests", func(t *testing.T) {

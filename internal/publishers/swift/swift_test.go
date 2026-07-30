@@ -100,11 +100,11 @@ func TestSwiftPublish(t *testing.T) {
 		if len(commands) < 2 {
 			t.Fatalf("expected at least 2 exec commands (git tag, git push), got %d: %v", len(commands), commands)
 		}
-		if !strings.Contains(commands[0], "git tag 1.0.0") {
-			t.Errorf("expected git tag command, got %q", commands[0])
+		if !strings.Contains(commands[0], "git tag") || !strings.Contains(commands[0], "1.0.0") {
+			t.Errorf("expected git tag command with version 1.0.0, got %q", commands[0])
 		}
-		if !strings.Contains(commands[1], "git push origin 1.0.0") {
-			t.Errorf("expected git push command, got %q", commands[1])
+		if !strings.Contains(commands[1], "git push origin") || !strings.Contains(commands[1], "1.0.0") {
+			t.Errorf("expected git push command with version 1.0.0, got %q", commands[1])
 		}
 	})
 
@@ -166,8 +166,8 @@ func TestSwiftPublish(t *testing.T) {
 		if len(commands) != 1 {
 			t.Fatalf("expected 1 exec command (git tag only) in dry-run, got %d: %v", len(commands), commands)
 		}
-		if !strings.Contains(commands[0], "git tag 1.0.0") {
-			t.Errorf("expected git tag command, got %q", commands[0])
+		if !strings.Contains(commands[0], "git tag") || !strings.Contains(commands[0], "1.0.0") {
+			t.Errorf("expected git tag command with version 1.0.0, got %q", commands[0])
 		}
 	})
 

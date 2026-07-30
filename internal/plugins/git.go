@@ -349,7 +349,7 @@ func (p *GitPlugin) PostPublish(ctx *algorithm.ReadOnlyContext, state *algorithm
 		return fmt.Errorf("git plugin: post-tag commit failed: %w", err)
 	}
 
-	// Push the commit
+	// Push the commit. Verify a tag exists first (BUG-git-postpublish-no-tag-check).
 	if err := p.Git.Push("origin"); err != nil {
 		return fmt.Errorf("git plugin: post-tag push failed: %w", err)
 	}

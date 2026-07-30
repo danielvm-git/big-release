@@ -77,8 +77,11 @@ jobs:
       - name: Check no AI agent attribution
         if: github.event_name == 'pull_request'
         run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)
-          if git log "$LAST_TAG"..HEAD --format="%B" | grep -qiE '^co[- ]authored[- ]by:'; then
+          BASE=${{ github.event.pull_request.base.sha }}
+          if [ -z "$BASE" ]; then
+            BASE=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)
+          fi
+          if git log "$BASE"..HEAD --format="%B" | grep -qiE '^co[- ]authored[- ]by:'; then
             echo "FAIL: Co-authored-by: footer found — blocked by CONVENTIONS.md"
             exit 1
           fi
