@@ -52,7 +52,8 @@ func (r *Release) detectCI() {
 }
 
 // detectPR reports whether this run was triggered by a pull request.
-// Checks GitHub Actions, GitLab CI, and Azure DevOps indicators.
+// Checks GitHub Actions, GitLab CI, Azure DevOps, CircleCI, Bitbucket Pipelines,
+// and Jenkins indicators (BUG-detectpr-missing-ci).
 func (r *Release) detectPR() bool {
 	if os.Getenv("GITHUB_EVENT_NAME") == "pull_request" {
 		return true
@@ -61,6 +62,15 @@ func (r *Release) detectPR() bool {
 		return true
 	}
 	if os.Getenv("BUILD_REASON") == "PullRequest" {
+		return true
+	}
+	if os.Getenv("CIRCLE_PULL_REQUEST") != "" {
+		return true
+	}
+	if os.Getenv("BITBUCKET_PR_ID") != "" {
+		return true
+	}
+	if os.Getenv("CHANGE_ID") != "" { // Jenkins GitHub PR builder
 		return true
 	}
 	return false

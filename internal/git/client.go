@@ -86,7 +86,7 @@ func (c *Client) GetCommits(from, to string) ([]*algorithm.Commit, error) {
 		range_spec = to
 	}
 
-	cmd := gitCmd("log", range_spec, "--pretty=format:%H|%s|%an|%ae|%ai|%b")
+	cmd := gitCmd("log", range_spec, "--pretty=format:%H%x00%s%x00%an%x00%ae%x00%ai%x00%b")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get commits: %w", err)
@@ -98,7 +98,7 @@ func (c *Client) GetCommits(from, to string) ([]*algorithm.Commit, error) {
 			continue
 		}
 
-		parts := strings.SplitN(line, "|", 6)
+		parts := strings.SplitN(line, "\x00", 6)
 		if len(parts) < 6 {
 			continue
 		}

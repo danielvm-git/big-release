@@ -225,3 +225,13 @@ func TestFileLoading_ExplicitPath(t *testing.T) {
 		t.Fatalf("expected explicit path config, got %q", cfg.TagFormat)
 	}
 }
+
+func TestLoad_ExplicitNonexistentFile_ReturnsError(t *testing.T) {
+	// BUG-config-explicit-fallback: when the user explicitly provides a config
+	// path that doesn't exist, Load should return an error — not silently fall
+	// back to defaults. A typo in --config should not go undetected.
+	_, err := Load("/tmp/nonexistent-big-release-config-12345.yml")
+	if err == nil {
+		t.Fatal("expected error for nonexistent explicit config file, got nil")
+	}
+}

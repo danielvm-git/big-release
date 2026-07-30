@@ -53,9 +53,13 @@ func DefaultConfig() *algorithm.Config {
 	}
 }
 
-// Load loads configuration from file or returns default
+// Load loads configuration from file or returns default.
+// When configFile is explicitly provided (non-empty) and does not exist,
+// an error is returned — a typo in --config should not silently fall back
+// to defaults (BUG-config-explicit-fallback).
 func Load(configFile string) (*algorithm.Config, error) {
-	if configFile == "" {
+	explicit := configFile != ""
+	if !explicit {
 		configFile = findConfigFile()
 	}
 
@@ -66,6 +70,9 @@ func Load(configFile string) (*algorithm.Config, error) {
 	data, err := os.ReadFile(configFile)
 	if err != nil {
 		if os.IsNotExist(err) {
+			if explicit {
+				return nil, fmt.Errorf("config file %q not found", configFile)
+			}
 			return DefaultConfig(), nil
 		}
 		return nil, fmt.Errorf("failed to read config file: %w", err)

@@ -310,8 +310,10 @@ func pathMatchesAsset(modified, candidate, pattern string) bool {
 
 // PostPublish commits version-derived files after the tag is created.
 // This runs in Phase 6.5, after Publish (tag creation) but before Success hooks.
+// When tagOnly is true, PostPublish is a no-op — the user opted out of commit
+// push due to branch protection (BUG-git-postpublish-tagonly).
 func (p *GitPlugin) PostPublish(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
-	if len(p.postTagAssets) == 0 {
+	if len(p.postTagAssets) == 0 || p.tagOnly {
 		return nil
 	}
 

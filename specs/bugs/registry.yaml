@@ -753,47 +753,53 @@ bugs:
   # --- Deferred findings (identified but not fixed this pass) ---
 
   - id: BUG-config-explicit-fallback
-    status: deferred
+    status: fixed
     severity: high
     scope: internal/config
     title: Explicit --config nonexistent.yml silently uses defaults instead of erroring
     approach: |
-      Needs distinction between user-provided and auto-discovered config paths.
-      When configFile is explicitly provided, should return file-not-found error.
-    risk_level: medium
+      Load() now tracks whether configFile was explicitly provided (non-empty).
+      When explicit and file not found, returns error instead of silently using defaults.
+    risk_level: low
     files_changed:
       - internal/config/config.go
+      - internal/config/config_test.go
+    commit_message: "fix(config): error on nonexistent explicit config file"
 
   - id: BUG-getcommits-pipe-delimiter
-    status: deferred
+    status: fixed
     severity: medium
     scope: internal/git
     title: GetCommits pipe-delimiter parsing corrupts data when commit subject contains pipe
     approach: |
-      Use NUL byte (%x00) delimiter instead of pipe in --pretty=format,
-      or use git log --format with separate fields.
+      Changed git log format delimiter from pipe to NUL byte (%x00) and
+      SplitN separator from "|" to "\x00". NUL cannot appear in commit messages.
     risk_level: low
     files_changed:
       - internal/git/client.go
+    commit_message: "fix(git): use NUL delimiter in GetCommits to prevent pipe corruption"
 
   - id: BUG-detectpr-missing-ci
-    status: deferred
+    status: fixed
     severity: medium
     scope: pkg/release
     title: detectPR() missing CircleCI, Bitbucket Pipelines, and Jenkins PR indicators
     approach: |
-      Add CIRCLE_PULL_REQUEST, BITBUCKET_PR_ID, CHANGE_ID env var checks.
+      Added CIRCLE_PULL_REQUEST, BITBUCKET_PR_ID, and CHANGE_ID env var checks.
     risk_level: low
     files_changed:
       - pkg/release/release.go
+    commit_message: "fix(release): add CircleCI, Bitbucket, Jenkins to detectPR"
 
   - id: BUG-git-postpublish-tagonly
-    status: deferred
+    status: fixed
     severity: medium
     scope: internal/plugins
     title: PostPublish ignores tagOnly flag, always pushes commits to remote
     approach: |
-      Add tagOnly check before push in PostPublish, matching pushRefs() behavior.
+      Added p.tagOnly guard at the top of PostPublish — when tagOnly is true,
+      PostPublish is a no-op, matching the pushRefs() behavior in Publish.
     risk_level: low
     files_changed:
       - internal/plugins/git.go
+    commit_message: "fix(git): respect tagOnly in PostPublish"
