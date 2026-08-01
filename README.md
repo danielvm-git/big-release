@@ -6,6 +6,13 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/danielvm-git/big-release)](https://goreportcard.com/report/github.com/danielvm-git/big-release)
 [![Release](https://img.shields.io/github/v/release/danielvm-git/big-release)](https://github.com/danielvm-git/big-release/releases)
 
+**Live demos** — every badge below is a real app whose version was set and deployed by big-release itself, on the last merge to `main`:
+
+[![Go](https://img.shields.io/github/v/release/danielvm-git/bigbase-canary-go?label=go.bigbase.click&color=00ADD8&logo=go&logoColor=white)](https://go.bigbase.click)
+[![Node](https://img.shields.io/github/v/release/danielvm-git/bigbase-canary-node?label=node.bigbase.click&color=339933&logo=node.js&logoColor=white)](https://node.bigbase.click)
+[![Python](https://img.shields.io/github/v/release/danielvm-git/bigbase-canary-python?label=python.bigbase.click&color=3776AB&logo=python&logoColor=white)](https://python.bigbase.click)
+[![PHP](https://img.shields.io/github/v/release/danielvm-git/bigbase-canary-php?label=php.bigbase.click&color=777BB4&logo=php&logoColor=white)](https://php.bigbase.click)
+
 ## What is big-release?
 
 **big-release** is a unified release tool that automatically:
@@ -28,6 +35,7 @@
 | Complex setup | Single binary, zero config |
 | Language-specific learning curve | Same CLI everywhere |
 | semantic-release requires Node.js | Go binary, no runtime |
+| Publishing back to a protected branch gets rejected | Works on protected branches with **zero GitHub config** — tags + Releases via API, no commit pushed to the branch |
 
 ## Supported Languages
 
@@ -42,6 +50,33 @@
 | Java | `maven` | maven central |
 | Swift | `swift` | swiftpackageindex.com |
 | Godot/GDScript | `godot` | GitHub Releases |
+
+## Live Demos
+
+big-release releases *itself* onto four real, running apps — one per language. Each site reads its own `VERSION`, which big-release bumps automatically on every merge to `main`. **The version you see on each page is live proof that the whole pipeline works** — and the repo behind it is a copy-pasteable reference setup for that language.
+
+| Language | Live demo | Reference repo | Setup |
+|----------|-----------|----------------|-------|
+| Go | [go.bigbase.click](https://go.bigbase.click) | [bigbase-canary-go](https://github.com/danielvm-git/bigbase-canary-go) | `go.mod` + `.big-release.yml` |
+| Node.js | [node.bigbase.click](https://node.bigbase.click) | [bigbase-canary-node](https://github.com/danielvm-git/bigbase-canary-node) | `package.json` + `.big-release.yml` |
+| Python | [python.bigbase.click](https://python.bigbase.click) | [bigbase-canary-python](https://github.com/danielvm-git/bigbase-canary-python) | `pyproject.toml` + `.big-release.yml` |
+| PHP | [php.bigbase.click](https://php.bigbase.click) | [bigbase-canary-php](https://github.com/danielvm-git/bigbase-canary-php) | `composer.json` + `.big-release.yml` |
+
+## big-release vs semantic-release
+
+big-release is a from-scratch Go port of [semantic-release](https://github.com/semantic-release/semantic-release)'s core algorithm, built to fix the two things that make semantic-release awkward outside the Node ecosystem.
+
+| | big-release | semantic-release |
+|---|-------------|------------------|
+| Runtime | Single static binary, no runtime | Requires Node.js + npm install |
+| Languages | Go, Node, Python, Rust, PHP, Java, Swift, Godot | Node-first (others via community plugins) |
+| Protected branches | Works with zero GitHub config out of the box | `@semantic-release/git` opt-in requires branch-protection accommodation |
+| Config | One `.big-release.yml` | `.releaserc` + per-plugin npm installs |
+| Conventional Commits | ✅ | ✅ |
+| Multi-channel / prerelease | ✅ | ✅ |
+| GitHub + GitLab Releases | ✅ | ✅ (separate plugins) |
+
+> **Why it works on protected branches by default:** like semantic-release's core flow, big-release never commits back to your release branch unless you explicitly opt in (via `git.assets`). It only pushes a tag and creates the GitHub/GitLab Release through the REST API — neither of which touches `refs/heads`, so branch protection never rejects it. Committing changelogs/version bumps back to the branch is available, but (as with `@semantic-release/git`) that path needs you to accommodate branch protection yourself.
 
 ## Quick Start
 
@@ -110,9 +145,9 @@ publishers:
 
 # Plugins
 plugins:
-  - changelog
-  - git
-  - github
+  - changelog   # writes CHANGELOG.md — see note below
+  - git         # commits CHANGELOG.md back to the branch — see note below
+  - github      # creates the GitHub Release (tag + notes via API) — protected-branch safe
 
 # GitHub plugin configuration (optional)
 pluginConfigs:
@@ -144,6 +179,8 @@ commitTypes:
   - type: refactor
     hidden: true
 ```
+
+> **Protected branches:** the `git` plugin commits `CHANGELOG.md` (and any `git.assets`) back to your release branch. GitHub rejects direct pushes to a protected branch for non-admin actors (like `github-actions[bot]`), so on a protected `main` either (a) drop `changelog`/`git` and let release notes live on the GitHub Release (zero config, what big-release's own repo does), or (b) keep them and accommodate branch protection yourself. The `github` plugin alone never touches the branch.
 
 ## CI / CD
 
