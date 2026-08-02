@@ -126,40 +126,8 @@ jobs:
           path: site/deploy-meta.json
           retention-days: 3
 
-  release:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [build]
-    runs-on: ubuntu-22.04
-    timeout-minutes: 10
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-    defaults:
-      run:
-        working-directory: ./site
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Update site VERSION file
-        run: |
-          LATEST_TAG="$(git describe --tags --abbrev=0 2>/dev/null)"
-          if [ -z "$LATEST_TAG" ]; then
-            echo "No tags found, skipping VERSION update"
-            exit 0
-          fi
-          VERSION="${LATEST_TAG#v}"
-          CURRENT="$(cat VERSION 2>/dev/null || echo '')"
-          if [ "$VERSION" = "$CURRENT" ]; then
-            echo "VERSION already at $VERSION, no update needed"
-            exit 0
-          fi
-          echo "$VERSION" > VERSION
-          git add VERSION
-          git -c user.name="big-release-bot" \
-             -c user.email="big-release-bot@danielvm-git.github.io" \
-             commit -m "chore(site): update VERSION to ${VERSION} [skip ci]"
-          git push
+  # Intentionally no VERSION commit/push here.
+  # Protected main requires lint/test/build status checks (GH006), and
+  # GITHUB_TOKEN cannot bypass them — same reason .big-release.yml omits
+  # versionFile/changelog commits (see that file's commentary). Site serves
+  # embedded index.html only; site/VERSION is bookkeeping, not runtime.
