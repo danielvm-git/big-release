@@ -78,6 +78,14 @@ big-release is a from-scratch Go port of [semantic-release](https://github.com/s
 
 > **Why it works on protected branches by default:** like semantic-release's core flow, big-release never commits back to your release branch unless you explicitly opt in (via `git.assets`). It only pushes a tag and creates the GitHub/GitLab Release through the REST API — neither of which touches `refs/heads`, so branch protection never rejects it. Committing changelogs/version bumps back to the branch is available, but (as with `@semantic-release/git`) that path needs you to accommodate branch protection yourself.
 
+## Acknowledgments
+
+**big-release** is a from-scratch, language-agnostic port of [**semantic-release**](https://github.com/semantic-release/semantic-release)'s core algorithm and release workflow. The design, versioning logic, commit analysis, and multi-branch release patterns are derived from their excellent work.
+
+We're grateful to the **semantic-release** team and community for establishing the conventions and practices that make automated releases reliable and predictable across all languages.
+
+[semantic-release](https://github.com/semantic-release/semantic-release) is licensed under the MIT License (Copyright 2017 Contributors).
+
 ## Quick Start
 
 ### Install
