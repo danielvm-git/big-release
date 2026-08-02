@@ -1,0 +1,10 @@
+version: 1
+framework: go
+build:
+  command: sh -c "cd site && go build -o ../app ."
+start:
+  command: ./app
+  port: 8080
+health_check:
+  path: /
+  expected_status: 200
