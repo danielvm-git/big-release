@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>big-release — One binary. Every language. Zero runtime.</title>
+<meta name="description" content="Unified release automation for Go, Node, Python, PHP, Rust, Java, Swift, and more. Single binary, zero config, works on protected branches.">
+<style>
+  :root {
+    --n0:#ffffff; --n25:#fafafb; --n40:#f4f4f7; --n50:#ededf0;
+    --n100:#e4e4e7; --n200:#d8d8db; --n300:#adadb0; --n400:#97979b;
+    --n600:#6c6c71; --n700:#56565c; --n800:#2d2d31; --n850:#1d1d21; --n900:#16161a;
+    --indigo:#4f46e5; --indigo-600:#4338ca; --indigo-tint:rgba(79,70,229,.10);
+    --ok:#10b981; --ok-tint:rgba(16,185,129,.14);
+    --bg:var(--n25); --surface:var(--n0); --surface-2:var(--n40);
+    --ink:var(--n800); --ink-2:var(--n600); --ink-3:var(--n400);
+    --line:var(--n100); --line-strong:var(--n200);
+    --code-bg:#0f1720; --code-ink:#dfe7ef;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,"SF Mono","Fira Code",Menlo,Consolas,monospace;
+    --r-s:8px; --r-m:12px; --r-l:16px; --r-full:9999px;
+    --shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04);
+    --shadow-l:0 12px 32px rgba(16,24,40,.10),0 2px 8px rgba(16,24,40,.06);
+    --maxw:1080px;
+    --accent:var(--indigo); --accent-deep:var(--indigo-600); --accent-tint:var(--indigo-tint);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:var(--n900); --surface:var(--n850); --surface-2:#232329;
+      --ink:#f4f4f7; --ink-2:#adadb0; --ink-3:#6c6c71;
+      --line:#2a2a30; --line-strong:#35353c; --code-bg:#0b1016;
+      --indigo-tint:rgba(99,91,255,.16); --accent-tint:rgba(99,91,255,.16);
+      --shadow:0 1px 3px rgba(0,0,0,.5); --shadow-l:0 16px 40px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:var(--n25); --surface:var(--n0); --surface-2:var(--n40);
+    --ink:var(--n800); --ink-2:var(--n600); --ink-3:var(--n400);
+    --line:var(--n100); --line-strong:var(--n200); --code-bg:#0f1720;
+    --indigo-tint:rgba(79,70,229,.10); --accent-tint:rgba(79,70,229,.10);
+    --shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04);
+    --shadow-l:0 12px 32px rgba(16,24,40,.10),0 2px 8px rgba(16,24,40,.06);
+  }
+  :root[data-theme="dark"]{
+    --bg:var(--n900); --surface:var(--n850); --surface-2:#232329;
+    --ink:#f4f4f7; --ink-2:#adadb0; --ink-3:#6c6c71;
+    --line:#2a2a30; --line-strong:#35353c; --code-bg:#0b1016;
+    --indigo-tint:rgba(99,91,255,.16); --accent-tint:rgba(99,91,255,.16);
+    --shadow:0 1px 3px rgba(0,0,0,.5); --shadow-l:0 16px 40px rgba(0,0,0,.55);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  h1,h2,h3{margin:0;text-wrap:balance;letter-spacing:-.02em}
+  .eyebrow{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+
+  /* ── Nav ── */
+  .bar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--surface) 88%,transparent);
+    backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
+  .bar-in{display:flex;align-items:center;justify-content:space-between;gap:16px;height:60px}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:-.02em}
+  .brand .dot{width:11px;height:11px;border-radius:var(--r-full);background:var(--indigo);box-shadow:0 0 0 4px var(--indigo-tint)}
+  .nav-links{display:flex;gap:4px}
+  .nav-link{padding:6px 12px;border-radius:var(--r-full);font-size:13px;font-weight:600;color:var(--ink-2)}
+  .nav-link:hover{color:var(--ink);background:var(--surface-2)}
+  .bar-right{display:flex;align-items:center;gap:10px}
+  .ghost{padding:7px 13px;border-radius:var(--r-full);font-size:13px;font-weight:600;border:1px solid var(--line-strong);color:var(--ink-2);cursor:pointer;background:transparent}
+  .ghost:hover{color:var(--ink);border-color:var(--ink-3)}
+  .icon-btn{width:34px;height:34px;display:grid;place-items:center;border-radius:var(--r-full);border:1px solid var(--line-strong);background:transparent;color:var(--ink-2);cursor:pointer;font-size:15px}
+  .icon-btn:hover{color:var(--ink)}
+
+  /* ── Hero ── */
+  .hero{padding:72px 0 40px;position:relative;overflow:hidden}
+  .hero::before{content:"";position:absolute;inset:-40% 30% auto -10%;height:420px;
+    background:radial-gradient(60% 60% at 30% 20%,var(--accent-tint),transparent 70%);filter:blur(10px);pointer-events:none}
+  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center;position:relative}
+  .hero h1{font-size:44px;line-height:1.05;margin:14px 0 16px}
+  .hero h1 em{font-style:normal;color:var(--indigo)}
+  .lede{font-size:18px;color:var(--ink-2);max-width:44ch}
+  .lede code{font-family:var(--mono);font-size:.9em;background:var(--surface-2);padding:1px 6px;border-radius:6px}
+  .cta-row{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:var(--r-s);font-size:14px;font-weight:650;cursor:pointer;border:1px solid transparent}
+  .btn-primary{background:var(--indigo);color:#fff}
+  .btn-primary:hover{background:var(--indigo-600)}
+  .btn-secondary{background:transparent;color:var(--ink);border-color:var(--line-strong)}
+  .btn-secondary:hover{border-color:var(--ink-3)}
+
+  /* ── Dashboard card ── */
+  .dash-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);box-shadow:var(--shadow-l);overflow:hidden}
+  .dash-top{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+  .tl{width:11px;height:11px;border-radius:var(--r-full);background:var(--n300)}
+  .dash-url{margin-left:8px;font-size:12.5px;color:var(--ink-2)}
+  .dash-body{padding:24px}
+  .dash-badges{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .badge-card{display:flex;flex-direction:column;gap:8px;padding:14px;border:1px solid var(--line);border-radius:var(--r-m);background:var(--bg);text-align:center}
+  .badge-card img{height:22px;width:auto;margin:0 auto}
+  .badge-label{font-size:12px;color:var(--ink-3);font-weight:600}
+  .badge-card:hover{border-color:var(--ink-3)}
+
+  /* ── Sections ── */
+  section{padding:56px 0;border-top:1px solid var(--line)}
+  .sec-head{max-width:60ch;margin-bottom:34px}
+  .sec-head h2{font-size:28px;margin:10px 0 8px}
+  .sec-head p{color:var(--ink-2);margin:0;font-size:16px}
+
+  /* ── Proof grid ── */
+  .proof-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .proof-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-m);padding:20px;text-align:center;position:relative}
+  .proof-card .sw{width:10px;height:10px;border-radius:var(--r-full);display:inline-block;margin-right:6px}
+  .proof-card h3{font-size:16px;margin:12px 0 6px}
+  .proof-card p{margin:0;font-size:13px;color:var(--ink-2)}
+  .proof-card img{height:22px;margin:12px 0 0}
+  .proof-links{display:flex;gap:8px;justify-content:center;margin-top:12px}
+  .proof-link{font-size:12px;font-weight:600;color:var(--indigo)}
+  .proof-link:hover{text-decoration:underline}
+
+  /* ── How loop ── */
+  .loop{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .step{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-m);padding:22px 20px;position:relative}
+  .step .n{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--indigo);display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:var(--r-full);background:var(--accent-tint);margin-bottom:14px}
+  .step h3{font-size:16px;margin-bottom:6px}
+  .step p{margin:0;font-size:14px;color:var(--ink-2)}
+  .step code{font-family:var(--mono);font-size:12.5px;color:var(--ink);background:var(--surface-2);padding:1px 5px;border-radius:5px}
+  .step .arrow{position:absolute;right:-14px;top:50%;transform:translateY(-50%);color:var(--line-strong);z-index:2}
+  .step:last-child .arrow{display:none}
+
+  /* ── Code blocks ── */
+  .file{border:1px solid var(--line);border-radius:var(--r-m);overflow:hidden;background:var(--code-bg)}
+  .file-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:rgba(255,255,255,.03);border-bottom:1px solid rgba(255,255,255,.07)}
+  .file-name{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:13px;color:#c8d2dd}
+  .file-name .tag{font-family:var(--sans);font-size:11px;font-weight:600;color:#8b96a3;background:rgba(255,255,255,.06);padding:2px 8px;border-radius:var(--r-full)}
+  .copy{font-family:var(--sans);font-size:12px;font-weight:600;color:#aeb8c4;cursor:pointer;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);padding:5px 11px;border-radius:6px}
+  .copy:hover{color:#fff;background:rgba(255,255,255,.12)}
+  .copy.done{color:var(--ok);border-color:var(--ok)}
+  pre{margin:0;padding:18px;overflow-x:auto}
+  code.blk{font-family:var(--mono);font-size:13px;line-height:1.65;color:var(--code-ink);white-space:pre}
+  .c-com{color:#6b7d8f} .c-key{color:#8fd6ff} .c-str{color:#b6e3a7} .c-fn{color:#ffd580}
+
+  /* ── Install tabs ── */
+  .install-tabs{display:flex;gap:4px;margin-bottom:16px}
+  .install-tab{padding:7px 14px;border-radius:var(--r-full);font-size:13px;font-weight:600;color:var(--ink-2);background:transparent;border:1px solid transparent;cursor:pointer}
+  .install-tab:hover{color:var(--ink)}
+  .install-tab.active{color:var(--ink);background:var(--surface);border-color:var(--line-strong);box-shadow:var(--shadow)}
+  .install-panel{display:none}
+  .install-panel.active{display:block}
+
+  /* ── Quickstart tabs ── */
+  .qs-tabs{display:flex;gap:6px;margin-bottom:24px}
+  .qs-tab{display:flex;align-items:center;gap:7px;padding:8px 16px;border-radius:var(--r-full);font-size:14px;font-weight:600;color:var(--ink-2);background:transparent;border:1px solid transparent;cursor:pointer}
+  .qs-tab .sw{width:8px;height:8px;border-radius:var(--r-full)}
+  .qs-tab:hover{color:var(--ink)}
+  .qs-tab.active{color:var(--ink);background:var(--surface);border-color:var(--line-strong);box-shadow:var(--shadow)}
+  .qs-panel{display:none}
+  .qs-panel.active{display:block}
+  .qs-header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}
+  .qs-header h3{font-size:22px}
+  .qs-prereq{font-size:14px;color:var(--ink-2);margin-bottom:20px;padding:14px 16px;background:var(--surface-2);border-radius:var(--r-m)}
+  .qs-prereq code{font-family:var(--mono);font-size:12.5px;background:var(--surface);padding:1px 5px;border-radius:5px}
+  .copy-agent{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:var(--r-s);font-size:13px;font-weight:650;cursor:pointer;background:var(--surface);border:1px solid var(--line-strong);color:var(--ink-2)}
+  .copy-agent:hover{color:var(--ink);border-color:var(--ink-3)}
+  .copy-agent.done{color:var(--ok);border-color:var(--ok)}
+  .qs-files{display:grid;gap:16px;margin-bottom:32px}
+  .qs-steps{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start}
+  .steps-list{list-style:none;margin:0;padding:0;display:grid;gap:18px}
+  .steps-list li{display:flex;gap:14px}
+  .steps-list .k{flex:none;width:28px;height:28px;border-radius:var(--r-full);display:grid;place-items:center;font-family:var(--mono);font-size:13px;font-weight:600;background:var(--accent-tint);color:var(--indigo)}
+  .steps-list h3{font-size:15px;margin-bottom:3px}
+  .steps-list p{margin:0;font-size:14px;color:var(--ink-2)}
+  .steps-list code{font-family:var(--mono);font-size:12.5px;background:var(--surface-2);padding:1px 5px;border-radius:5px}
+
+  /* ── Troubleshooting ── */
+  .trouble{margin-top:28px}
+  .trouble summary{font-size:14px;font-weight:600;color:var(--ink-2);cursor:pointer;padding:10px 0}
+  .trouble summary:hover{color:var(--ink)}
+  .trouble-body{padding:0 0 12px;font-size:14px;color:var(--ink-2)}
+  .trouble-body code{font-family:var(--mono);font-size:12.5px;background:var(--surface-2);padding:1px 5px;border-radius:5px}
+
+  /* ── Comparison table ── */
+  .cmp-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-m);overflow:hidden}
+  .cmp-table th,.cmp-table td{padding:12px 16px;text-align:left;border-bottom:1px solid var(--line);font-size:14px}
+  .cmp-table th{background:var(--surface-2);font-weight:650;font-size:13px;color:var(--ink-2)}
+  .cmp-table td:first-child{font-weight:600;color:var(--ink-2)}
+  .cmp-table tr:last-child td{border-bottom:none}
+
+  /* ── Rules ── */
+  .rules{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:26px}
+  .rule{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-m);padding:20px}
+  .rule .cmt{font-family:var(--mono);font-size:13px;color:var(--indigo);font-weight:600}
+  .rule .arrow{color:var(--ink-3);margin:0 6px}
+  .rule .bump{font-family:var(--mono);font-size:13px;color:var(--ink);font-weight:600}
+  .rule p{margin:10px 0 0;font-size:13.5px;color:var(--ink-2)}
+
+  /* ── Languages table ── */
+  .lang-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-m);overflow:hidden}
+  .lang-table th,.lang-table td{padding:10px 16px;text-align:left;border-bottom:1px solid var(--line);font-size:14px}
+  .lang-table th{background:var(--surface-2);font-weight:650;font-size:13px;color:var(--ink-2)}
+  .lang-table tr:last-child td{border-bottom:none}
+
+  /* ── Footer ── */
+  footer.site{border-top:1px solid var(--line);background:var(--surface);padding:44px 0}
+  .foot-grid{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap}
+  .foot-langs{display:flex;gap:8px;flex-wrap:wrap}
+  .foot-lang{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:var(--r-full);border:1px solid var(--line-strong);font-size:13px;font-weight:600;color:var(--ink-2)}
+  .foot-lang:hover{color:var(--ink);border-color:var(--ink-3)}
+  .foot-lang .sw{width:8px;height:8px;border-radius:var(--r-full)}
+  .foot-note{font-size:13px;color:var(--ink-3)}
+  .foot-attr{margin-top:18px;font-size:12.5px;color:var(--ink-3);text-align:center}
+  .foot-attr a{color:var(--indigo);font-weight:600}
+
+  /* ── Responsive ── */
+  @media (max-width:860px){
+    .hero-grid{grid-template-columns:1fr;gap:32px}
+    .loop,.rules{grid-template-columns:1fr}
+    .proof-grid{grid-template-columns:1fr 1fr}
+    .qs-steps{grid-template-columns:1fr}
+    .step .arrow{display:none}
+    .nav-links{display:none}
+    .hero h1{font-size:34px}
+    .dash-badges{grid-template-columns:1fr}
+  }
+  @media (max-width:480px){
+    .proof-grid{grid-template-columns:1fr}
+    .qs-tabs{flex-wrap:wrap}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+  <!-- ── Nav ── -->
+  <div class="bar">
+    <div class="wrap bar-in">
+      <a class="brand" href="https://github.com/danielvm-git/big-release"><span class="dot"></span> big-release</a>
+      <div class="nav-links">
+        <a class="nav-link" href="#proof">Live proof</a>
+        <a class="nav-link" href="#install">Install</a>
+        <a class="nav-link" href="#quickstart">Quickstart</a>
+        <a class="nav-link" href="#vs">Compare</a>
+      </div>
+      <div class="bar-right">
+        <a class="ghost" href="https://github.com/danielvm-git/big-release">GitHub &#8599;</a>
+        <button class="icon-btn" id="theme" aria-label="Toggle light or dark theme" title="Toggle theme">&#9684;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Hero ── -->
+  <header class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow">Unified release automation</span>
+        <h1>One binary.<br><em>Every language.</em><br>Zero runtime.</h1>
+        <p class="lede">big-release automates versioning, changelogs, and publishing for Go, Node, Python, PHP, Rust, Java, Swift, and Godot. A single static binary in CI &mdash; no Node.js, no plugins, no config sprawl.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="#quickstart">Get started</a>
+          <a class="btn btn-secondary" href="#proof">See live proof &#8595;</a>
+        </div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-top">
+          <span class="tl"></span><span class="tl"></span><span class="tl"></span>
+          <span class="dash-url mono">*.bigbase.click</span>
+        </div>
+        <div class="dash-body">
+          <div class="dash-badges">
+            <a class="badge-card" href="https://go.bigbase.click">
+              <img alt="Go canary version" src="https://img.shields.io/github/v/release/danielvm-git/bigbase-canary-go?label=Go&amp;color=00ADD8&amp;logo=go&amp;logoColor=white">
+              <span class="badge-label">go.bigbase.click</span>
+            </a>
+            <a class="badge-card" href="https://node.bigbase.click">
+              <img alt="Node canary version" src="https://img.shields.io/github/v/release/danielvm-git/bigbase-canary-node?label=Node&amp;color=339933&amp;logo=node.js&amp;logoColor=white">
+              <span class="badge-label">node.bigbase.click</span>
+            </a>
+            <a class="badge-card" href="https://python.bigbase.click">
+              <img alt="Python canary version" src="https://img.shields.io/github/v/release/danielvm-git/bigbase-canary-python?label=Python&amp;color=3776AB&amp;logo=python&amp;logoColor=white">
+              <span class="badge-label">python.bigbase.click</span>
+            </a>
+            <a class="badge-card" href="https://php.bigbase.click">
+              <img alt="PHP canary version" src="https://img.shields.io/github/v/release/danielvm-git/bigbase-canary-php?label=PHP&amp;color=777BB4&amp;logo=php&amp;logoColor=white">
+              <span class="badge-label">php.bigbase.click</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Live proof ── -->
+  <section id="proof">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Live proof</span>
+        <h2>Four real apps, versioned and deployed by big-release</h2>
+        <p>Every badge is a running service whose version was set by big-release on the last merge to <code class="mono" style="background:var(--surface-2);padding:1px 6px;border-radius:6px">main</code>. The version you see is live.</p>
+      </div>
+      <div class="proof-grid">
+        <div class="proof-card">
+          <span class="sw" style="background:#00add8"></span><strong>Go</strong>
+          <h3>go.bigbase.click</h3>
+          <p>Go 1.22+, standard library only</p>
+          <img alt="Go version" src="https://img.shields.io/github/v/release/danielvm-git/bigbase-canary-go?label=version&amp;color=00ADD8&amp;logo=go&amp;logoColor=white">
+          <div class="proof-links">
+            <a class="proof-link" href="https://go.bigbase.click">Visit &#8599;</a>
+            <a class="proof-link" href="https://github.com/danielvm-git/bigbase-canary-go">Repo &#8599;</a>
+          </div>
+        </div>
+        <div class="proof-card">
+          <span class="sw" style="background:#339933"></span><strong>Node</strong>
+          <h3>node.bigbase.click</h3>
+          <p>Node 22, Express</p>
+          <img alt="Node version" src="https://img.shields.io/github/v/release/danielvm-git/bigbase-canary-node?label=version&amp;color=339933&amp;logo=node.js&amp;logoColor=white">
+          <div class="proof-links">
+            <a class="proof-link" href="https://node.bigbase.click">Visit &#8599;</a>
+            <a class="proof-link" href="https://github.com/danielvm-git/bigbase-canary-node">Repo &#8599;</a>
+          </div>
+        </div>
+        <div class="proof-card">
+          <span class="sw" style="background:#3776ab"></span><strong>Python</strong>
+          <h3>python.bigbase.click</h3>
+          <p>Python 3.12+, Flask, uv</p>
+          <img alt="Python version" src="https://img.shields.io/github/v/release/danielvm-git/bigbase-canary-python?label=version&amp;color=3776AB&amp;logo=python&amp;logoColor=white">
+          <div class="proof-links">
+            <a class="proof-link" href="https://python.bigbase.click">Visit &#8599;</a>
+            <a class="proof-link" href="https://github.com/danielvm-git/bigbase-canary-python">Repo &#8599;</a>
+          </div>
+        </div>
+        <div class="proof-card">
+          <span class="sw" style="background:#8892bf"></span><strong>PHP</strong>
+          <h3>php.bigbase.click</h3>
+          <p>PHP 8.3+, Composer</p>
+          <img alt="PHP version" src="https://img.shields.io/github/v/release/danielvm-git/bigbase-canary-php?label=version&amp;color=777BB4&amp;logo=php&amp;logoColor=white">
+          <div class="proof-links">
+            <a class="proof-link" href="https://php.bigbase.click">Visit &#8599;</a>
+            <a class="proof-link" href="https://github.com/danielvm-git/bigbase-canary-php">Repo &#8599;</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── How it works ── -->
+  <section id="how">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">How it works</span>
+        <h2>One merge, three automatic moves</h2>
+        <p>big-release runs in CI after tests pass. It reads your commits, decides the next version, and ships it &mdash; no manual tagging, no changelog edits.</p>
+      </div>
+      <div class="loop">
+        <div class="step">
+          <span class="n">1</span>
+          <h3>A conventional commit lands</h3>
+          <p>Someone merges <code>feat: add /healthz endpoint</code> to <code>main</code>. That prefix is the only versioning input.</p>
+          <span class="arrow">&rarr;</span>
+        </div>
+        <div class="step">
+          <span class="n">2</span>
+          <h3>big-release computes the bump</h3>
+          <p><code>feat</code> means a minor bump. It reads the last git tag and calculates the next semantic version automatically.</p>
+          <span class="arrow">&rarr;</span>
+        </div>
+        <div class="step">
+          <span class="n">3</span>
+          <h3>It tags, releases &amp; deploys</h3>
+          <p>Pushes the git tag, creates the GitHub Release with notes, bumps <code>VERSION</code> &mdash; and your app redeploys.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Install ── -->
+  <section id="install">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Install</span>
+        <h2>One command, any platform</h2>
+        <p>big-release is a single static binary. No runtime, no dependencies.</p>
+      </div>
+      <div class="install-tabs">
+        <button class="install-tab active" data-target="inst-mac-arm">macOS (Apple Silicon)</button>
+        <button class="install-tab" data-target="inst-mac-intel">macOS (Intel)</button>
+        <button class="install-tab" data-target="inst-linux">Linux</button>
+        <button class="install-tab" data-target="inst-ci">CI</button>
+      </div>
+      <div class="install-panel active" id="inst-mac-arm">
+        <div class="file">
+          <div class="file-head">
+            <span class="file-name">terminal <span class="tag">macOS ARM</span></span>
+            <button class="copy" type="button">Copy</button>
+          </div>
+          <pre><code class="blk">curl -sL https://github.com/danielvm-git/big-release/releases/latest/download/big-release-darwin-arm64 -o big-release
+chmod +x big-release
+sudo mv big-release /usr/local/bin/</code></pre>
+        </div>
+      </div>
+      <div class="install-panel" id="inst-mac-intel">
+        <div class="file">
+          <div class="file-head">
+            <span class="file-name">terminal <span class="tag">macOS Intel</span></span>
+            <button class="copy" type="button">Copy</button>
+          </div>
+          <pre><code class="blk">curl -sL https://github.com/danielvm-git/big-release/releases/latest/download/big-release-darwin-amd64 -o big-release
+chmod +x big-release
+sudo mv big-release /usr/local/bin/</code></pre>
+        </div>
+      </div>
+      <div class="install-panel" id="inst-linux">
+        <div class="file">
+          <div class="file-head">
+            <span class="file-name">terminal <span class="tag">Linux</span></span>
+            <button class="copy" type="button">Copy</button>
+          </div>
+          <pre><code class="blk">curl -sL https://github.com/danielvm-git/big-release/releases/latest/download/big-release-linux-amd64 -o big-release
+chmod +x big-release
+sudo mv big-release /usr/local/bin/</code></pre>
+        </div>
+      </div>
+      <div class="install-panel" id="inst-ci">
+        <div class="file">
+          <div class="file-head">
+            <span class="file-name">.github/workflows/*.yml <span class="tag">GitHub Actions</span></span>
+            <button class="copy" type="button">Copy</button>
+          </div>
+          <pre><code class="blk"><span class="c-key">- name</span>: Install big-release
+  <span class="c-key">run</span>: |
+    curl -sL https://github.com/danielvm-git/big-release/releases/latest/download/big-release-linux-amd64 -o big-release
+    chmod +x big-release &amp;&amp; sudo mv big-release /usr/local/bin/</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Quickstart ── -->
+  <section id="quickstart">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Quickstart</span>
+        <h2>From zero to automated releases</h2>
+        <p>Pick your language. Copy the files. That's the setup.</p>
+      </div>
+
+      <div class="qs-tabs">
+        <button class="qs-tab active" data-target="qs-go"><span class="sw" style="background:#00add8"></span> Go</button>
+        <button class="qs-tab" data-target="qs-node"><span class="sw" style="background:#339933"></span> Node</button>
+        <button class="qs-tab" data-target="qs-python"><span class="sw" style="background:#3776ab"></span> Python</button>
+        <button class="qs-tab" data-target="qs-php"><span class="sw" style="background:#8892bf"></span> PHP</button>
+      </div>
+
+      <!-- ── Go quickstart ── -->
+      <div class="qs-panel active" id="qs-go">
+        <div class="qs-header">
+          <h3>Set up big-release for Go</h3>
+          <button class="copy-agent" data-lang="go" type="button">&#128203; Copy to your agent</button>
+        </div>
+        <div class="qs-prereq">
+          <strong>Prerequisites:</strong> Go 1.22+, git, a GitHub repo with <code>main</code> branch
+        </div>
+        <div class="qs-files">
+          <div class="file">
+            <div class="file-head">
+              <span class="file-name">.big-release.yml <span class="tag">release config</span></span>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <pre><code class="blk"><span class="c-com"># big-release configuration</span>
+<span class="c-key">tagFormat</span>: <span class="c-str">"v${version}"</span>
+<span class="c-key">initialVersion</span>: <span class="c-str">"0.1.0"</span>
+
+<span class="c-key">plugins</span>:
+  - changelog
+  - git
+  - github</code></pre>
+          </div>
+          <div class="file">
+            <div class="file-head">
+              <span class="file-name">.github/workflows/release.yml <span class="tag">CI release job</span></span>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <pre><code class="blk"><span class="c-key">name</span>: Release
+<span class="c-key">on</span>:
+  <span class="c-key">push</span>:
+    <span class="c-key">branches</span>: [main]
+
+<span class="c-key">jobs</span>:
+  <span class="c-key">release</span>:
+    <span class="c-key">runs-on</span>: ubuntu-latest
+    <span class="c-key">permissions</span>:
+      <span class="c-key">contents</span>: write
+    <span class="c-key">steps</span>:
+      - <span class="c-key">uses</span>: actions/checkout@v7
+        <span class="c-key">with</span>:
+          <span class="c-key">fetch-depth</span>: 0
+
+      - <span class="c-key">name</span>: Install big-release
+        <span class="c-key">run</span>: |
+          curl -sL https://github.com/danielvm-git/big-release/releases/latest/download/big-release-linux-amd64 -o big-release
+          chmod +x big-release &amp;&amp; sudo mv big-release /usr/local/bin/
+
+      - <span class="c-key">name</span>: Release
+        <span class="c-key">run</span>: big-release release --verbose
+        <span class="c-key">env</span>:
+          <span class="c-key">GITHUB_TOKEN</span>: <span class="c-str">${{ secrets.GITHUB_TOKEN }}</span></code></pre>
+          </div>
+          <div class="file">
+            <div class="file-head">
+              <span class="file-name">go.mod <span class="tag">module</span></span>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <pre><code class="blk"><span class="c-key">module</span> github.com/your-org/your-app
+
+<span class="c-key">go</span> <span class="c-fn">1.22</span></code></pre>
+          </div>
+        </div>
+        <div class="qs-steps">
+          <div>
+            <div class="file">
+              <div class="file-head">
+                <span class="file-name">terminal <span class="tag">dry run</span></span>
+                <button class="copy" type="button">Copy</button>
+              </div>
+              <pre><code class="blk"><span class="c-com"># preview the next release without publishing</span>
+<span class="c-fn">big-release</span> --dry-run</code></pre>
+            </div>
+          </div>
+          <ol class="steps-list">
+            <li><span class="k">1</span><div><h3>Commit with a convention</h3><p>Use <code>feat:</code> / <code>fix:</code> prefixes. That's the whole contract.</p></div></li>
+            <li><span class="k">2</span><div><h3>Drop in <code>.big-release.yml</code></h3><p>Set <code>tagFormat</code> and pick your plugins. Copy the block above.</p></div></li>
+            <li><span class="k">3</span><div><h3>Add the release workflow</h3><p>Install the binary, run <code>big-release release</code> after your tests.</p></div></li>
+            <li><span class="k">4</span><div><h3>Merge to <code>main</code></h3><p>big-release does the rest &mdash; tag, GitHub Release, changelog, deploy.</p></div></li>
+          </ol>
+        </div>
+        <details class="trouble">
+          <summary>Troubleshooting</summary>
+          <div class="trouble-body">
+            <p><strong>Missing VERSION file:</strong> big-release creates the git tag and GitHub Release automatically. A <code>VERSION</code> file is optional &mdash; only needed if your app reads it at runtime.</p>
+            <p><strong>Protected branch rejection:</strong> big-release only pushes tags and creates Releases via the API &mdash; it never pushes to the branch. Protected branches work out of the box. If you also use the <code>git</code> plugin to commit changelogs back to the branch, you'll need to accommodate branch protection yourself.</p>
+            <p><strong>Auth failures:</strong> Ensure <code>GITHUB_TOKEN</code> has <code>contents: write</code> permission. For private repos, use a personal access token or a GitHub App token.</p>
+          </div>
+        </details>
+      </div>
+
+      <!-- ── Node quickstart ── -->
+      <div class="qs-panel" id="qs-node">
+        <div class="qs-header">
+          <h3>Set up big-release for Node.js</h3>
+          <button class="copy-agent" data-lang="node" type="button">&#128203; Copy to your agent</button>
+        </div>
+        <div class="qs-prereq">
+          <strong>Prerequisites:</strong> Node 18+, npm/pnpm, git, a GitHub repo with <code>main</code> branch
+        </div>
+        <div class="qs-files">
+          <div class="file">
+            <div class="file-head">
+              <span class="file-name">.big-release.yml <span class="tag">release config</span></span>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <pre><code class="blk"><span class="c-com"># big-release configuration</span>
+<span class="c-key">tagFormat</span>: <span class="c-str">"v${version}"</span>
+<span class="c-key">initialVersion</span>: <span class="c-str">"0.1.0"</span>
+
+<span class="c-key">plugins</span>:
+  - changelog
+  - git
+  - github</code></pre>
+          </div>
+          <div class="file">
+            <div class="file-head">
+              <span class="file-name">.github/workflows/release.yml <span class="tag">CI release job</span></span>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <pre><code class="blk"><span class="c-key">name</span>: Release
+<span class="c-key">on</span>:
+  <span class="c-key">push</span>:
+    <span class="c-key">branches</span>: [main]
+
+<span class="c-key">jobs</span>:
+  <span class="c-key">release</span>:
+    <span class="c-key">runs-on</span>: ubuntu-latest
+    <span class="c-key">permissions</span>:
+      <span class="c-key">contents</span>: write
+    <span class="c-key">steps</span>:
+      - <span class="c-key">uses</span>: actions/checkout@v7
+        <span class="c-key">with</span>:
+          <span class="c-key">fetch-depth</span>: 0
+
+      - <span class="c-key">uses</span>: actions/setup-node@v4
+        <span class="c-key">with</span>:
+          <span class="c-key">node-version</span>: 22
+          <span class="c-key">cache</span>: npm
+
+      - <span class="c-key">run</span>: npm ci
+      - <span class="c-key">run</span>: npm test
+
+      - <span class="c-key">name</span>: Install big-release
+        <span class="c-key">run</span>: |
+          curl -sL https://github.com/danielvm-git/big-release/releases/latest/download/big-release-linux-amd64 -o big-release
+          chmod +x big-release &amp;&amp; sudo mv big-release /usr/local/bin/
+
+      - <span class="c-key">name</span>: Release
+        <span class="c-key">run</span>: big-release release --verbose
+        <span class="c-key">env</span>:
+          <span class="c-key">GITHUB_TOKEN</span>: <span class="c-str">${{ secrets.GITHUB_TOKEN }}</span></code></pre>
+          </div>
+          <div class="file">
+            <div class="file-head">
+              <span class="file-name">package.json <span class="tag">scripts</span></span>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <pre><code class="blk">{
+  <span class="c-key">"name"</span>: <span class="c-str">"your-app"</span>,
+  <span class="c-key">"version"</span>: <span class="c-str">"0.1.0"</span>,
+  <span class="c-key">"scripts"</span>: {
+    <span class="c-key">"start"</span>: <span class="c-str">"node server.js"</span>,
+    <span class="c-key">"test"</span>: <span class="c-str">"node --test"</span>
+  }
+}</code></pre>
+          </div>
+        </div>
+        <div class="qs-steps">
+          <div>
+            <div class="file">
+              <div class="file-head">
+                <span class="file-name">terminal <span class="tag">dry run</span></span>
+                <button class="copy" type="button">Copy</button>
+              </div>
+              <pre><code class="blk"><span class="c-com"># preview the next release without publishing</span>
+<span class="c-fn">big-release</span> --dry-run</code></pre>
+            </div>
+          </div>
+          <ol class="steps-list">
+            <li><span class="k">1</span><div><h3>Commit with a convention</h3><p>Use <code>feat:</code> / <code>fix:</code> prefixes. That's the whole contract.</p></div></li>
+            <li><span class="k">2</span><div><h3>Drop in <code>.big-release.yml</code></h3><p>Set <code>tagFormat</code> and pick your plugins. Copy the block above.</p></div></li>
+            <li><span class="k">3</span><div><h3>Add the release workflow</h3><p>Install the binary, run <code>big-release release</code> after <code>npm test</code>.</p></div></li>
+            <li><span class="k">4</span><div><h3>Merge to <code>main</code></h3><p>big-release does the rest &mdash; tag, GitHub Release, changelog, version bump.</p></div></li>
+          </ol>
+        </div>
+        <details class="trouble">
+          <summary>Troubleshooting</summary>
+          <div class="trouble-body">
+            <p><strong>package.json version out of sync:</strong> big-release manages the git tag, not <code>package.json</code>. If you publish to npm, add the <code>npm</code> publisher in <code>.big-release.yml</code> &mdash; it updates <code>package.json</code> and runs <code>npm publish</code> automatically.</p>
+            <p><strong>Protected branch rejection:</strong> big-release only pushes tags and creates Releases via the API. Protected branches work out of the box.</p>
+            <p><strong>Auth failures:</strong> Ensure <code>GITHUB_TOKEN</code> has <code>contents: write</code> permission.</p>
+          </div>
+        </details>
+      </div>
+
+      <!-- ── Python quickstart ── -->
+      <div class="qs-panel" id="qs-python">
+        <div class="qs-header">
+          <h3>Set up big-release for Python</h3>
+          <button class="copy-agent" data-lang="python" type="button">&#128203; Copy to your agent</button>
+        </div>
+        <div class="qs-prereq">
+          <strong>Prerequisites:</strong> Python 3.12+, uv or pip, git, a GitHub repo with <code>main</code> branch
+        </div>
+        <div class="qs-files">
+          <div class="file">
+            <div class="file-head">
+              <span class="file-name">.big-release.yml <span class="tag">release config</span></span>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <pre><code class="blk"><span class="c-com"># big-release configuration</span>
+<span class="c-key">tagFormat</span>: <span class="c-str">"v${version}"</span>
+<span class="c-key">initialVersion</span>: <span class="c-str">"0.1.0"</span>
+
+<span class="c-key">plugins</span>:
+  - changelog
+  - git
+  - github</code></pre>
+          </div>
+          <div class="file">
+            <div class="file-head">
+              <span class="file-name">.github/workflows/release.yml <span class="tag">CI release job</span></span>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <pre><code class="blk"><span class="c-key">name</span>: Release
+<span class="c-key">on</span>:
+  <span class="c-key">push</span>:
+    <span class="c-key">branches</span>: [main]
+
+<span class="c-key">jobs</span>:
+  <span class="c-key">release</span>:
+    <span class="c-key">runs-on</span>: ubuntu-latest
+    <span class="c-key">permissions</span>:
+      <span class="c-key">contents</span>: write
+    <span class="c-key">steps</span>:
+      - <span class="c-key">uses</span>: actions/checkout@v7
+        <span class="c-key">with</span>:
+          <span class="c-key">fetch-depth</span>: 0
+
+      - <span class="c-key">uses</span>: actions/setup-python@v5
+        <span class="c-key">with</span>:
+          <span class="c-key">python-version</span>: <span class="c-str">"3.12"</span>
+
+      - <span class="c-key">run</span>: pip install uv &amp;&amp; uv sync
+      - <span class="c-key">run</span>: uv run pytest -q
+
+      - <span class="c-key">name</span>: Install big-release
+        <span class="c-key">run</span>: |
+          curl -sL https://github.com/danielvm-git/big-release/releases/latest/download/big-release-linux-amd64 -o big-release
+          chmod +x big-release &amp;&amp; sudo mv big-release /usr/local/bin/
+
+      - <span class="c-key">name</span>: Release
+        <span class="c-key">run</span>: big-release release --verbose
+        <span class="c-key">env</span>:
+          <span class="c-key">GITHUB_TOKEN</span>: <span class="c-str">${{ secrets.GITHUB_TOKEN }}</span></code></pre>
+          </div>
+          <div class="file">
+            <div class="file-head">
+              <span class="file-name">pyproject.toml <span class="tag">project</span></span>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <pre><code class="blk"><span class="c-key">[project]</span>
+<span class="c-key">name</span> = <span class="c-str">"your-app"</span>
+<span class="c-key">version</span> = <span class="c-str">"0.1.0"</span>
+<span class="c-key">requires-python</span> = <span class="c-str">">=3.12"</span>
+
+<span class="c-key">[build-system]</span>
+<span class="c-key">requires</span> = [<span class="c-str">"hatchling"</span>]
+<span class="c-key">build-backend</span> = <span class="c-str">"hatchling.build"</span></code></pre>
+          </div>
+        </div>
+        <div class="qs-steps">
+          <div>
+            <div class="file">
+              <div class="file-head">
+                <span class="file-name">terminal <span class="tag">dry run</span></span>
+                <button class="copy" type="button">Copy</button>
+              </div>
+              <pre><code class="blk"><span class="c-com"># preview the next release without publishing</span>
+<span class="c-fn">big-release</span> --dry-run</code></pre>
+            </div>
+          </div>
+          <ol class="steps-list">
+            <li><span class="k">1</span><div><h3>Commit with a convention</h3><p>Use <code>feat:</code> / <code>fix:</code> prefixes. That's the whole contract.</p></div></li>
+            <li><span class="k">2</span><div><h3>Drop in <code>.big-release.yml</code></h3><p>Set <code>tagFormat</code> and pick your plugins. Copy the block above.</p></div></li>
+            <li><span class="k">3</span><div><h3>Add the release workflow</h3><p>Install the binary, run <code>big-release release</code> after <code>uv run pytest</code>.</p></div></li>
+            <li><span class="k">4</span><div><h3>Merge to <code>main</code></h3><p>big-release does the rest &mdash; tag, GitHub Release, changelog, deploy.</p></div></li>
+          </ol>
+        </div>
+        <details class="trouble">
+          <summary>Troubleshooting</summary>
+          <div class="trouble-body">
+            <p><strong>pyproject.toml version out of sync:</strong> big-release manages the git tag, not <code>pyproject.toml</code>. If you publish to PyPI, add the <code>pypi</code> publisher in <code>.big-release.yml</code> &mdash; it updates the version and runs <code>twine upload</code> automatically.</p>
+            <p><strong>Protected branch rejection:</strong> big-release only pushes tags and creates Releases via the API. Protected branches work out of the box.</p>
+            <p><strong>Auth failures:</strong> Ensure <code>GITHUB_TOKEN</code> has <code>contents: write</code> permission. For PyPI publishing, set <code>PYPI_TOKEN</code> as a repo secret.</p>
+          </div>
+        </details>
+      </div>
+
+      <!-- ── PHP quickstart ── -->
+      <div class="qs-panel" id="qs-php">
+        <div class="qs-header">
+          <h3>Set up big-release for PHP</h3>
+          <button class="copy-agent" data-lang="php" type="button">&#128203; Copy to your agent</button>
+        </div>
+        <div class="qs-prereq">
+          <strong>Prerequisites:</strong> PHP 8.3+, Composer, git, a GitHub repo with <code>main</code> branch
+        </div>
+        <div class="qs-files">
+          <div class="file">
+            <div class="file-head">
+              <span class="file-name">.big-release.yml <span class="tag">release config</span></span>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <pre><code class="blk"><span class="c-com"># big-release configuration</span>
+<span class="c-key">tagFormat</span>: <span class="c-str">"v${version}"</span>
+<span class="c-key">initialVersion</span>: <span class="c-str">"0.1.0"</span>
+
+<span class="c-key">plugins</span>:
+  - changelog
+  - git
+  - github</code></pre>
+          </div>
+          <div class="file">
+            <div class="file-head">
+              <span class="file-name">.github/workflows/release.yml <span class="tag">CI release job</span></span>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <pre><code class="blk"><span class="c-key">name</span>: Release
+<span class="c-key">on</span>:
+  <span class="c-key">push</span>:
+    <span class="c-key">branches</span>: [main]
+
+<span class="c-key">jobs</span>:
+  <span class="c-key">release</span>:
+    <span class="c-key">runs-on</span>: ubuntu-latest
+    <span class="c-key">permissions</span>:
+      <span class="c-key">contents</span>: write
+    <span class="c-key">steps</span>:
+      - <span class="c-key">uses</span>: actions/checkout@v7
+        <span class="c-key">with</span>:
+          <span class="c-key">fetch-depth</span>: 0
+
+      - <span class="c-key">uses</span>: shivammathur/setup-php@v2
+        <span class="c-key">with</span>:
+          <span class="c-key">php-version</span>: <span class="c-str">"8.3"</span>
+
+      - <span class="c-key">run</span>: composer install --no-interaction
+      - <span class="c-key">run</span>: composer test
+
+      - <span class="c-key">name</span>: Install big-release
+        <span class="c-key">run</span>: |
+          curl -sL https://github.com/danielvm-git/big-release/releases/latest/download/big-release-linux-amd64 -o big-release
+          chmod +x big-release &amp;&amp; sudo mv big-release /usr/local/bin/
+
+      - <span class="c-key">name</span>: Release
+        <span class="c-key">run</span>: big-release release --verbose
+        <span class="c-key">env</span>:
+          <span class="c-key">GITHUB_TOKEN</span>: <span class="c-str">${{ secrets.GITHUB_TOKEN }}</span></code></pre>
+          </div>
+          <div class="file">
+            <div class="file-head">
+              <span class="file-name">composer.json <span class="tag">package</span></span>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <pre><code class="blk">{
+  <span class="c-key">"name"</span>: <span class="c-str">"your-org/your-app"</span>,
+  <span class="c-key">"type"</span>: <span class="c-str">"project"</span>,
+  <span class="c-key">"require"</span>: {
+    <span class="c-key">"php"</span>: <span class="c-str">">=8.3"</span>
+  },
+  <span class="c-key">"scripts"</span>: {
+    <span class="c-key">"test"</span>: <span class="c-str">"phpunit"</span>
+  }
+}</code></pre>
+          </div>
+        </div>
+        <div class="qs-steps">
+          <div>
+            <div class="file">
+              <div class="file-head">
+                <span class="file-name">terminal <span class="tag">dry run</span></span>
+                <button class="copy" type="button">Copy</button>
+              </div>
+              <pre><code class="blk"><span class="c-com"># preview the next release without publishing</span>
+<span class="c-fn">big-release</span> --dry-run</code></pre>
+            </div>
+          </div>
+          <ol class="steps-list">
+            <li><span class="k">1</span><div><h3>Commit with a convention</h3><p>Use <code>feat:</code> / <code>fix:</code> prefixes. That's the whole contract.</p></div></li>
+            <li><span class="k">2</span><div><h3>Drop in <code>.big-release.yml</code></h3><p>Set <code>tagFormat</code> and pick your plugins. Copy the block above.</p></div></li>
+            <li><span class="k">3</span><div><h3>Add the release workflow</h3><p>Install the binary, run <code>big-release release</code> after <code>composer test</code>.</p></div></li>
+            <li><span class="k">4</span><div><h3>Merge to <code>main</code></h3><p>big-release does the rest &mdash; tag, GitHub Release, changelog, deploy.</p></div></li>
+          </ol>
+        </div>
+        <details class="trouble">
+          <summary>Troubleshooting</summary>
+          <div class="trouble-body">
+            <p><strong>composer.json version not updated:</strong> big-release manages the git tag, not <code>composer.json</code>. If you publish to Packagist, add the <code>packagist</code> publisher in <code>.big-release.yml</code>.</p>
+            <p><strong>Protected branch rejection:</strong> big-release only pushes tags and creates Releases via the API. Protected branches work out of the box.</p>
+            <p><strong>Auth failures:</strong> Ensure <code>GITHUB_TOKEN</code> has <code>contents: write</code> permission.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Comparison ── -->
+  <section id="vs">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Compare</span>
+        <h2>big-release vs semantic-release</h2>
+        <p>big-release is a from-scratch Go port of semantic-release's core algorithm, built to fix two things: the Node.js runtime requirement and protected-branch friction.</p>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="cmp-table">
+          <thead>
+            <tr><th></th><th>big-release</th><th>semantic-release</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Runtime</td><td>Single static binary, no runtime</td><td>Requires Node.js + npm install</td></tr>
+            <tr><td>Languages</td><td>Go, Node, Python, Rust, PHP, Java, Swift, Godot</td><td>Node-first (others via community plugins)</td></tr>
+            <tr><td>Protected branches</td><td>Works with zero config out of the box</td><td>Requires branch-protection accommodation</td></tr>
+            <tr><td>Config</td><td>One <code class="mono">.big-release.yml</code></td><td><code class="mono">.releaserc</code> + per-plugin npm installs</td></tr>
+            <tr><td>Conventional Commits</td><td>&#10003;</td><td>&#10003;</td></tr>
+            <tr><td>Multi-channel / prerelease</td><td>&#10003;</td><td>&#10003;</td></tr>
+            <tr><td>GitHub + GitLab Releases</td><td>&#10003;</td><td>&#10003; (separate plugins)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Commit rules ── -->
+  <section id="rules">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Version logic</span>
+        <h2>Every bump is decided by a commit</h2>
+        <p>big-release maps Conventional Commit types to semantic-version bumps. That's the entire rule set.</p>
+      </div>
+      <div class="rules">
+        <div class="rule">
+          <span class="cmt">feat:</span><span class="arrow">&rarr;</span><span class="bump">minor</span>
+          <p>A new feature bumps the middle digit &mdash; <span class="mono">0.3.1 &rarr; 0.4.0</span>.</p>
+        </div>
+        <div class="rule">
+          <span class="cmt">fix:</span><span class="arrow">&rarr;</span><span class="bump">patch</span>
+          <p>A bug fix bumps the last digit &mdash; <span class="mono">0.3.1 &rarr; 0.3.2</span>.</p>
+        </div>
+        <div class="rule">
+          <span class="cmt">BREAKING CHANGE:</span><span class="arrow">&rarr;</span><span class="bump">major</span>
+          <p>A breaking change bumps the first digit &mdash; <span class="mono">0.3.1 &rarr; 1.0.0</span>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Supported languages ── -->
+  <section id="languages">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Ecosystem</span>
+        <h2>9 languages, one workflow</h2>
+        <p>big-release auto-detects your language and publishes to the right registry.</p>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="lang-table">
+          <thead>
+            <tr><th>Language</th><th>Publisher</th><th>Registry</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>JavaScript / TypeScript</td><td><code class="mono">npm</code></td><td>npmjs.com</td></tr>
+            <tr><td>JavaScript (pnpm)</td><td><code class="mono">pnpm</code></td><td>npm-compatible registries</td></tr>
+            <tr><td>Python</td><td><code class="mono">pypi</code></td><td>pypi.org</td></tr>
+            <tr><td>Rust</td><td><code class="mono">crates</code></td><td>crates.io</td></tr>
+            <tr><td>Go</td><td><code class="mono">goproxy</code></td><td>proxy.golang.org</td></tr>
+            <tr><td>PHP</td><td><code class="mono">packagist</code></td><td>packagist.org</td></tr>
+            <tr><td>Java</td><td><code class="mono">maven</code></td><td>maven central</td></tr>
+            <tr><td>Swift</td><td><code class="mono">swift</code></td><td>swiftpackageindex.com</td></tr>
+            <tr><td>Godot / GDScript</td><td><code class="mono">godot</code></td><td>GitHub Releases</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ── -->
+  <footer class="site">
+    <div class="wrap">
+      <div class="foot-grid">
+        <div>
+          <div class="brand" style="margin-bottom:10px"><span class="dot"></span> big-release</div>
+          <div class="foot-note">One binary. Every language. The version badge is real.</div>
+        </div>
+        <div class="foot-langs">
+          <a class="foot-lang" href="https://go.bigbase.click"><span class="sw" style="background:#00add8"></span> Go</a>
+          <a class="foot-lang" href="https://node.bigbase.click"><span class="sw" style="background:#339933"></span> Node</a>
+          <a class="foot-lang" href="https://python.bigbase.click"><span class="sw" style="background:#3776ab"></span> Python</a>
+          <a class="foot-lang" href="https://php.bigbase.click"><span class="sw" style="background:#8892bf"></span> PHP</a>
+        </div>
+      </div>
+      <div class="foot-attr">
+        big-release is a from-scratch port of <a href="https://github.com/semantic-release/semantic-release">semantic-release</a>'s core algorithm (MIT License, Copyright 2017 Contributors).
+      </div>
+    </div>
+  </footer>
+
+<script>
+(function(){
+  // Theme toggle
+  var root=document.documentElement;
+  var t=document.getElementById('theme');
+  if(t){t.addEventListener('click',function(){
+    var cur=root.getAttribute('data-theme');
+    if(!cur){cur=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}
+    root.setAttribute('data-theme',cur==='dark'?'light':'dark');
+  });}
+
+  // Code block copy buttons
+  document.querySelectorAll('.copy').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var pre=btn.closest('.file').querySelector('code.blk');
+      var text=pre?pre.innerText:'';
+      if(navigator.clipboard){navigator.clipboard.writeText(text);}
+      var old=btn.textContent;btn.textContent='Copied ✓';btn.classList.add('done');
+      setTimeout(function(){btn.textContent=old;btn.classList.remove('done');},1400);
+    });
+  });
+
+  // Install tabs
+  document.querySelectorAll('.install-tab').forEach(function(tab){
+    tab.addEventListener('click',function(){
+      document.querySelectorAll('.install-tab').forEach(function(t){t.classList.remove('active');});
+      document.querySelectorAll('.install-panel').forEach(function(p){p.classList.remove('active');});
+      tab.classList.add('active');
+      document.getElementById(tab.dataset.target).classList.add('active');
+    });
+  });
+
+  // Quickstart tabs
+  document.querySelectorAll('.qs-tab').forEach(function(tab){
+    tab.addEventListener('click',function(){
+      document.querySelectorAll('.qs-tab').forEach(function(t){t.classList.remove('active');});
+      document.querySelectorAll('.qs-panel').forEach(function(p){p.classList.remove('active');});
+      tab.classList.add('active');
+      var panel=document.getElementById(tab.dataset.target);
+      panel.classList.add('active');
+      history.replaceState(null,null,'#quickstart-'+tab.dataset.target.replace('qs-',''));
+    });
+  });
+
+  // Activate tab from URL hash
+  var hash=location.hash;
+  if(hash&&hash.startsWith('#quickstart-')){
+    var lang=hash.replace('#quickstart-','');
+    var tab=document.querySelector('.qs-tab[data-target="qs-'+lang+'"]');
+    if(tab){tab.click();}
+  }
+
+  // "Copy to your agent" Markdown content
+  var agentMd={
+    go: '## Add big-release to this Go project\n\nCreate the following files to enable automated semantic releases with big-release.\n\n### 1. Create `.big-release.yml`\n\n```yaml\n# big-release configuration\ntagFormat: \"v${version}\"\ninitialVersion: \"0.1.0\"\n\nplugins:\n  - changelog\n  - git\n  - github\n```\n\n### 2. Create `.github/workflows/release.yml`\n\n```yaml\nname: Release\non:\n  push:\n    branches: [main]\n\njobs:\n  release:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v7\n        with:\n          fetch-depth: 0\n\n      - name: Install big-release\n        run: |\n          curl -sL https://github.com/danielvm-git/big-release/releases/latest/download/big-release-linux-amd64 -o big-release\n          chmod +x big-release && sudo mv big-release /usr/local/bin/\n\n      - name: Release\n        run: big-release release --verbose\n        env:\n          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n```\n\n### 3. Ensure `go.mod` exists\n\nYour project should have a `go.mod` with the module path set.\n\n### 4. Verify\n\n```bash\nbig-release --dry-run\n```\n\nAfter setup, use Conventional Commits (`feat:` for minor, `fix:` for patch, `BREAKING CHANGE:` for major). On merge to `main`, big-release automatically tags, creates a GitHub Release, and generates a changelog.',
+
+    node: '## Add big-release to this Node.js project\n\nCreate the following files to enable automated semantic releases with big-release.\n\n### 1. Create `.big-release.yml`\n\n```yaml\n# big-release configuration\ntagFormat: \"v${version}\"\ninitialVersion: \"0.1.0\"\n\nplugins:\n  - changelog\n  - git\n  - github\n```\n\n### 2. Create `.github/workflows/release.yml`\n\n```yaml\nname: Release\non:\n  push:\n    branches: [main]\n\njobs:\n  release:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v7\n        with:\n          fetch-depth: 0\n\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\n          cache: npm\n\n      - run: npm ci\n      - run: npm test\n\n      - name: Install big-release\n        run: |\n          curl -sL https://github.com/danielvm-git/big-release/releases/latest/download/big-release-linux-amd64 -o big-release\n          chmod +x big-release && sudo mv big-release /usr/local/bin/\n\n      - name: Release\n        run: big-release release --verbose\n        env:\n          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n```\n\n### 3. Ensure `package.json` exists\n\nYour project should have a `package.json` with `name` and `version` fields.\n\n### 4. Verify\n\n```bash\nbig-release --dry-run\n```\n\nAfter setup, use Conventional Commits (`feat:` for minor, `fix:` for patch, `BREAKING CHANGE:` for major). On merge to `main`, big-release automatically tags, creates a GitHub Release, and generates a changelog.',
+
+    python: '## Add big-release to this Python project\n\nCreate the following files to enable automated semantic releases with big-release.\n\n### 1. Create `.big-release.yml`\n\n```yaml\n# big-release configuration\ntagFormat: \"v${version}\"\ninitialVersion: \"0.1.0\"\n\nplugins:\n  - changelog\n  - git\n  - github\n```\n\n### 2. Create `.github/workflows/release.yml`\n\n```yaml\nname: Release\non:\n  push:\n    branches: [main]\n\njobs:\n  release:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v7\n        with:\n          fetch-depth: 0\n\n      - uses: actions/setup-python@v5\n        with:\n          python-version: \"3.12\"\n\n      - run: pip install uv && uv sync\n      - run: uv run pytest -q\n\n      - name: Install big-release\n        run: |\n          curl -sL https://github.com/danielvm-git/big-release/releases/latest/download/big-release-linux-amd64 -o big-release\n          chmod +x big-release && sudo mv big-release /usr/local/bin/\n\n      - name: Release\n        run: big-release release --verbose\n        env:\n          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n```\n\n### 3. Ensure `pyproject.toml` exists\n\nYour project should have a `pyproject.toml` with `[project]` section including `name` and `version`.\n\n### 4. Verify\n\n```bash\nbig-release --dry-run\n```\n\nAfter setup, use Conventional Commits (`feat:` for minor, `fix:` for patch, `BREAKING CHANGE:` for major). On merge to `main`, big-release automatically tags, creates a GitHub Release, and generates a changelog.',
+
+    php: '## Add big-release to this PHP project\n\nCreate the following files to enable automated semantic releases with big-release.\n\n### 1. Create `.big-release.yml`\n\n```yaml\n# big-release configuration\ntagFormat: \"v${version}\"\ninitialVersion: \"0.1.0\"\n\nplugins:\n  - changelog\n  - git\n  - github\n```\n\n### 2. Create `.github/workflows/release.yml`\n\n```yaml\nname: Release\non:\n  push:\n    branches: [main]\n\njobs:\n  release:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v7\n        with:\n          fetch-depth: 0\n\n      - uses: shivammathur/setup-php@v2\n        with:\n          php-version: \"8.3\"\n\n      - run: composer install --no-interaction\n      - run: composer test\n\n      - name: Install big-release\n        run: |\n          curl -sL https://github.com/danielvm-git/big-release/releases/latest/download/big-release-linux-amd64 -o big-release\n          chmod +x big-release && sudo mv big-release /usr/local/bin/\n\n      - name: Release\n        run: big-release release --verbose\n        env:\n          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n```\n\n### 3. Ensure `composer.json` exists\n\nYour project should have a `composer.json` with `name` and `require` fields.\n\n### 4. Verify\n\n```bash\nbig-release --dry-run\n```\n\nAfter setup, use Conventional Commits (`feat:` for minor, `fix:` for patch, `BREAKING CHANGE:` for major). On merge to `main`, big-release automatically tags, creates a GitHub Release, and generates a changelog.'
+  };
+
+  document.querySelectorAll('.copy-agent').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var lang=btn.dataset.lang;
+      var md=agentMd[lang]||'';
+      if(navigator.clipboard){navigator.clipboard.writeText(md);}
+      var old=btn.innerHTML;btn.innerHTML='✓ Copied to clipboard';btn.classList.add('done');
+      setTimeout(function(){btn.innerHTML=old;btn.classList.remove('done');},2000);
+    });
+  });
+})();
+</script>
+</body>
+</html>
