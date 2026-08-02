@@ -12,7 +12,9 @@ var indexHTML []byte
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(indexHTML)
+	if _, err := w.Write(indexHTML); err != nil {
+		return
+	}
 }
 
 func listenAddr() string {
