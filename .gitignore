@@ -35,5 +35,10 @@ Thumbs.db
 dist/
 /release/
 
+# Environment files
+.env
+.envrc
+
 # ZCode tooling artifacts
 .zcode/
+

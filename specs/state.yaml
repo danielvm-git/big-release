@@ -1,10 +1,12 @@
 workflow_mode: solo-git
-active_flow: null
+active_flow: fix_bug
 active_epic: null
 active_story: null
 epic_cycle: null
-bug_id: null
-bug_cycle: null
+bug_id: BUG-bigbase-site-deploy-missing-secrets
+bug_cycle:
+  current_step: 4
+  completed_steps: [1, 2, 3]
 bigpowers_version: 2.76.1
 environment:
   go: 1.26.3
@@ -12,16 +14,17 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'Deep QA audit complete. 22 bugs fixed (14 prior + 8 new). 12 deferred. All tests green. CI green.'
-  next_skill: null
+  context: 'Provisioned BigBase site and repository secrets (BIGBASE_DEPLOY_TOKEN, BIGBASE_SITE_ID) via gh CLI and MCP.'
+  next_skill: validate-fix
 release:
   commit_landed: true
   ci_verified: true
   security_gate: PASS
   traceability_gate: WAIVED
 bugs:
-  total: 34
+  total: 35
   fixed: 22
   deferred: 12
-  open: 0
-  last_verified: "2026-07-30"
+  open: 1
+  last_verified: "2026-08-02"
+
