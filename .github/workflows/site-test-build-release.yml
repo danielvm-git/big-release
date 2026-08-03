@@ -120,7 +120,7 @@ jobs:
             '{sha: $sha, ref: $ref, app_type: $app_type}' > deploy-meta.json
 
       - name: Upload deploy-meta artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: deploy-meta
           path: site/deploy-meta.json
