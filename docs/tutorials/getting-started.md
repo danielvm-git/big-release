@@ -24,6 +24,9 @@ sudo mv big-release /usr/local/bin/
 
 ```bash
 curl -sL https://github.com/danielvm-git/big-release/releases/latest/download/big-release-linux-amd64 -o big-release
+# Verify integrity against the published SHA256 checksum
+curl -sL https://github.com/danielvm-git/big-release/releases/latest/download/big-release-linux-amd64.sha256 -o big-release.sha256
+echo "$(cat big-release.sha256)  big-release" | sha256sum -c -
 chmod +x big-release
 sudo mv big-release /usr/local/bin/
 ```

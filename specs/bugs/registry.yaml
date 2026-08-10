@@ -805,7 +805,7 @@ bugs:
     commit_message: "fix(git): respect tagOnly in PostPublish"
 
   - id: BUG-sha256-checksums
-    status: open
+    status: fixed
     severity: medium
     scope: internal/plugins
     title: Release binaries published without SHA256 checksums (supply chain risk)
@@ -814,7 +814,12 @@ bugs:
       after uploading each binary asset, compute the digest and upload
       <name>.sha256 (hex-only + newline) so consumers can verify integrity
       with sha256sum -c. Additive for all consumer repos; no config change.
+      Same behavior added to the GitLab plugin (generalize-fix sweep:
+      match_count = 2, both fixed). Checksum upload failure fails the release.
     risk_level: low
     files_changed:
       - internal/plugins/github_assets.go
+      - internal/plugins/gitlab.go
+      - internal/plugins/github_test.go
+      - internal/plugins/gitlab_test.go
     commit_message: "feat(plugins): publish SHA256 checksums for release assets"

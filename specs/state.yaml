@@ -5,8 +5,8 @@ active_story: null
 epic_cycle: null
 bug_id: BUG-sha256-checksums
 bug_cycle:
-  current_step: 3
-  completed_steps: [1, 2]
+  current_step: 4
+  completed_steps: [1, 2, 3]
 bigpowers_version: 2.76.1
 environment:
   go: 1.26.3

@@ -2,6 +2,8 @@
 package plugins
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -292,11 +294,92 @@ func TestGitLabPluginPublish_UploadsAssets(t *testing.T) {
 	if releaseCalled != 1 {
 		t.Errorf("expected 1 release POST, got %d", releaseCalled)
 	}
-	if uploadCalled != 1 {
-		t.Errorf("expected 1 upload POST, got %d", uploadCalled)
+	if uploadCalled != 2 {
+		t.Errorf("expected 2 uploads (binary + checksum), got %d", uploadCalled)
 	}
-	if linkCalled != 1 {
-		t.Errorf("expected 1 asset link POST, got %d", linkCalled)
+	if linkCalled != 2 {
+		t.Errorf("expected 2 asset links (binary + checksum), got %d", linkCalled)
+	}
+}
+
+func TestGitLabPluginPublish_UploadsChecksums(t *testing.T) {
+	// Same integrity contract as the GitHub plugin (issue #67): every
+	// uploaded asset is accompanied by a <name>.sha256 asset whose content
+	// is the hex SHA-256 digest, linked on the release.
+	tmp := t.TempDir()
+	assetPath := tmp + "/big-release-linux-amd64"
+	content := []byte("binary-bytes")
+	if err := os.WriteFile(assetPath, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(content)
+	wantHex := hex.EncodeToString(sum[:]) + "\n"
+
+	var releaseCalled, uploadCalled, linkCalled int
+	var sawChecksumUpload, sawChecksumLink bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releases"):
+			releaseCalled++
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"tag_name":"1.0.0"}`))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/uploads"):
+			uploadCalled++
+			body, _ := io.ReadAll(r.Body)
+			if strings.Contains(string(body), ".sha256") {
+				sawChecksumUpload = true
+				if !strings.Contains(string(body), wantHex) {
+					t.Errorf("checksum upload missing hex digest %q, got: %s", wantHex, body)
+				}
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"url":"/uploads/abc/asset","full_path":"/group/project/uploads/abc/asset"}`))
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/assets/links"):
+			linkCalled++
+			body, _ := io.ReadAll(r.Body)
+			if strings.Contains(string(body), ".sha256") {
+				sawChecksumLink = true
+			}
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITLAB_TOKEN", "test-token")
+	setEnv(t, "CI_PROJECT_ID", "12345")
+	setEnv(t, "CI_PROJECT_URL", server.URL+"/group/project")
+	defer unsetEnv(t, "GITLAB_TOKEN")
+	defer unsetEnv(t, "CI_PROJECT_ID")
+	defer unsetEnv(t, "CI_PROJECT_URL")
+
+	p := NewGitLabPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL + "/api/v4"
+	p.assets = []algorithm.AssetConfig{{Path: assetPath, Label: "big-release-linux-amd64"}}
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	if _, err := p.Publish(ctx, state); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if releaseCalled != 1 {
+		t.Errorf("expected 1 release POST, got %d", releaseCalled)
+	}
+	if uploadCalled != 2 {
+		t.Errorf("expected 2 uploads (binary + checksum), got %d", uploadCalled)
+	}
+	if linkCalled != 2 {
+		t.Errorf("expected 2 asset links (binary + checksum), got %d", linkCalled)
+	}
+	if !sawChecksumUpload || !sawChecksumLink {
+		t.Errorf("checksum upload=%v link=%v, want both true", sawChecksumUpload, sawChecksumLink)
 	}
 }
 

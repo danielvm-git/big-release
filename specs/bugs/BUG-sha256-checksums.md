@@ -107,4 +107,21 @@ no public interface changes.
 
 ## Resolution
 
-<!-- filled in by validate-fix -->
+**Fixed:** 2026-08-10
+**Root cause confirmed:** Checksum generation was entirely absent from the release
+pipeline — the GitHub plugin uploaded exactly the configured assets and computed
+no digests.
+**Fix applied:** The GitHub and GitLab plugins now automatically publish a
+`<name>.sha256` asset (hex-only digest + newline) alongside every uploaded
+release asset, so consumers can verify with
+`echo "$(cat f.sha256)  f" | sha256sum -c -`. Docs updated with the verification
+pattern.
+**Hardening added:** Automatic per-asset checksum publication (defect class:
+"release artifacts published without integrity metadata"). Generalize-fix sweep:
+2 asset uploaders found (internal/plugins/github_assets.go, internal/plugins/gitlab.go)
+— both fixed; match_count = 2, 0 remaining. Checksum upload failure fails the
+release (no silent integrity loss) in the GitHub plugin.
+**Evidence:** `make preflight` PASS (lint + vet + full `go test ./...`); checksum
+format verified end-to-end with `sha256sum -c`.
+**Commit:** `feat(plugins): publish SHA256 checksums for release assets`
+(+ `feat(plugins): publish SHA256 checksums for gitlab release assets`)

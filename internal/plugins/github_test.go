@@ -2,6 +2,8 @@
 package plugins
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -303,8 +305,135 @@ func TestGitHubPluginPublish_UploadsAssets(t *testing.T) {
 	if releaseCalled != 1 {
 		t.Errorf("expected 1 release POST, got %d", releaseCalled)
 	}
-	if assetCalled != 1 {
-		t.Errorf("expected 1 asset upload, got %d", assetCalled)
+	if assetCalled != 2 {
+		t.Errorf("expected 2 asset uploads (binary + .sha256 checksum), got %d", assetCalled)
+	}
+}
+
+func TestGitHubPluginPublish_UploadsChecksums(t *testing.T) {
+	// Each uploaded binary asset must be accompanied by a <name>.sha256
+	// asset whose body is the lowercase hex SHA-256 digest of the binary
+	// (hex-only + newline), so consumers can verify integrity with
+	// sha256sum -c (issue #67).
+	tmp := t.TempDir()
+	assetPath := tmp + "/big-release-linux-amd64"
+	content := []byte("binary-bytes")
+	if err := os.WriteFile(assetPath, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(content)
+	wantHex := hex.EncodeToString(sum[:]) + "\n"
+
+	var releaseCalled, checksumCalled int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/releases") && r.Method == http.MethodPost {
+			releaseCalled++
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 42}`))
+			return
+		}
+		if strings.Contains(r.URL.Path, "/assets") && r.Method == http.MethodPost {
+			name := r.URL.Query().Get("name")
+			switch name {
+			case "big-release-linux-amd64.sha256":
+				checksumCalled++
+				body, _ := io.ReadAll(r.Body)
+				if string(body) != wantHex {
+					t.Errorf("checksum body = %q, want %q", string(body), wantHex)
+				}
+			case "big-release-linux-amd64":
+				// binary upload — content is streamed; not asserted here
+			default:
+				t.Errorf("unexpected asset upload name %q", name)
+			}
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+	p.uploadBaseURL = server.URL
+	p.assets = []algorithm.AssetConfig{{Path: assetPath}}
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	if _, err := p.Publish(ctx, state); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if releaseCalled != 1 {
+		t.Errorf("expected 1 release POST, got %d", releaseCalled)
+	}
+	if checksumCalled != 1 {
+		t.Errorf("expected 1 checksum upload, got %d", checksumCalled)
+	}
+}
+
+func TestGitHubPluginPublish_ChecksumUploadFailureFails(t *testing.T) {
+	// A release that loses checksum integrity must not pass silently: a
+	// failed .sha256 upload fails the release (issue #67).
+	tmp := t.TempDir()
+	assetPath := tmp + "/big-release-linux-amd64"
+	if err := os.WriteFile(assetPath, []byte("binary-bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/releases") && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 42}`))
+			return
+		}
+		if strings.Contains(r.URL.Path, "/assets") && r.Method == http.MethodPost {
+			if strings.HasSuffix(r.URL.Query().Get("name"), ".sha256") {
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte(`{"message": "upload exploded"}`))
+				return
+			}
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+	p.uploadBaseURL = server.URL
+	p.assets = []algorithm.AssetConfig{{Path: assetPath}}
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	_, err := p.Publish(ctx, state)
+	if err == nil {
+		t.Fatal("expected error when checksum upload fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "big-release-linux-amd64.sha256") {
+		t.Errorf("error should name the checksum asset, got: %v", err)
 	}
 }
 

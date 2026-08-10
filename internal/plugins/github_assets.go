@@ -1,6 +1,9 @@
 package plugins
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"mime"
@@ -31,33 +34,49 @@ func (p *GitHubPlugin) uploadAssets(repo string, releaseID int64) error {
 	return nil
 }
 
-// uploadOneAsset uploads a single file to the release.
+// uploadOneAsset uploads a single file to the release, then publishes a
+// <name>.sha256 checksum asset so consumers can verify binary integrity.
 func (p *GitHubPlugin) uploadOneAsset(repo string, releaseID int64, asset algorithm.AssetConfig) error {
-	f, err := os.Open(asset.Path)
+	data, err := os.ReadFile(asset.Path)
 	if err != nil {
 		// Missing file is a warning, not a failure.
 		fmt.Fprintf(os.Stderr, "warning: could not open asset %q: %v\n", asset.Path, err)
 		return nil
 	}
-	defer func() { _ = f.Close() }()
 
 	name := asset.Label
 	if name == "" {
 		name = filepath.Base(asset.Path)
 	}
+	if err := p.uploadBytes(repo, releaseID, name, data, mimeTypeForAsset(name)); err != nil {
+		return err
+	}
+
+	// Publish a SHA-256 checksum alongside every asset (issue #67). The
+	// digest is hex-only + newline so consumers can verify with the standard
+	// pattern: echo "$(cat f.sha256)  f" | sha256sum -c -
+	sum := sha256.Sum256(data)
+	hexSum := hex.EncodeToString(sum[:]) + "\n"
+	if err := p.uploadBytes(repo, releaseID, name+".sha256", []byte(hexSum), "text/plain"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// uploadBytes uploads raw bytes to the release via the GitHub uploads
+// endpoint under the given asset name.
+func (p *GitHubPlugin) uploadBytes(repo string, releaseID int64, name string, data []byte, contentType string) error {
 	uploadURL := fmt.Sprintf("%s/repos/%s/releases/%d/assets?name=%s",
 		p.uploadsHost(), repo, releaseID, url.QueryEscape(name))
 
-	req, err := http.NewRequest(http.MethodPost, uploadURL, f)
+	req, err := http.NewRequest(http.MethodPost, uploadURL, bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("failed to create asset upload request for %q: %w", name, err)
 	}
-	if stat, err := f.Stat(); err == nil {
-		req.ContentLength = stat.Size()
-	}
+	req.ContentLength = int64(len(data))
 	token := os.Getenv("GITHUB_TOKEN")
 	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", mimeTypeForAsset(name))
+	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
 	resp, err := p.client.Do(req)

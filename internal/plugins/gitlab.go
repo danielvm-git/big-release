@@ -3,6 +3,8 @@ package plugins
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -307,23 +309,35 @@ func (p *GitLabPlugin) uploadAssets(tagName string) error {
 }
 
 func (p *GitLabPlugin) uploadOneAsset(tagName string, asset algorithm.AssetConfig) error {
-	f, err := os.Open(asset.Path)
+	data, err := os.ReadFile(asset.Path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: could not open asset %q: %v\n", asset.Path, err)
 		return nil
 	}
-	defer func() { _ = f.Close() }()
 
 	name := asset.Label
 	if name == "" {
 		name = filepath.Base(asset.Path)
 	}
 
-	uploadURL, err := p.uploadFile(f, name)
+	uploadURL, err := p.uploadFile(bytes.NewReader(data), name)
 	if err != nil {
 		return err
 	}
-	return p.createAssetLink(tagName, name, uploadURL)
+	if err := p.createAssetLink(tagName, name, uploadURL); err != nil {
+		return err
+	}
+
+	// Publish a SHA-256 checksum alongside every asset (issue #67) so
+	// consumers can verify integrity: echo "$(cat f.sha256)  f" | sha256sum -c -
+	sum := sha256.Sum256(data)
+	hexSum := hex.EncodeToString(sum[:]) + "\n"
+	checksumName := name + ".sha256"
+	csumURL, err := p.uploadFile(bytes.NewReader([]byte(hexSum)), checksumName)
+	if err != nil {
+		return err
+	}
+	return p.createAssetLink(tagName, checksumName, csumURL)
 }
 
 func (p *GitLabPlugin) uploadFile(r io.Reader, filename string) (string, error) {
