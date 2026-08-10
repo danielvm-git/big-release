@@ -803,3 +803,18 @@ bugs:
     files_changed:
       - internal/plugins/git.go
     commit_message: "fix(git): respect tagOnly in PostPublish"
+
+  - id: BUG-sha256-checksums
+    status: open
+    severity: medium
+    scope: internal/plugins
+    title: Release binaries published without SHA256 checksums (supply chain risk)
+    approach: |
+      Add automatic SHA-256 checksum asset upload to the GitHub plugin:
+      after uploading each binary asset, compute the digest and upload
+      <name>.sha256 (hex-only + newline) so consumers can verify integrity
+      with sha256sum -c. Additive for all consumer repos; no config change.
+    risk_level: low
+    files_changed:
+      - internal/plugins/github_assets.go
+    commit_message: "feat(plugins): publish SHA256 checksums for release assets"

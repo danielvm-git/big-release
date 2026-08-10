@@ -1,6 +1,6 @@
 ---
 bug_id: BUG-bigbase-site-deploy-missing-secrets
-status: open
+status: fixed
 severity: high
 scope: ci
 title: Site Deploy action failed due to missing BIGBASE_DEPLOY_TOKEN secret

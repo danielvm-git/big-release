@@ -3,10 +3,10 @@ active_flow: fix_bug
 active_epic: null
 active_story: null
 epic_cycle: null
-bug_id: BUG-bigbase-site-deploy-missing-secrets
+bug_id: BUG-sha256-checksums
 bug_cycle:
-  current_step: 4
-  completed_steps: [1, 2, 3]
+  current_step: 3
+  completed_steps: [1, 2]
 bigpowers_version: 2.76.1
 environment:
   go: 1.26.3
