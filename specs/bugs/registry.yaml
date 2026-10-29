@@ -1,4 +1,19 @@
 bugs:
+  - id: BUG-branch-string-form
+    status: fixed
+    severity: medium
+    scope: internal/algorithm, internal/config
+    title: "Documented `branches: - main` string form fails to parse"
+    approach: |
+      BranchConfig gains UnmarshalYAML/UnmarshalJSON: a scalar is a branch name,
+      an object decodes as before via a method-less alias type, anything else errors
+      with a hint. README/docs examples now parse.
+    risk_level: low
+    files_changed:
+      - internal/algorithm/branch_config.go
+      - internal/config/config_test.go
+    commit_message: "fix(config): accept bare branch names in the branches list"
+
   - id: BUG-tag-ignores-tagformat
     status: fixed
     severity: high
