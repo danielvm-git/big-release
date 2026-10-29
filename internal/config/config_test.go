@@ -235,3 +235,62 @@ func TestLoad_ExplicitNonexistentFile_ReturnsError(t *testing.T) {
 		t.Fatal("expected error for nonexistent explicit config file, got nil")
 	}
 }
+
+// --- BUG-branch-string-form: README documents `branches: - main` ---
+
+func loadConfigText(t *testing.T, name, text string) *algorithm.Config {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load(%s) failed: %v", name, err)
+	}
+	return cfg
+}
+
+func TestFileLoading_YAMLBranchStringForm(t *testing.T) {
+	cfg := loadConfigText(t, ".big-release.yml", `
+branches:
+  - main
+  - "N.x"
+  - name: beta
+    prerelease: true
+tagFormat: "v${version}"
+`)
+	want := []string{"main", "N.x", "beta"}
+	if len(cfg.Branches) != len(want) {
+		t.Fatalf("expected %d branches, got %d: %+v", len(want), len(cfg.Branches), cfg.Branches)
+	}
+	for i, name := range want {
+		if cfg.Branches[i].Name != name {
+			t.Errorf("branch %d: expected name %q, got %q", i, name, cfg.Branches[i].Name)
+		}
+	}
+	if cfg.Branches[2].Prerelease != "true" {
+		t.Errorf("object form must keep its fields, got prerelease %q", cfg.Branches[2].Prerelease)
+	}
+	if err := ValidateConfig(cfg); err != nil {
+		t.Fatalf("string-form branches must validate: %v", err)
+	}
+}
+
+func TestFileLoading_JSONBranchStringForm(t *testing.T) {
+	cfg := loadConfigText(t, ".big-release.json",
+		`{"branches":["main",{"name":"next","channel":"next"}],"tagFormat":"v${version}"}`)
+	if len(cfg.Branches) != 2 || cfg.Branches[0].Name != "main" || cfg.Branches[1].Channel != "next" {
+		t.Fatalf("unexpected branches: %+v", cfg.Branches)
+	}
+}
+
+func TestFileLoading_YAMLBranchRejectsSequence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".big-release.yml")
+	if err := os.WriteFile(path, []byte("branches:\n  - [main]\ntagFormat: \"v${version}\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("a nested list is not a branch and must fail to parse")
+	}
+}
