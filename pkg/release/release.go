@@ -413,6 +413,18 @@ func (r *Release) effectivePlugins() []string {
 			return names
 		}
 	}
+	// Insert before git: Phase 6.5 runs PostPublish in declaration order, so
+	// git must commit postTagAssets only after the version file exists
+	// (issue #75). Without a git entry, appending is safe.
+	for i, name := range names {
+		if name != "git" {
+			continue
+		}
+		out := make([]string, 0, len(names)+1)
+		out = append(out, names[:i]...)
+		out = append(out, "versionfile")
+		return append(out, names[i:]...)
+	}
 	return append(names, "versionfile")
 }
 

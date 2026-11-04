@@ -2,6 +2,7 @@ package release
 
 import (
 	"os"
+	"slices"
 	"testing"
 
 	"go.uber.org/zap"
@@ -125,5 +126,91 @@ func TestPostPublish_RunsInPluginDeclarationOrder(t *testing.T) {
 	}
 	if len(events) != 2 || events[0] != "versionfile" || events[1] != "git" {
 		t.Fatalf("PostPublish order = %v, want [versionfile git]", events)
+	}
+}
+
+func releaseWithPlugins(names []string, vf *algorithm.VersionFileConfig) *Release {
+	return New(&Context{
+		Config:  &algorithm.Config{Plugins: names, VersionFile: vf},
+		Logger:  zap.NewNop(),
+		Plugins: plugins.NewRegistry(),
+	})
+}
+
+func TestEffectivePlugins_InsertsVersionFileBeforeGit(t *testing.T) {
+	r := releaseWithPlugins(
+		[]string{"changelog", "git", "github"},
+		&algorithm.VersionFileConfig{Path: "VERSION"},
+	)
+	want := []string{"changelog", "versionfile", "git", "github"}
+	if got := r.effectivePlugins(); !slices.Equal(got, want) {
+		t.Fatalf("effectivePlugins = %v, want %v", got, want)
+	}
+}
+
+func TestEffectivePlugins_AppendsWhenGitAbsent(t *testing.T) {
+	r := releaseWithPlugins(
+		[]string{"changelog", "github"},
+		&algorithm.VersionFileConfig{Path: "VERSION"},
+	)
+	want := []string{"changelog", "github", "versionfile"}
+	if got := r.effectivePlugins(); !slices.Equal(got, want) {
+		t.Fatalf("effectivePlugins = %v, want %v", got, want)
+	}
+}
+
+func TestEffectivePlugins_ExplicitVersionFileUnchanged(t *testing.T) {
+	r := releaseWithPlugins(
+		[]string{"versionfile", "git"},
+		&algorithm.VersionFileConfig{Path: "VERSION"},
+	)
+	want := []string{"versionfile", "git"}
+	if got := r.effectivePlugins(); !slices.Equal(got, want) {
+		t.Fatalf("effectivePlugins = %v, want %v", got, want)
+	}
+}
+
+// fileCheckGitStub stands in for the git plugin and records whether the
+// version file existed when its PostPublish ran.
+type fileCheckGitStub struct {
+	path    string
+	sawFile bool
+}
+
+func (p *fileCheckGitStub) Name() string { return "git" }
+func (p *fileCheckGitStub) PostPublish(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) error {
+	_, err := os.Stat(p.path)
+	p.sawFile = err == nil
+	return nil
+}
+
+func TestTopLevelVersionFile_WritesBeforeGitPostPublish(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	cfg := &algorithm.Config{
+		Branches:       []algorithm.BranchConfig{{Name: "main"}},
+		TagFormat:      "v${version}",
+		InitialVersion: "0.1.0",
+		Plugins:        []string{"git"}, // versionfile is auto-added, not listed
+		VersionFile:    &algorithm.VersionFileConfig{Path: "VERSION", Template: "{{.Version}}"},
+	}
+	gitStub := &fileCheckGitStub{path: "VERSION"}
+	reg := plugins.Snapshot()
+	reg.Register(gitStub) // shadow the real git plugin for this run
+
+	r := New(&Context{
+		Config:     cfg,
+		Logger:     zap.NewNop(),
+		DryRun:     false,
+		Plugins:    reg,
+		Publishers: publishers.NewRegistry(),
+	})
+	state := &algorithm.MutableState{Status: algorithm.ReleaseStatusPending}
+
+	if err := r.runPluginLifecycle(featLifecycleContext(cfg), state); err != nil {
+		t.Fatalf("runPluginLifecycle failed: %v", err)
+	}
+	if !gitStub.sawFile {
+		t.Fatal("git PostPublish ran before versionfile wrote VERSION")
 	}
 }
