@@ -25,12 +25,13 @@ type Context struct {
 
 // Release orchestrates the full release lifecycle: plugins then publishers.
 type Release struct {
-	ctx *Context
+	ctx              *Context
+	detectPublishers func() []publishers.Publisher
 }
 
 // New creates a new Release orchestrator from a CLI-level Context.
 func New(ctx *Context) *Release {
-	return &Release{ctx: ctx}
+	return &Release{ctx: ctx, detectPublishers: publishers.Detect}
 }
 
 // Run executes the full release lifecycle:
@@ -563,7 +564,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 }
 
 func (r *Release) runPublishers(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
-	detected := publishers.Detect()
+	detected := r.detectPublishers()
 
 	// Filter detected publishers against config. Skip publishers with enabled: false.
 	// Detected publishers not in the config map still run (backward compatible).
@@ -575,6 +576,8 @@ func (r *Release) runPublishers(ctx *algorithm.ReadOnlyContext, state *algorithm
 		}
 		filtered = append(filtered, p)
 	}
+
+	state.Publishers = newPublisherLedger(filtered)
 
 	for _, p := range filtered {
 		if setter, ok := p.(interface{ SetDryRun(bool) }); ok {
@@ -603,23 +606,70 @@ func (r *Release) runPublishers(ctx *algorithm.ReadOnlyContext, state *algorithm
 
 	for _, pub := range filtered {
 		if err := pub.Prepare(version); err != nil {
+			r.failPublisher(state, pub.Name(), err)
 			return fmt.Errorf("publisher %q prepare failed: %w", pub.Name(), err)
 		}
+		setPublisherStatus(state, pub.Name(), algorithm.PublisherStatusPrepared, "")
 	}
 
 	for _, pub := range filtered {
 		if err := pub.Publish(version); err != nil {
+			r.failPublisher(state, pub.Name(), err)
 			return fmt.Errorf("publisher %q publish failed: %w", pub.Name(), err)
 		}
+		setPublisherStatus(state, pub.Name(), algorithm.PublisherStatusPublished, "")
 	}
 
 	for _, pub := range filtered {
 		if err := pub.Verify(version); err != nil {
+			r.failPublisher(state, pub.Name(), err)
 			return fmt.Errorf("publisher %q verify failed: %w", pub.Name(), err)
 		}
+		setPublisherStatus(state, pub.Name(), algorithm.PublisherStatusVerified, "")
 	}
 
+	r.logPublisherLedger(state)
 	return nil
+}
+
+// newPublisherLedger returns one pending entry per filtered publisher (NT-3).
+func newPublisherLedger(filtered []publishers.Publisher) []algorithm.PublisherRunState {
+	ledger := make([]algorithm.PublisherRunState, 0, len(filtered))
+	for _, p := range filtered {
+		ledger = append(ledger, algorithm.PublisherRunState{
+			Name:   p.Name(),
+			Status: algorithm.PublisherStatusPending,
+		})
+	}
+	return ledger
+}
+
+// setPublisherStatus updates one ledger entry by publisher name. The entry is
+// left untouched when the name is absent (defensive against reordering).
+func setPublisherStatus(state *algorithm.MutableState, name string, status algorithm.PublisherStatus, errText string) {
+	for i := range state.Publishers {
+		if state.Publishers[i].Name != name {
+			continue
+		}
+		state.Publishers[i].Status = status
+		state.Publishers[i].Err = errText
+		return
+	}
+}
+
+// failPublisher records the failed status and error text for one publisher and
+// logs the ledger with the failing publisher as a structured field.
+func (r *Release) failPublisher(state *algorithm.MutableState, name string, err error) {
+	setPublisherStatus(state, name, algorithm.PublisherStatusFailed, err.Error())
+	r.ctx.Logger.Error("Publisher failed",
+		zap.String("publisher", name),
+		zap.Error(err),
+		zap.Any("publishers", state.Publishers))
+}
+
+// logPublisherLedger emits the completed per-publisher outcomes.
+func (r *Release) logPublisherLedger(state *algorithm.MutableState) {
+	r.ctx.Logger.Info("Publisher ledger", zap.Any("publishers", state.Publishers))
 }
 
 // handleFailure compensates a release that failed after its lifecycle began,

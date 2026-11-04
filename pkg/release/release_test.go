@@ -1,6 +1,7 @@
 package release
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -1420,6 +1421,174 @@ func (m *mockPostPublisher) Name() string {
 
 func (m *mockPostPublisher) PostPublish(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	return m.postPublishFn(ctx, state)
+}
+
+// --- Story NT-3: per-publisher run-state ledger ---
+
+// ledgerTestPublisher is a scriptable publisher that records lifecycle calls
+// and can fail any phase on demand.
+type ledgerTestPublisher struct {
+	name       string
+	prepareErr error
+	publishErr error
+	verifyErr  error
+	calls      []string
+	onPublish  func()
+	onVerify   func()
+}
+
+func (p *ledgerTestPublisher) Name() string   { return p.name }
+func (p *ledgerTestPublisher) Detect() bool   { return true }
+func (p *ledgerTestPublisher) SetDryRun(bool) {}
+
+func (p *ledgerTestPublisher) Prepare(string) error {
+	p.calls = append(p.calls, "prepare")
+	return p.prepareErr
+}
+
+func (p *ledgerTestPublisher) Publish(string) error {
+	p.calls = append(p.calls, "publish")
+	if p.onPublish != nil {
+		p.onPublish()
+	}
+	return p.publishErr
+}
+
+func (p *ledgerTestPublisher) Verify(string) error {
+	p.calls = append(p.calls, "verify")
+	if p.onVerify != nil {
+		p.onVerify()
+	}
+	return p.verifyErr
+}
+
+// newLedgerRelease wires a Release whose publisher detection is overridden so
+// tests get a deterministic, isolated publisher set.
+func newLedgerRelease(pubs []publishers.Publisher) (*Release, *algorithm.ReadOnlyContext, *algorithm.MutableState, *observer.ObservedLogs) {
+	core, logs := observedCore()
+	cfg := &algorithm.Config{}
+	r := New(&Context{Config: cfg, Logger: zap.New(core)})
+	r.detectPublishers = func() []publishers.Publisher { return pubs }
+	algoCtx := &algorithm.ReadOnlyContext{Config: cfg, Branch: &algorithm.Branch{Name: "main"}}
+	state := &algorithm.MutableState{NextRelease: &algorithm.Release{Version: "1.2.3"}}
+	return r, algoCtx, state, logs
+}
+
+func assertPublisherLedger(t *testing.T, got, want []algorithm.PublisherRunState) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("ledger length = %d, want %d: %+v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("ledger[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func assertPublisherStatus(t *testing.T, state *algorithm.MutableState, name string, want algorithm.PublisherStatus) {
+	t.Helper()
+	for _, entry := range state.Publishers {
+		if entry.Name == name {
+			if entry.Status != want {
+				t.Errorf("publisher %s status = %q, want %q", name, entry.Status, want)
+			}
+			return
+		}
+	}
+	t.Errorf("publisher %s missing from ledger", name)
+}
+
+func TestRunPublishers_LedgerRecordsSuccess(t *testing.T) {
+	alpha := &ledgerTestPublisher{name: "alpha"}
+	beta := &ledgerTestPublisher{name: "beta"}
+	r, algoCtx, state, logs := newLedgerRelease([]publishers.Publisher{alpha, beta})
+
+	if err := r.runPublishers(algoCtx, state); err != nil {
+		t.Fatalf("runPublishers failed: %v", err)
+	}
+
+	assertPublisherLedger(t, state.Publishers, []algorithm.PublisherRunState{
+		{Name: "alpha", Status: algorithm.PublisherStatusVerified},
+		{Name: "beta", Status: algorithm.PublisherStatusVerified},
+	})
+	for _, p := range []*ledgerTestPublisher{alpha, beta} {
+		if got, want := strings.Join(p.calls, ","), "prepare,publish,verify"; got != want {
+			t.Errorf("publisher %s calls = %q, want %q", p.name, got, want)
+		}
+	}
+	if got := logs.FilterMessage("Publisher ledger").Len(); got != 1 {
+		t.Errorf("success ledger log count = %d, want 1", got)
+	}
+}
+
+func TestRunPublishers_LedgerStopsAtPrepareFailure(t *testing.T) {
+	alpha := &ledgerTestPublisher{name: "alpha", prepareErr: errors.New("prepare boom")}
+	beta := &ledgerTestPublisher{name: "beta"}
+	r, algoCtx, state, logs := newLedgerRelease([]publishers.Publisher{alpha, beta})
+
+	err := r.runPublishers(algoCtx, state)
+	if err == nil {
+		t.Fatal("expected prepare failure")
+	}
+	if !strings.Contains(err.Error(), `publisher "alpha" prepare failed`) {
+		t.Errorf("error = %q, want prepare failure for alpha", err.Error())
+	}
+	assertPublisherLedger(t, state.Publishers, []algorithm.PublisherRunState{
+		{Name: "alpha", Status: algorithm.PublisherStatusFailed, Err: "prepare boom"},
+		{Name: "beta", Status: algorithm.PublisherStatusPending},
+	})
+	if len(beta.calls) != 0 {
+		t.Errorf("later publisher calls = %v, want none", beta.calls)
+	}
+	failed := logs.FilterMessage("Publisher failed").All()
+	if len(failed) != 1 {
+		t.Fatalf("failure log count = %d, want 1", len(failed))
+	}
+	if got := failed[0].ContextMap()["publisher"]; got != "alpha" {
+		t.Errorf("failure log publisher = %v, want alpha", got)
+	}
+}
+
+func TestRunPublishers_LedgerRecordsPrepareThenPublishFailure(t *testing.T) {
+	var captured *algorithm.MutableState
+	alpha := &ledgerTestPublisher{
+		name:       "alpha",
+		publishErr: errors.New("publish boom"),
+		onPublish: func() {
+			if captured == nil {
+				t.Error("state not captured before publish")
+				return
+			}
+			assertPublisherStatus(t, captured, "alpha", algorithm.PublisherStatusPrepared)
+		},
+	}
+	beta := &ledgerTestPublisher{name: "beta"}
+	r, algoCtx, state, _ := newLedgerRelease([]publishers.Publisher{alpha, beta})
+	captured = state
+
+	err := r.runPublishers(algoCtx, state)
+	if err == nil {
+		t.Fatal("expected publish failure")
+	}
+	if !strings.Contains(err.Error(), `publisher "alpha" publish failed`) {
+		t.Errorf("error = %q, want publish failure for alpha", err.Error())
+	}
+	assertPublisherLedger(t, state.Publishers, []algorithm.PublisherRunState{
+		{Name: "alpha", Status: algorithm.PublisherStatusFailed, Err: "publish boom"},
+		{Name: "beta", Status: algorithm.PublisherStatusPrepared},
+	})
+}
+
+func TestRunPublishers_LedgerEmptyWhenNoPublishersDetected(t *testing.T) {
+	r, algoCtx, state, _ := newLedgerRelease(nil)
+
+	if err := r.runPublishers(algoCtx, state); err != nil {
+		t.Fatalf("runPublishers failed: %v", err)
+	}
+	if len(state.Publishers) != 0 {
+		t.Errorf("ledger length = %d, want 0: %+v", len(state.Publishers), state.Publishers)
+	}
 }
 
 type mockAnalyzerPlugin struct {

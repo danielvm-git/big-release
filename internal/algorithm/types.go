@@ -40,6 +40,26 @@ const (
 	ReleaseStatusFailed    ReleaseStatus = "failed"
 )
 
+// PublisherStatus is the lifecycle state of a single publisher within a
+// release run (FSM-3). An empty value is treated as pending.
+type PublisherStatus string
+
+const (
+	PublisherStatusPending   PublisherStatus = "pending"
+	PublisherStatusPrepared  PublisherStatus = "prepared"
+	PublisherStatusPublished PublisherStatus = "published"
+	PublisherStatusVerified  PublisherStatus = "verified"
+	PublisherStatusFailed    PublisherStatus = "failed"
+)
+
+// PublisherRunState records the outcome of one publisher in a release run
+// (NT-3). Err holds the failure text when Status is failed.
+type PublisherRunState struct {
+	Name   string          `json:"name"`
+	Status PublisherStatus `json:"status"`
+	Err    string          `json:"err,omitempty"`
+}
+
 // Release represents a release to be created
 type Release struct {
 	Version string
@@ -167,4 +187,5 @@ type MutableState struct {
 	NextRelease *Release
 	Notes       string
 	Assets      []Asset
+	Publishers  []PublisherRunState
 }
