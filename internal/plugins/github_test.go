@@ -441,6 +441,175 @@ func TestGitHubPluginPublish_ChecksumUploadFailureFails(t *testing.T) {
 	}
 }
 
+func TestGitHubPluginPublish_AssetFailureDeletesRelease(t *testing.T) {
+	// NT-5: if a release was created but an asset upload fails, the plugin
+	// must DELETE the release so no half-published release remains, then
+	// return the original upload error (cleanup is best-effort).
+	tmp := t.TempDir()
+	assetPath := tmp + "/big-release-linux-amd64"
+	if err := os.WriteFile(assetPath, []byte("binary-bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var releaseCalled, deleteCalled int
+	var deletedPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releases"):
+			releaseCalled++
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 42}`))
+		case r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/releases/"):
+			deleteCalled++
+			deletedPath = r.URL.Path
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/assets"):
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"message": "upload exploded"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+	p.uploadBaseURL = server.URL
+	p.assets = []algorithm.AssetConfig{{Path: assetPath}}
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	_, err := p.Publish(ctx, state)
+	if err == nil {
+		t.Fatal("expected the original upload error, got nil")
+	}
+	if releaseCalled != 1 {
+		t.Errorf("expected 1 release POST, got %d", releaseCalled)
+	}
+	if deleteCalled != 1 {
+		t.Fatalf("expected 1 DELETE to clean up the release, got %d", deleteCalled)
+	}
+	if deletedPath != "/repos/owner/repo/releases/42" {
+		t.Errorf("DELETE path = %q, want %q", deletedPath, "/repos/owner/repo/releases/42")
+	}
+	if !strings.Contains(err.Error(), "asset upload") {
+		t.Errorf("expected original upload error, got: %v", err)
+	}
+}
+
+func TestGitHubPluginPublish_DraftPublishFailureDeletesDraft(t *testing.T) {
+	// NT-6: a draft release that fails to publish must not linger as an
+	// invisible orphan — DELETE it and return the original PATCH error.
+	var deleteCalled int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releases"):
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 42}`))
+		case r.Method == http.MethodPatch && strings.Contains(r.URL.Path, "/releases/"):
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"message": "patch exploded"}`))
+		case r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/releases/"):
+			deleteCalled++
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+	p.uploadBaseURL = server.URL
+	p.draftRelease = true
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	_, err := p.Publish(ctx, state)
+	if err == nil {
+		t.Fatal("expected the original draft publish error, got nil")
+	}
+	if deleteCalled != 1 {
+		t.Fatalf("expected 1 DELETE to remove the orphan draft, got %d", deleteCalled)
+	}
+	if !strings.Contains(err.Error(), "draft publish failed") {
+		t.Errorf("expected original draft publish error, got: %v", err)
+	}
+}
+
+func TestGitHubPluginPublish_CleanupFailureReturnsOriginalError(t *testing.T) {
+	// A failed cleanup must be logged, not replace the original upload error.
+	tmp := t.TempDir()
+	assetPath := tmp + "/big-release-linux-amd64"
+	if err := os.WriteFile(assetPath, []byte("binary-bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releases"):
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 42}`))
+		case r.Method == http.MethodDelete:
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"message": "delete exploded"}`))
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/assets"):
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"message": "upload exploded"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+	p.uploadBaseURL = server.URL
+	p.assets = []algorithm.AssetConfig{{Path: assetPath}}
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	_, err := p.Publish(ctx, state)
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "asset upload") {
+		t.Errorf("cleanup failure must not mask the original upload error, got: %v", err)
+	}
+	if strings.Contains(err.Error(), "delete exploded") {
+		t.Errorf("original upload error was replaced by cleanup error: %v", err)
+	}
+}
+
 func TestGitHubPluginPublish_MissingAssetLogsWarningNotFailure(t *testing.T) {
 	// A configured asset that does not exist on disk must NOT fail the release.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

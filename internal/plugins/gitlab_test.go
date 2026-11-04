@@ -4,12 +4,16 @@ package plugins
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/danielvm-git/big-release/internal/algorithm"
 )
@@ -380,6 +384,77 @@ func TestGitLabPluginPublish_UploadsChecksums(t *testing.T) {
 	}
 	if !sawChecksumUpload || !sawChecksumLink {
 		t.Errorf("checksum upload=%v link=%v, want both true", sawChecksumUpload, sawChecksumLink)
+	}
+}
+
+func TestGitLabPluginPublish_UploadsMultipleAssetsConcurrently(t *testing.T) {
+	// H8: independent assets fan out concurrently (bounded to maxUploadWorkers)
+	// and every asset still gets both its binary and .sha256 link uploads.
+	tmp := t.TempDir()
+	for i := 0; i < 2; i++ {
+		path := fmt.Sprintf("%s/asset-%d", tmp, i)
+		if err := os.WriteFile(path, []byte(fmt.Sprintf("data-%d", i)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var inFlight atomic.Int32
+	var uploads, links atomic.Int32
+	bothStarted := make(chan struct{})
+	var once sync.Once
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releases"):
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"tag_name":"1.0.0"}`))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/uploads"):
+			uploads.Add(1)
+			if inFlight.Add(1) == 2 {
+				once.Do(func() { close(bothStarted) })
+			}
+			select {
+			case <-bothStarted:
+			case <-time.After(2 * time.Second):
+				t.Error("asset uploads were serialized")
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"url":"/uploads/abc/asset","full_path":"/group/project/uploads/abc/asset"}`))
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/assets/links"):
+			links.Add(1)
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITLAB_TOKEN", "test-token")
+	setEnv(t, "CI_PROJECT_ID", "12345")
+	setEnv(t, "CI_PROJECT_URL", server.URL+"/group/project")
+	defer unsetEnv(t, "GITLAB_TOKEN")
+	defer unsetEnv(t, "CI_PROJECT_ID")
+	defer unsetEnv(t, "CI_PROJECT_URL")
+
+	p := NewGitLabPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL + "/api/v4"
+	p.assets = []algorithm.AssetConfig{{Path: tmp + "/asset-*"}}
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	if _, err := p.Publish(ctx, state); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if got := uploads.Load(); got != 4 {
+		t.Errorf("expected 4 uploads (2 binaries + 2 checksums), got %d", got)
+	}
+	if got := links.Load(); got != 4 {
+		t.Errorf("expected 4 asset links (2 binaries + 2 checksums), got %d", got)
 	}
 }
 

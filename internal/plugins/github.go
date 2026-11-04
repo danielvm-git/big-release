@@ -299,6 +299,9 @@ func (p *GitHubPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.
 	// Upload configured assets (if any). Missing files warn but do not fail.
 	if len(p.assets) > 0 && releaseID != 0 {
 		if err := p.uploadAssets(repo, releaseID); err != nil {
+			// NT-5: the release exists but has no complete asset set; remove
+			// it so no half-published release is left behind.
+			p.deleteRelease(repo, releaseID)
 			return nil, err
 		}
 	}
@@ -306,10 +309,38 @@ func (p *GitHubPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.
 	// Draft releases are published atomically after asset upload (#13).
 	if p.draftRelease && releaseID != 0 {
 		if err := p.publishDraft(ctx, repo, releaseID); err != nil {
+			// NT-6: the draft was created but never published; delete it so
+			// no invisible orphan draft remains.
+			p.deleteRelease(repo, releaseID)
 			return nil, err
 		}
 	}
 	return nil, nil
+}
+
+// deleteRelease attempts to DELETE a release that was created earlier in a
+// publish attempt that has now failed (NT-5/NT-6). Cleanup is best-effort:
+// failures are logged to stderr and never replace the caller's original error.
+func (p *GitHubPlugin) deleteRelease(repo string, releaseID int64) {
+	deleteURL := fmt.Sprintf("%s/repos/%s/releases/%d", p.releaseURLBase(), repo, releaseID)
+	req, err := http.NewRequest(http.MethodDelete, deleteURL, nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to build release cleanup request for %d: %v\n", releaseID, err)
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("GITHUB_TOKEN"))
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: release cleanup failed for %d: %v\n", releaseID, err)
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Fprintf(os.Stderr, "warning: release cleanup failed for %d (HTTP %d): %s\n", releaseID, resp.StatusCode, string(body))
+	}
 }
 
 // publishDraft flips a draft release to published via PATCH.

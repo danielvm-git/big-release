@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 
@@ -300,12 +301,34 @@ func (p *GitLabPlugin) uploadAssets(tagName string) error {
 		fmt.Fprintf(os.Stderr, "warning: %s\n", errMsg)
 	}
 
+	// H8: independent assets upload concurrently, bounded to maxUploadWorkers,
+	// mirroring the GitHub plugin. Each asset still publishes its own binary
+	// and .sha256 checksum.
+	sem := make(chan struct{}, maxUploadWorkers)
+	var (
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		firstErr error
+	)
 	for _, asset := range assets {
-		if err := p.uploadOneAsset(tagName, asset); err != nil {
-			return err
-		}
+		asset := asset
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			if err := p.uploadOneAsset(tagName, asset); err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
+			}
+		}()
 	}
-	return nil
+	wg.Wait()
+	return firstErr
 }
 
 func (p *GitLabPlugin) uploadOneAsset(tagName string, asset algorithm.AssetConfig) error {
