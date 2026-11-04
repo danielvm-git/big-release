@@ -3,6 +3,7 @@ package release
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	"go.uber.org/zap"
 
@@ -121,16 +122,60 @@ func mapBranchConfig(branchName string, configs []algorithm.BranchConfig) *algor
 	return branch
 }
 
-// buildAlgoContext gathers git state and constructs ReadOnlyContext and MutableState.
-func (r *Release) buildAlgoContext() (*algorithm.ReadOnlyContext, *algorithm.MutableState, error) {
-	branchName, err := r.ctx.Git.GetCurrentBranch()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get current branch: %w", err)
+// readGitState performs the three git reads that do not depend on each other
+// concurrently. Each is a separate git subprocess, so running them in sequence
+// paid the process-spawn latency three times on every release.
+func (r *Release) readGitState() (branchName string, lastRelease *algorithm.Release, repoURL string, err error) {
+	var (
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		firstErr error
+	)
+	record := func(e error) {
+		mu.Lock()
+		if firstErr == nil {
+			firstErr = e
+		}
+		mu.Unlock()
 	}
 
-	lastRelease, err := r.ctx.Git.GetLastRelease(r.ctx.Config.TagFormat)
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		v, e := r.ctx.Git.GetCurrentBranch()
+		if e != nil {
+			record(fmt.Errorf("failed to get current branch: %w", e))
+			return
+		}
+		branchName = v
+	}()
+	go func() {
+		defer wg.Done()
+		v, e := r.ctx.Git.GetLastRelease(r.ctx.Config.TagFormat)
+		if e != nil {
+			record(fmt.Errorf("failed to get last release: %w", e))
+			return
+		}
+		lastRelease = v
+	}()
+	go func() {
+		defer wg.Done()
+		v, e := r.ctx.Git.GetRepositoryURL()
+		if e != nil {
+			record(fmt.Errorf("failed to get repository URL: %w", e))
+			return
+		}
+		repoURL = v
+	}()
+	wg.Wait()
+	return branchName, lastRelease, repoURL, firstErr
+}
+
+// buildAlgoContext gathers git state and constructs ReadOnlyContext and MutableState.
+func (r *Release) buildAlgoContext() (*algorithm.ReadOnlyContext, *algorithm.MutableState, error) {
+	branchName, lastRelease, repoURL, err := r.readGitState()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get last release: %w", err)
+		return nil, nil, err
 	}
 
 	from := ""
@@ -140,11 +185,6 @@ func (r *Release) buildAlgoContext() (*algorithm.ReadOnlyContext, *algorithm.Mut
 	commits, err := r.ctx.Git.GetCommits(from, "HEAD")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get commits: %w", err)
-	}
-
-	repoURL, err := r.ctx.Git.GetRepositoryURL()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get repository URL: %w", err)
 	}
 
 	readOnly := &algorithm.ReadOnlyContext{
@@ -183,6 +223,14 @@ func (r *Release) Run() error {
 		return err
 	}
 
+	// No concrete version means the lifecycle produced nothing to publish.
+	// This is a terminal state: falling through would hand publishers an
+	// empty version and run success hooks for a release that never happened.
+	if !hasPublishableRelease(state) {
+		r.ctx.Logger.Info("No publishable release produced, skipping publishers and success hooks")
+		return nil
+	}
+
 	if err := r.runPublishers(algoCtx, state); err != nil {
 		r.callFailHooks(algoCtx, state, err)
 		return err
@@ -199,6 +247,13 @@ func (r *Release) Run() error {
 	}
 
 	return nil
+}
+
+// hasPublishableRelease reports whether the lifecycle produced a release with
+// a concrete version. NextRelease can be non-nil with only Notes populated
+// (notes without a release type), so nil-checking alone is not enough.
+func hasPublishableRelease(state *algorithm.MutableState) bool {
+	return state != nil && state.NextRelease != nil && state.NextRelease.Version != ""
 }
 
 // writeStepOutput exposes the computed version (and a published flag) to the

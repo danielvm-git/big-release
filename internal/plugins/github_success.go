@@ -8,9 +8,15 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/danielvm-git/big-release/internal/algorithm"
 )
+
+// maxCommentWorkers bounds the concurrent issue-comment requests. Each is an
+// independent HTTP round-trip, so the fan-out is parallel but capped to stay
+// well inside GitHub's secondary rate limits.
+const maxCommentWorkers = 4
 
 // Success is called after a successful release. It posts a comment to
 // each issue/PR referenced in the release commits (via fixes/closes/
@@ -44,12 +50,38 @@ func (p *GitHubPlugin) Success(ctx *algorithm.ReadOnlyContext, state *algorithm.
 	}
 
 	repo := os.Getenv("GITHUB_REPOSITORY")
-	for n := range seen {
-		if err := p.postIssueComment(repo, n, comment); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not comment on issue #%d: %v\n", n, err)
-		}
-	}
+	p.postIssueComments(repo, seen, comment)
 	return nil
+}
+
+// postIssueComments posts comment to every referenced issue concurrently,
+// bounded by maxCommentWorkers. Commenting is best-effort: a failure is
+// collected as a warning and never fails an otherwise-successful release.
+func (p *GitHubPlugin) postIssueComments(repo string, issues map[int]bool, comment string) {
+	sem := make(chan struct{}, maxCommentWorkers)
+	var (
+		wg    sync.WaitGroup
+		mu    sync.Mutex
+		warns []string
+	)
+	for n := range issues {
+		n := n
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			if err := p.postIssueComment(repo, n, comment); err != nil {
+				mu.Lock()
+				warns = append(warns, fmt.Sprintf("could not comment on issue #%d: %v", n, err))
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	for _, w := range warns {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", w)
+	}
 }
 
 // buildSuccessComment renders the success comment template, or falls back

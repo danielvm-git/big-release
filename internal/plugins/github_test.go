@@ -4,12 +4,16 @@ package plugins
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/danielvm-git/big-release/internal/algorithm"
 )
@@ -871,12 +875,17 @@ func TestParseReferencedIssues(t *testing.T) {
 }
 
 func TestGitHubPluginSuccess_CommentsOnReferencedIssues(t *testing.T) {
-	var commented []string
+	var (
+		mu        sync.Mutex
+		commented []string
+	)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// POST /repos/{repo}/issues/{n}/comments
 		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/issues/") && strings.Contains(r.URL.Path, "/comments") {
 			body, _ := io.ReadAll(r.Body)
+			mu.Lock()
 			commented = append(commented, r.URL.Path)
+			mu.Unlock()
 			if !strings.Contains(string(body), "2.0.0") {
 				t.Errorf("comment body should include version, got: %s", body)
 			}
@@ -910,6 +919,115 @@ func TestGitHubPluginSuccess_CommentsOnReferencedIssues(t *testing.T) {
 	}
 	if len(commented) != 2 {
 		t.Errorf("expected 2 issue comments, got %d: %v", len(commented), commented)
+	}
+}
+
+func TestGitHubPluginSuccess_PostsCommentsConcurrently(t *testing.T) {
+	// Independent issue comments are HTTP round-trips and must not be paid
+	// one after another. Two comments are in flight at once only when the
+	// fan-out is concurrent.
+	var inFlight atomic.Int32
+	bothStarted := make(chan struct{})
+	var once sync.Once
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/comments") {
+			if inFlight.Add(1) == 2 {
+				once.Do(func() { close(bothStarted) })
+			}
+			select {
+			case <-bothStarted:
+			case <-time.After(2 * time.Second):
+				t.Error("issue comments were posted sequentially")
+			}
+			w.WriteHeader(http.StatusCreated)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+
+	ctx := &algorithm.ReadOnlyContext{
+		DryRun:  false,
+		Commits: []*algorithm.Commit{{Message: "fix: crash, closes #42 and fixes #99"}},
+	}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "2.0.0", Type: algorithm.ReleaseTypeMajor},
+	}
+
+	if err := p.Success(ctx, state); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+}
+
+func TestGitHubPluginPublish_UploadsAssetsConcurrently(t *testing.T) {
+	// Each asset upload is an independent HTTP request. Two assets must be
+	// in flight at once, and every asset (plus its checksum) must still land.
+	tmp := t.TempDir()
+	for i := 0; i < 2; i++ {
+		path := fmt.Sprintf("%s/asset-%d", tmp, i)
+		if err := os.WriteFile(path, []byte(fmt.Sprintf("data-%d", i)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var inFlight atomic.Int32
+	var uploads atomic.Int32
+	bothStarted := make(chan struct{})
+	var once sync.Once
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releases") {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id": 42}`))
+			return
+		}
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/assets") {
+			uploads.Add(1)
+			if inFlight.Add(1) == 2 {
+				once.Do(func() { close(bothStarted) })
+			}
+			select {
+			case <-bothStarted:
+			case <-time.After(2 * time.Second):
+				t.Error("asset uploads were serialized")
+			}
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	setEnv(t, "GITHUB_TOKEN", "test-token")
+	setEnv(t, "GITHUB_REPOSITORY", "owner/repo")
+	defer unsetEnv(t, "GITHUB_TOKEN")
+	defer unsetEnv(t, "GITHUB_REPOSITORY")
+
+	p := NewGitHubPlugin()
+	p.client = server.Client()
+	p.apiBaseURL = server.URL
+	p.uploadBaseURL = server.URL
+	p.assets = []algorithm.AssetConfig{{Path: tmp + "/asset-*"}}
+
+	ctx := &algorithm.ReadOnlyContext{DryRun: false}
+	state := &algorithm.MutableState{
+		NextRelease: &algorithm.Release{Version: "1.0.0", Type: algorithm.ReleaseTypePatch, Notes: "n"},
+	}
+
+	if _, err := p.Publish(ctx, state); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if got := uploads.Load(); got != 4 {
+		t.Errorf("expected 4 uploads (2 binaries + 2 checksums), got %d", got)
 	}
 }
 

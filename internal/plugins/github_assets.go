@@ -12,36 +12,69 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/danielvm-git/big-release/internal/algorithm"
 )
 
-// uploadAssets expands configured asset globs and uploads each file to
-// the given release via the GitHub uploads endpoint. Missing files are
-// logged as warnings and skipped (non-fatal).
+// maxUploadWorkers bounds the concurrent asset uploads. Each upload is an
+// independent HTTP request; the cap keeps memory (one file per worker) and
+// connection use predictable.
+const maxUploadWorkers = 4
+
+// uploadAssets expands configured asset globs and uploads each file to the
+// given release via the GitHub uploads endpoint. Missing files are logged as
+// warnings and skipped (non-fatal). Independent uploads run concurrently.
 func (p *GitHubPlugin) uploadAssets(repo string, releaseID int64) error {
 	assets, errs := expandAssetGlobs(p.assets)
 	// Missing globs/files are warnings, not failures (#10 acceptance).
 	for _, errMsg := range errs {
 		fmt.Fprintf(os.Stderr, "warning: %s\n", errMsg)
 	}
-
-	for _, asset := range assets {
-		if err := p.uploadOneAsset(repo, releaseID, asset); err != nil {
-			return err
-		}
+	if len(assets) == 0 {
+		return nil
 	}
-	return nil
+
+	sem := make(chan struct{}, maxUploadWorkers)
+	var (
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		firstErr error
+		warns    []string
+	)
+	for _, asset := range assets {
+		asset := asset
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			warn, err := p.uploadOneAsset(repo, releaseID, asset)
+			mu.Lock()
+			defer mu.Unlock()
+			if warn != "" {
+				warns = append(warns, warn)
+			}
+			if err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}()
+	}
+	wg.Wait()
+	for _, w := range warns {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", w)
+	}
+	return firstErr
 }
 
 // uploadOneAsset uploads a single file to the release, then publishes a
 // <name>.sha256 checksum asset so consumers can verify binary integrity.
-func (p *GitHubPlugin) uploadOneAsset(repo string, releaseID int64, asset algorithm.AssetConfig) error {
+// A missing file is returned as a warning (non-fatal) with a nil error.
+func (p *GitHubPlugin) uploadOneAsset(repo string, releaseID int64, asset algorithm.AssetConfig) (warning string, err error) {
 	data, err := os.ReadFile(asset.Path)
 	if err != nil {
-		// Missing file is a warning, not a failure.
-		fmt.Fprintf(os.Stderr, "warning: could not open asset %q: %v\n", asset.Path, err)
-		return nil
+		return fmt.Sprintf("could not open asset %q: %v", asset.Path, err), nil
 	}
 
 	name := asset.Label
@@ -49,7 +82,7 @@ func (p *GitHubPlugin) uploadOneAsset(repo string, releaseID int64, asset algori
 		name = filepath.Base(asset.Path)
 	}
 	if err := p.uploadBytes(repo, releaseID, name, data, mimeTypeForAsset(name)); err != nil {
-		return err
+		return "", err
 	}
 
 	// Publish a SHA-256 checksum alongside every asset (issue #67). The
@@ -58,9 +91,9 @@ func (p *GitHubPlugin) uploadOneAsset(repo string, releaseID int64, asset algori
 	sum := sha256.Sum256(data)
 	hexSum := hex.EncodeToString(sum[:]) + "\n"
 	if err := p.uploadBytes(repo, releaseID, name+".sha256", []byte(hexSum), "text/plain"); err != nil {
-		return err
+		return "", err
 	}
-	return nil
+	return "", nil
 }
 
 // uploadBytes uploads raw bytes to the release via the GitHub uploads
