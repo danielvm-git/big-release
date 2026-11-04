@@ -16,7 +16,7 @@ handoff:
   next_skill: verify-work
 release:
   commit_landed: true
-  ci_verified: false
+  ci_verified: true
   security_gate: PASS
   traceability_gate: WAIVED
   coverage_gate: "WAIVED: 72.6% total statements (pkg/release 83.2%, plugins 78.9%, httputil 89.4%, git 53.1%, algorithm 59.1%); repo Makefile/CI enforce no coverage threshold"
