@@ -646,10 +646,12 @@ type fakeGit struct {
 	deleteErr            error
 	lastCreatedTag       string
 	lastDeletedTag       string
+	deleteTagCalls       int
 	deleteRemoteErr      error
 	remoteDeleteCalled   bool
 	lastRemoteTagRemote  string
 	lastRemoteTagDeleted string
+	deleteRemoteTagCalls int
 }
 
 func (f *fakeGit) GetCommits(from, to string) ([]*algorithm.Commit, error) {
@@ -729,11 +731,13 @@ func (f *fakeGit) PushTags(remote string) error {
 }
 
 func (f *fakeGit) DeleteTag(tag string) error {
+	f.deleteTagCalls++
 	f.lastDeletedTag = tag
 	return f.deleteErr
 }
 
 func (f *fakeGit) DeleteRemoteTag(remote, tag string) error {
+	f.deleteRemoteTagCalls++
 	f.remoteDeleteCalled = true
 	f.lastRemoteTagRemote = remote
 	f.lastRemoteTagDeleted = tag

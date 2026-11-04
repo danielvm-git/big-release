@@ -10,6 +10,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,6 +40,9 @@ type GitLabPlugin struct {
 	releaseBodyTemplate string
 	gitlabURL           string
 	gitlabProjectID     string
+
+	releaseMu         sync.Mutex
+	createdReleaseTag string
 }
 
 // NewGitLabPlugin creates a new GitLabPlugin.
@@ -286,6 +290,7 @@ func (p *GitLabPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.
 	if err := p.sendReleaseRequest(payload, version); err != nil {
 		return nil, err
 	}
+	p.recordRelease(version)
 
 	if len(p.assets) > 0 {
 		if err := p.uploadAssets(version); err != nil {
@@ -293,6 +298,65 @@ func (p *GitLabPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.
 		}
 	}
 	return nil, nil
+}
+
+// recordRelease remembers the release created by Publish so Rollback can
+// delete it if the lifecycle fails later.
+func (p *GitLabPlugin) recordRelease(tag string) {
+	p.releaseMu.Lock()
+	p.createdReleaseTag = tag
+	p.releaseMu.Unlock()
+}
+
+// forgetRelease clears the remembered release after it has been removed.
+func (p *GitLabPlugin) forgetRelease() {
+	p.recordRelease("")
+}
+
+// rememberedReleaseTag returns the release tag created by Publish, or "".
+func (p *GitLabPlugin) rememberedReleaseTag() string {
+	p.releaseMu.Lock()
+	defer p.releaseMu.Unlock()
+	return p.createdReleaseTag
+}
+
+// Rollback deletes the GitLab release created by a failed release. It is a
+// no-op when Publish never created one, and idempotent once the release is
+// gone (a 404 counts as already deleted). The git tag is handled by GitPlugin.
+func (p *GitLabPlugin) Rollback(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) error {
+	tag := p.rememberedReleaseTag()
+	if tag == "" {
+		return nil
+	}
+	if err := p.deleteReleaseByTag(tag); err != nil {
+		return err
+	}
+	p.forgetRelease()
+	return nil
+}
+
+// deleteReleaseByTag deletes a GitLab release and reports whether cleanup
+// actually failed.
+func (p *GitLabPlugin) deleteReleaseByTag(tag string) error {
+	url := fmt.Sprintf("%s/projects/%s/releases/%s", p.apiBase(), p.projectID(), neturl.PathEscape(tag))
+	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("gitlab plugin: failed to build release delete request for %q: %w", tag, err)
+	}
+	p.setAuth(req)
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("gitlab plugin: failed to delete release %q: %w", tag, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusNoContent, http.StatusNotFound:
+		return nil
+	default:
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("gitlab plugin: failed to delete release %q (HTTP %d): %s", tag, resp.StatusCode, string(body))
+	}
 }
 
 func (p *GitLabPlugin) uploadAssets(tagName string) error {

@@ -292,6 +292,50 @@ func (p *GitPlugin) Fail(ctx *algorithm.ReadOnlyContext, state *algorithm.Mutabl
 	return nil
 }
 
+// Rollback deletes the release tag created for a failed release. It is
+// idempotent: when the tag is already gone, it does nothing.
+//
+// Undoing the release commit itself is intentionally out of scope. Rewriting
+// pushed history is destructive on shared branches; the tag is the only
+// artifact that can be removed safely.
+func (p *GitPlugin) Rollback(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
+	if state == nil || state.NextRelease == nil || state.NextRelease.Version == "" {
+		return nil
+	}
+	tagFormat := ""
+	if ctx != nil && ctx.Config != nil {
+		tagFormat = ctx.Config.TagFormat
+	}
+	tag := git.FormatTag(tagFormat, state.NextRelease.Version)
+
+	tags, err := p.Git.GetTags()
+	if err != nil {
+		return fmt.Errorf("git plugin: failed to list tags for rollback: %w", err)
+	}
+	if !tagExists(tags, tag) {
+		return nil
+	}
+
+	var errs []error
+	if err := p.Git.DeleteTag(tag); err != nil {
+		errs = append(errs, fmt.Errorf("git plugin: failed to delete local tag %s: %w", tag, err))
+	}
+	if err := p.Git.DeleteRemoteTag("origin", tag); err != nil {
+		errs = append(errs, fmt.Errorf("git plugin: failed to delete remote tag %s: %w", tag, err))
+	}
+	return errors.Join(errs...)
+}
+
+// tagExists reports whether tag is present in tags.
+func tagExists(tags []string, tag string) bool {
+	for _, existing := range tags {
+		if existing == tag {
+			return true
+		}
+	}
+	return false
+}
+
 // matchModifiedAssets returns modified paths matching any configured asset glob.
 func matchModifiedAssets(modified, patterns []string) []string {
 	if len(patterns) == 0 || len(modified) == 0 {

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 
@@ -29,6 +30,9 @@ type GitHubPlugin struct {
 	releasedLabels         []string
 	discussionCategoryName string
 	makeLatest             *bool
+
+	releaseMu        sync.Mutex
+	createdReleaseID int64
 }
 
 // HTTPClient defines the interface for making HTTP requests.
@@ -295,6 +299,7 @@ func (p *GitHubPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.
 	if err != nil {
 		return nil, err
 	}
+	p.recordRelease(releaseID)
 
 	// Upload configured assets (if any). Missing files warn but do not fail.
 	if len(p.assets) > 0 && releaseID != 0 {
@@ -302,6 +307,7 @@ func (p *GitHubPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.
 			// NT-5: the release exists but has no complete asset set; remove
 			// it so no half-published release is left behind.
 			p.deleteRelease(repo, releaseID)
+			p.forgetRelease()
 			return nil, err
 		}
 	}
@@ -312,34 +318,80 @@ func (p *GitHubPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.
 			// NT-6: the draft was created but never published; delete it so
 			// no invisible orphan draft remains.
 			p.deleteRelease(repo, releaseID)
+			p.forgetRelease()
 			return nil, err
 		}
 	}
 	return nil, nil
 }
 
+// recordRelease remembers the release created by Publish so Rollback can
+// delete it if the lifecycle fails later.
+func (p *GitHubPlugin) recordRelease(releaseID int64) {
+	p.releaseMu.Lock()
+	p.createdReleaseID = releaseID
+	p.releaseMu.Unlock()
+}
+
+// forgetRelease clears the remembered release after it has been removed.
+func (p *GitHubPlugin) forgetRelease() {
+	p.recordRelease(0)
+}
+
+// rememberedReleaseID returns the release created by Publish, or 0.
+func (p *GitHubPlugin) rememberedReleaseID() int64 {
+	p.releaseMu.Lock()
+	defer p.releaseMu.Unlock()
+	return p.createdReleaseID
+}
+
+// Rollback deletes the GitHub release created by a failed release. It is a
+// no-op when Publish never created one, and idempotent once the release is
+// gone (a 404 counts as already deleted).
+func (p *GitHubPlugin) Rollback(_ *algorithm.ReadOnlyContext, _ *algorithm.MutableState) error {
+	releaseID := p.rememberedReleaseID()
+	if releaseID == 0 {
+		return nil
+	}
+	if err := p.deleteReleaseByID(os.Getenv("GITHUB_REPOSITORY"), releaseID); err != nil {
+		return err
+	}
+	p.forgetRelease()
+	return nil
+}
+
 // deleteRelease attempts to DELETE a release that was created earlier in a
 // publish attempt that has now failed (NT-5/NT-6). Cleanup is best-effort:
 // failures are logged to stderr and never replace the caller's original error.
 func (p *GitHubPlugin) deleteRelease(repo string, releaseID int64) {
+	if err := p.deleteReleaseByID(repo, releaseID); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", err)
+	}
+}
+
+// deleteReleaseByID performs the DELETE and reports whether cleanup actually
+// failed. A 404 means the release is already gone and counts as success, so
+// Rollback stays idempotent.
+func (p *GitHubPlugin) deleteReleaseByID(repo string, releaseID int64) error {
 	deleteURL := fmt.Sprintf("%s/repos/%s/releases/%d", p.releaseURLBase(), repo, releaseID)
 	req, err := http.NewRequest(http.MethodDelete, deleteURL, nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: failed to build release cleanup request for %d: %v\n", releaseID, err)
-		return
+		return fmt.Errorf("failed to build release cleanup request for %d: %w", releaseID, err)
 	}
 	req.Header.Set("Authorization", "Bearer "+os.Getenv("GITHUB_TOKEN"))
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: release cleanup failed for %d: %v\n", releaseID, err)
-		return
+		return fmt.Errorf("release cleanup failed for %d: %w", releaseID, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+	switch resp.StatusCode {
+	case http.StatusNoContent, http.StatusOK, http.StatusNotFound:
+		return nil
+	default:
 		body, _ := io.ReadAll(resp.Body)
-		fmt.Fprintf(os.Stderr, "warning: release cleanup failed for %d (HTTP %d): %s\n", releaseID, resp.StatusCode, string(body))
+		return fmt.Errorf("release cleanup failed for %d (HTTP %d): %s", releaseID, resp.StatusCode, string(body))
 	}
 }
 
