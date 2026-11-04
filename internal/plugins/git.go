@@ -4,6 +4,7 @@ package plugins
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -195,11 +196,21 @@ func (p *GitPlugin) createTag(tagFormat, version string) error {
 	return p.Git.CreateTag(tag, fmt.Sprintf("release %s", version))
 }
 
+// pushRefsError records whether the tag push had already landed when pushRefs
+// failed, so Publish knows whether a remote tag needs rolling back (NT-4).
+type pushRefsError struct {
+	tagsPushed bool
+	err        error
+}
+
+func (e *pushRefsError) Error() string { return e.err.Error() }
+func (e *pushRefsError) Unwrap() error { return e.err }
+
 func (p *GitPlugin) pushRefs() error {
 	// Push tags first — this is the critical artifact.
 	// If tag push fails, the release is incomplete.
 	if err := p.Git.PushTags("origin"); err != nil {
-		return fmt.Errorf("failed to push tags: %w", err)
+		return &pushRefsError{err: fmt.Errorf("failed to push tags: %w", err)}
 	}
 
 	// tagOnly is the declared opt-out for remotes the release identity cannot
@@ -216,7 +227,7 @@ func (p *GitPlugin) pushRefs() error {
 	// the commit did not land. The error carries git's stderr and, for policy
 	// rejections, a forge-aware hint.
 	if err := p.Git.Push("origin"); err != nil {
-		return fmt.Errorf("failed to push release commit: %w", err)
+		return &pushRefsError{tagsPushed: true, err: fmt.Errorf("failed to push release commit: %w", err)}
 	}
 	return nil
 }
@@ -233,9 +244,12 @@ func (p *GitPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.Mut
 	if err := p.createTag(tagFormat, state.NextRelease.Version); err != nil {
 		return nil, err
 	}
-	if err := p.pushRefs(); err != nil {
-		_ = p.deleteTag(tagFormat, state.NextRelease.Version)
-		return nil, fmt.Errorf("push failed, local tag %s removed: %w", git.FormatTag(tagFormat, state.NextRelease.Version), err)
+	if pushErr := p.pushRefs(); pushErr != nil {
+		tag := git.FormatTag(tagFormat, state.NextRelease.Version)
+		if cleanupErr := p.rollbackTag(tag, tagsPushedBy(pushErr)); cleanupErr != nil {
+			return nil, fmt.Errorf("push failed (%w) and tag cleanup failed: %w", pushErr, cleanupErr)
+		}
+		return nil, fmt.Errorf("push failed, local tag %s removed: %w", tag, pushErr)
 	}
 	if p.channelNoteRef != "" {
 		if err := p.Git.PushNotes("origin", p.channelNoteRef); err != nil {
@@ -245,8 +259,27 @@ func (p *GitPlugin) Publish(ctx *algorithm.ReadOnlyContext, state *algorithm.Mut
 	return nil, nil
 }
 
-func (p *GitPlugin) deleteTag(tagFormat, version string) error {
-	return p.Git.DeleteTag(git.FormatTag(tagFormat, version))
+// tagsPushedBy reports whether the failed push had already pushed the tag.
+func tagsPushedBy(pushErr error) bool {
+	var refErr *pushRefsError
+	return errors.As(pushErr, &refErr) && refErr.tagsPushed
+}
+
+// rollbackTag undoes tag creation after a failed push. The local delete always
+// runs; the remote delete runs only when PushTags already succeeded, because
+// otherwise this release never created a remote tag and deleting one could
+// remove a pre-existing tag (NT-4).
+func (p *GitPlugin) rollbackTag(tag string, tagsPushed bool) error {
+	var errs []error
+	if err := p.Git.DeleteTag(tag); err != nil {
+		errs = append(errs, fmt.Errorf("failed to delete local tag %s: %w", tag, err))
+	}
+	if tagsPushed {
+		if err := p.Git.DeleteRemoteTag("origin", tag); err != nil {
+			errs = append(errs, fmt.Errorf("failed to delete remote tag %s: %w", tag, err))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // Success is called after a successful release.

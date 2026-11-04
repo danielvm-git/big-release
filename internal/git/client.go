@@ -428,3 +428,15 @@ func (c *Client) DeleteTag(tag string) error {
 	}
 	return nil
 }
+
+// DeleteRemoteTag deletes a tag on the remote. The empty source refspec is
+// git's delete form: `git push <remote> :refs/tags/<tag>`. Used by
+// GitPlugin.Publish to undo a tag push when the release commit push fails
+// (NT-4); without it the remote keeps a tag no release commit points at.
+func (c *Client) DeleteRemoteTag(remote, tag string) error {
+	cmd := gitCmd("push", remote, ":refs/tags/"+tag)
+	if err := runGit(cmd); err != nil {
+		return fmt.Errorf("failed to delete remote tag %q: %w", tag, err)
+	}
+	return nil
+}

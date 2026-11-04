@@ -302,6 +302,91 @@ func TestGitPluginPublish(t *testing.T) {
 			t.Errorf("rollback deleted %q but created tag was %q — must match", fg.lastDeletedTag, fg.lastCreatedTag)
 		}
 	})
+
+	t.Run("NT-4: commit push failure also deletes the pushed remote tag", func(t *testing.T) {
+		fg := &fakeGit{
+			isRepo:        true,
+			pushCommitErr: fmt.Errorf("pre-receive hook declined"),
+		}
+		p := NewGitPlugin(fg)
+		ctx := &algorithm.ReadOnlyContext{
+			DryRun: false,
+			Config: &algorithm.Config{TagFormat: "v${version}"},
+		}
+		state := &algorithm.MutableState{
+			NextRelease: &algorithm.Release{Version: "2.0.0"},
+		}
+
+		if _, err := p.Publish(ctx, state); err == nil {
+			t.Fatal("expected error from release commit push failure")
+		}
+		if !fg.remoteDeleteCalled {
+			t.Fatal("expected remote tag deletion after PushTags succeeded and commit push failed")
+		}
+		if fg.lastRemoteTagDeleted != "v2.0.0" {
+			t.Errorf("expected remote tag %q to be deleted, got %q", "v2.0.0", fg.lastRemoteTagDeleted)
+		}
+		if fg.lastRemoteTagRemote != "origin" {
+			t.Errorf("expected remote %q, got %q", "origin", fg.lastRemoteTagRemote)
+		}
+		if fg.lastDeletedTag != "v2.0.0" {
+			t.Errorf("local rollback must be preserved: expected local delete of %q, got %q", "v2.0.0", fg.lastDeletedTag)
+		}
+	})
+
+	t.Run("NT-4: remote tag cleanup failure reports both the push and cleanup errors", func(t *testing.T) {
+		fg := &fakeGit{
+			isRepo:          true,
+			pushCommitErr:   fmt.Errorf("pre-receive hook declined"),
+			deleteRemoteErr: fmt.Errorf("remote unreachable"),
+		}
+		p := NewGitPlugin(fg)
+		ctx := &algorithm.ReadOnlyContext{
+			DryRun: false,
+			Config: &algorithm.Config{TagFormat: "v${version}"},
+		}
+		state := &algorithm.MutableState{
+			NextRelease: &algorithm.Release{Version: "2.0.0"},
+		}
+
+		_, err := p.Publish(ctx, state)
+		if err == nil {
+			t.Fatal("expected error from push plus cleanup failure")
+		}
+		for _, want := range []string{"pre-receive hook declined", "remote unreachable", "v2.0.0"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("expected error to mention %q, got: %v", want, err)
+			}
+		}
+		if fg.lastDeletedTag != "v2.0.0" {
+			t.Errorf("local delete must still be attempted, got %q", fg.lastDeletedTag)
+		}
+	})
+
+	t.Run("NT-4: tag push failure does not delete a remote tag it never pushed", func(t *testing.T) {
+		fg := &fakeGit{
+			isRepo:      true,
+			pushTagsErr: fmt.Errorf("failed to push tags"),
+		}
+		p := NewGitPlugin(fg)
+		ctx := &algorithm.ReadOnlyContext{
+			DryRun: false,
+			Config: &algorithm.Config{TagFormat: "v${version}"},
+		}
+		state := &algorithm.MutableState{
+			NextRelease: &algorithm.Release{Version: "2.0.0"},
+		}
+
+		if _, err := p.Publish(ctx, state); err == nil {
+			t.Fatal("expected error from tag push failure")
+		}
+		if fg.remoteDeleteCalled {
+			t.Error("must not delete a remote tag when PushTags itself failed")
+		}
+		if fg.lastDeletedTag != "v2.0.0" {
+			t.Errorf("local rollback must be preserved, got %q", fg.lastDeletedTag)
+		}
+	})
 }
 
 // TestFormatTag_RoundTripsWithGetLastRelease is the exact scenario from
@@ -536,31 +621,35 @@ func TestGitPluginRegistration(t *testing.T) {
 
 // fakeGit implements git.GitAPI for testing.
 type fakeGit struct {
-	commits            []*algorithm.Commit
-	tags               []string
-	tagHead            string
-	head               string
-	release            *algorithm.Release
-	repoURL            string
-	branch             string
-	isRepo             bool
-	changes            bool
-	modifiedFiles      []string
-	stagedPaths        []string
-	stageChangesCalled bool
-	lastCommitMsg      string
-	lastNote           string
-	lastNoteRef        string
-	pushedNotes        []string
-	createErr          error
-	pushErr            error
-	pushCommitErr      error
-	pushTagsErr        error
-	pushCalled         bool
-	pushTagsCalled     bool
-	deleteErr          error
-	lastCreatedTag     string
-	lastDeletedTag     string
+	commits              []*algorithm.Commit
+	tags                 []string
+	tagHead              string
+	head                 string
+	release              *algorithm.Release
+	repoURL              string
+	branch               string
+	isRepo               bool
+	changes              bool
+	modifiedFiles        []string
+	stagedPaths          []string
+	stageChangesCalled   bool
+	lastCommitMsg        string
+	lastNote             string
+	lastNoteRef          string
+	pushedNotes          []string
+	createErr            error
+	pushErr              error
+	pushCommitErr        error
+	pushTagsErr          error
+	pushCalled           bool
+	pushTagsCalled       bool
+	deleteErr            error
+	lastCreatedTag       string
+	lastDeletedTag       string
+	deleteRemoteErr      error
+	remoteDeleteCalled   bool
+	lastRemoteTagRemote  string
+	lastRemoteTagDeleted string
 }
 
 func (f *fakeGit) GetCommits(from, to string) ([]*algorithm.Commit, error) {
@@ -642,6 +731,13 @@ func (f *fakeGit) PushTags(remote string) error {
 func (f *fakeGit) DeleteTag(tag string) error {
 	f.lastDeletedTag = tag
 	return f.deleteErr
+}
+
+func (f *fakeGit) DeleteRemoteTag(remote, tag string) error {
+	f.remoteDeleteCalled = true
+	f.lastRemoteTagRemote = remote
+	f.lastRemoteTagDeleted = tag
+	return f.deleteRemoteErr
 }
 
 func (f *fakeGit) AddNote(note, ref string) error {
