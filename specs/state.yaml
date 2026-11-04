@@ -19,11 +19,11 @@ release:
   ci_verified: true
   security_gate: PASS
   traceability_gate: WAIVED
-  coverage_gate: "WAIVED: 72.6% total statements (pkg/release 83.2%, plugins 78.9%, httputil 89.4%, git 53.1%, algorithm 59.1%); repo Makefile/CI enforce no coverage threshold"
+  coverage_gate: "WAIVED: 79.1% total statements (algorithm 99.6%, git 93.4%, httputil 89.4%, pkg/release 83.2%, plugins 78.9%); repo Makefile/CI enforce no coverage threshold"
 bugs:
-  total: 42
+  total: 43
   fixed: 42
   deferred: 0
-  open: 0
+  open: 1
   last_verified: "2026-08-10"
 
