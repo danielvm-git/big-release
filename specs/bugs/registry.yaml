@@ -629,3 +629,24 @@ bugs:
       - pkg/release/versionfile_config_test.go
       - docs/how-to/version-file-sync.md
     commit_message: "fix(versionfile): wire top-level versionFile config and document plugin order"
+
+  - id: BUG-versionfile-top-level-order
+    status: fixed
+    severity: high
+    scope: pkg/release
+    title: Top-level versionFile auto-added after git, so the file was never committed
+    refs:
+      - https://github.com/danielvm-git/big-release/issues/75
+    approach: |
+      effectivePlugins() appended versionfile after the configured plugins, so
+      git.PostPublish committed postTagAssets before versionfile.PostPublish
+      wrote the file. It now inserts versionfile immediately before the first
+      git entry (appending only when git is absent). Regression tests cover
+      the effective order and a git-stub PostPublish observing the file.
+    fixed_in: "892f05a"
+    verified: "2026-11-04"
+    risk_level: low
+    files_changed:
+      - pkg/release/release.go
+      - pkg/release/versionfile_config_test.go
+    commit_message: "fix(release): insert versionfile before git in the effective plugin order"

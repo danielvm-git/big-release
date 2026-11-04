@@ -1,12 +1,10 @@
 workflow_mode: solo-git
-active_flow: fix_bug
+active_flow: null
 active_epic: null
 active_story: null
 epic_cycle: null
-bug_id: BUG-versionfile-top-level-order
-bug_cycle:
-  current_step: 5
-  completed_steps: [1, 2, 3, 4]
+bug_id: null
+bug_cycle: null
 bigpowers_version: 2.76.1
 environment:
   go: 1.26.3
@@ -15,7 +13,7 @@ environment:
   binary: ./bin/big-release (dev)
 handoff:
   context: 'NT-1..NT-7 and NT-10..NT-12 fixed; FSM-1/FSM-3 explicit (ReleaseStatus + PublisherRunState); Rollbacker compensates git tags and forge releases; per-run registry snapshots + RunResetter prevent cross-run state leaks; skipped runs emit released=false + reason= to GITHUB_OUTPUT. Coverage 79.1% (algorithm 99.6%, git 93.4%). Remaining low/intentional: NT-8/9.'
-  next_skill: release-branch
+  next_skill: null
 release:
   commit_landed: true
   ci_verified: true
@@ -23,8 +21,8 @@ release:
   traceability_gate: WAIVED
   coverage_gate: "WAIVED: 79.1% total statements (algorithm 99.6%, git 93.4%, httputil 89.4%, pkg/release 83.2%, plugins 78.9%); repo Makefile/CI enforce no coverage threshold"
 bugs:
-  total: 44
-  fixed: 44
+  total: 45
+  fixed: 45
   deferred: 0
   open: 0
   last_verified: "2026-11-04"
