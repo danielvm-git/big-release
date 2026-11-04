@@ -22,8 +22,8 @@ release:
   coverage_gate: "WAIVED: 79.1% total statements (algorithm 99.6%, git 93.4%, httputil 89.4%, pkg/release 83.2%, plugins 78.9%); repo Makefile/CI enforce no coverage threshold"
 bugs:
   total: 43
-  fixed: 42
+  fixed: 43
   deferred: 0
-  open: 1
+  open: 0
   last_verified: "2026-08-10"
 

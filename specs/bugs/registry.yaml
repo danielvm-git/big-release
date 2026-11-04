@@ -583,17 +583,23 @@ bugs:
     commit_message: "feat(plugins): publish SHA256 checksums for release assets"
 
   - id: BUG-getcommits-multiline-body
-    status: open
+    status: fixed
     severity: medium
     scope: internal/git
     title: GetCommits truncates multi-line commit bodies to the first line
     approach: |
       `git log --pretty=format:...%b` emits embedded newlines. GetCommits
-      splits the whole output on "\n" and skips continuation lines whose
-      field count is < 6, so only the first body line survives. Discovered
-      while raising coverage (W2); no failing test was committed.
-      Fix: use a record separator (e.g. %x1e) between commits and split on
-      that, or parse NUL-delimited fields with a state machine.
+      split the whole output on "\n" and skipped continuation lines whose
+      field count was < 6, so only the first body line survived.
+      Fix: append a trailing %x00 to the format and split the output on NUL.
+      Commit messages cannot contain NUL, so each body (including embedded
+      newlines) is exactly one field; records are parsed six fields at a time
+      with the record-separator newline stripped from the next hash.
+      Regression tests: TestGetCommits_PreservesMultiLineBody,
+      TestGetCommits_MultiLineBodiesAcrossCommits,
+      TestGetCommits_EmptyBodyStillParses.
+    fixed_in: "31f51ee"
+    verified: "2026-11-04"
     risk_level: low
     files_changed:
       - internal/git/client.go
