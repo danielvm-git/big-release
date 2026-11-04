@@ -1,3 +1,4 @@
+// story: NT-3 NT-7
 package release
 
 import (
@@ -196,10 +197,77 @@ func (r *Release) buildAlgoContext() (*algorithm.ReadOnlyContext, *algorithm.Mut
 		DryRun:        r.ctx.DryRun,
 	}
 	state := &algorithm.MutableState{
+		Status:      algorithm.ReleaseStatusPending,
 		LastRelease: lastRelease,
 		NextRelease: nil,
 	}
 	return readOnly, state, nil
+}
+
+// legalReleaseTransitions is the FSM-1 transition table. Keys are the status
+// before a transition; the value set holds the statuses reachable from it.
+// failed is reachable from every active state; no_release and failed are
+// terminal.
+var legalReleaseTransitions = map[algorithm.ReleaseStatus]map[algorithm.ReleaseStatus]bool{
+	algorithm.ReleaseStatusPending: {
+		algorithm.ReleaseStatusAnalyzing: true,
+		algorithm.ReleaseStatusFailed:    true,
+	},
+	algorithm.ReleaseStatusAnalyzing: {
+		algorithm.ReleaseStatusNoRelease: true,
+		algorithm.ReleaseStatusVersioned: true,
+		algorithm.ReleaseStatusFailed:    true,
+	},
+	algorithm.ReleaseStatusVersioned: {
+		algorithm.ReleaseStatusPrepared: true,
+		algorithm.ReleaseStatusFailed:   true,
+	},
+	algorithm.ReleaseStatusPrepared: {
+		algorithm.ReleaseStatusPublished: true,
+		algorithm.ReleaseStatusFailed:    true,
+	},
+	algorithm.ReleaseStatusPublished: {
+		algorithm.ReleaseStatusFailed: true,
+	},
+}
+
+// normalizeReleaseStatus maps the zero value to pending so a zero-value
+// MutableState starts in the same state as an explicitly initialized one.
+func normalizeReleaseStatus(status algorithm.ReleaseStatus) algorithm.ReleaseStatus {
+	if status == "" {
+		return algorithm.ReleaseStatusPending
+	}
+	return status
+}
+
+// isLegalReleaseTransition reports whether from → to is in the FSM-1 table.
+func isLegalReleaseTransition(from, to algorithm.ReleaseStatus) bool {
+	return legalReleaseTransitions[normalizeReleaseStatus(from)][to]
+}
+
+// setStatus advances state.Status when the transition is legal. An illegal
+// transition is logged and ignored — the lifecycle never panics on a bad edge.
+func (r *Release) setStatus(state *algorithm.MutableState, to algorithm.ReleaseStatus) {
+	if state == nil {
+		return
+	}
+	from := normalizeReleaseStatus(state.Status)
+	if from == to {
+		return
+	}
+	if !isLegalReleaseTransition(from, to) {
+		r.ctx.Logger.Warn("Illegal release status transition",
+			zap.String("from", string(from)),
+			zap.String("to", string(to)))
+		return
+	}
+	state.Status = to
+}
+
+// lifecycleStarted reports whether the release lifecycle has begun. The zero
+// and pending states both mean it has not.
+func lifecycleStarted(state *algorithm.MutableState) bool {
+	return state != nil && normalizeReleaseStatus(state.Status) != algorithm.ReleaseStatusPending
 }
 
 func (r *Release) Run() error {
@@ -219,7 +287,7 @@ func (r *Release) Run() error {
 	}
 
 	if err := r.runPluginLifecycle(algoCtx, state); err != nil {
-		r.callFailHooks(algoCtx, state, err)
+		r.handleFailure(algoCtx, state, err)
 		return err
 	}
 
@@ -232,7 +300,7 @@ func (r *Release) Run() error {
 	}
 
 	if err := r.runPublishers(algoCtx, state); err != nil {
-		r.callFailHooks(algoCtx, state, err)
+		r.handleFailure(algoCtx, state, err)
 		return err
 	}
 
@@ -280,6 +348,7 @@ func (r *Release) writeStepOutput(state *algorithm.MutableState) error {
 }
 
 func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
+	r.setStatus(state, algorithm.ReleaseStatusAnalyzing)
 	pluginNames := r.ctx.Config.Plugins
 
 	// Register GitPlugin with the GitAPI from the context.
@@ -372,6 +441,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 
 	// Early exit: no relevant changes detected
 	if releaseType == "" && notes == "" {
+		r.setStatus(state, algorithm.ReleaseStatusNoRelease)
 		r.ctx.Logger.Info("No relevant changes, skipping release")
 		return nil
 	}
@@ -403,6 +473,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 			return fmt.Errorf("failed to calculate next version: %w", err)
 		}
 		state.NextRelease.Version = version
+		r.setStatus(state, algorithm.ReleaseStatusVersioned)
 		// Narrate the computed version so a successful release is visible in
 		// CI output (BUG-release-workflow-softprops-and-verbose).
 		r.ctx.Logger.Info("Computed next release",
@@ -454,6 +525,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 			}
 		}
 	}
+	r.setStatus(state, algorithm.ReleaseStatusPrepared)
 
 	for _, name := range pluginNames {
 		p, err := plugins.Get(name)
@@ -485,6 +557,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 			r.ctx.Logger.Info("Plugin post-published", zap.String("plugin", name))
 		}
 	}
+	r.setStatus(state, algorithm.ReleaseStatusPublished)
 
 	return nil
 }
@@ -547,6 +620,38 @@ func (r *Release) runPublishers(ctx *algorithm.ReadOnlyContext, state *algorithm
 	}
 
 	return nil
+}
+
+// handleFailure compensates a release that failed after its lifecycle began,
+// marks the machine failed, and runs the fail hooks. It never replaces the
+// caller's original error.
+func (r *Release) handleFailure(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState, originalErr error) {
+	if lifecycleStarted(state) {
+		r.setStatus(state, algorithm.ReleaseStatusFailed)
+		r.rollbackPlugins(ctx, state)
+	}
+	r.callFailHooks(ctx, state, originalErr)
+}
+
+// rollbackPlugins calls Rollback on every plugin that opts into the capability.
+// Rollback failures are logged and swallowed so they never mask the original
+// lifecycle error.
+func (r *Release) rollbackPlugins(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) {
+	for _, name := range plugins.List() {
+		p, err := plugins.Get(name)
+		if err != nil {
+			continue
+		}
+		rb, ok := p.(plugins.Rollbacker)
+		if !ok {
+			continue
+		}
+		if err := rb.Rollback(ctx, state); err != nil {
+			r.ctx.Logger.Error("Plugin rollback failed", zap.String("plugin", name), zap.Error(err))
+			continue
+		}
+		r.ctx.Logger.Info("Plugin rolled back", zap.String("plugin", name))
+	}
 }
 
 func (r *Release) callFailHooks(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState, originalErr error) {

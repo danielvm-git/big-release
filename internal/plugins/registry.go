@@ -59,6 +59,13 @@ type LifecycleHook interface {
 	Fail(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState, err error) error
 }
 
+// Rollbacker compensates external state created by a plugin when the release
+// lifecycle fails after it has begun (FSM-1 failure edge). Rollback errors are
+// logged by the orchestrator and never mask the original lifecycle error.
+type Rollbacker interface {
+	Rollback(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error
+}
+
 // ConfigurablePlugin receives its typed configuration from
 // Config.PluginConfigs before the pipeline runs. Plugins that need config
 // implement this; the orchestrator type-asserts and calls Configure.

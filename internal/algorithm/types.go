@@ -25,6 +25,21 @@ const (
 	ReleaseTypePrerelease ReleaseType = "prerelease"
 )
 
+// ReleaseStatus is the lifecycle state of a release run (FSM-1).
+// Transitions are validated by the orchestrator; an empty value is treated
+// as ReleaseStatusPending.
+type ReleaseStatus string
+
+const (
+	ReleaseStatusPending   ReleaseStatus = "pending"
+	ReleaseStatusAnalyzing ReleaseStatus = "analyzing"
+	ReleaseStatusNoRelease ReleaseStatus = "no_release"
+	ReleaseStatusVersioned ReleaseStatus = "versioned"
+	ReleaseStatusPrepared  ReleaseStatus = "prepared"
+	ReleaseStatusPublished ReleaseStatus = "published"
+	ReleaseStatusFailed    ReleaseStatus = "failed"
+)
+
 // Release represents a release to be created
 type Release struct {
 	Version string
@@ -147,6 +162,7 @@ type ReadOnlyContext struct {
 // MutableState holds values written by specific pipeline stages.
 // Passed as a pointer so stages can update it.
 type MutableState struct {
+	Status      ReleaseStatus
 	LastRelease *Release
 	NextRelease *Release
 	Notes       string
