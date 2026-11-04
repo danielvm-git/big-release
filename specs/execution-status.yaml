@@ -81,5 +81,5 @@ execution_status:
     e09s02: done
     e09s03: done
     e09s04: done
-    e09s05: todo
-  notes: "Epics e05/e06/e07 complete — RetryClient, GitAPI, unified git path, single notes generator, capability interfaces, priority aggregation, ReadOnlyContext/MutableState all implemented. Epic e09 (Version File Sync) s01–s04 done; s05 E2E test remains."
+    e09s05: done
+  notes: "Epics e05/e06/e07 complete — RetryClient, GitAPI, unified git path, single notes generator, capability interfaces, priority aggregation, ReadOnlyContext/MutableState all implemented. Epic e09 (Version File Sync) complete, including the s05 E2E test (TestE2E_VersionFileSync)."

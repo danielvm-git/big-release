@@ -9,7 +9,7 @@ description: >
   versionFile plugin, plus documents the CI workaround for immediate use.
 refs:
   - https://github.com/danielvm-git/big-release/issues/62
-status: in-progress
+status: done
 priority: P1
 bcps: 5
 
@@ -82,7 +82,7 @@ stories:
       versionFile plugin, (3) runs a release, (4) verifies VERSION file
       contains the correct version, (5) verifies the commit exists after the
       tag. Uses the testrepo helper from e08.
-    status: todo
+    status: done
     files:
       - pkg/release/e2e_test.go
 
