@@ -605,3 +605,27 @@ bugs:
       - internal/git/client.go
       - internal/git/client_commits_extra_test.go
     commit_message: "fix(git): preserve multi-line commit bodies in GetCommits"
+
+  - id: BUG-versionfile-top-level-config
+    status: fixed
+    severity: medium
+    scope: pkg/release, docs
+    title: Top-level versionFile config ignored and docs recommend wrong plugin order
+    refs:
+      - https://github.com/danielvm-git/big-release/issues/74
+    approach: |
+      Config.VersionFile is now merged into the versionfile plugin config and
+      auto-adds the plugin to the effective list; explicit
+      pluginConfigs.versionfile values override it. Docs put versionfile
+      before git and explain the PostPublish declaration-order requirement.
+      Regression tests: TestRunPluginLifecycle_TopLevelVersionFileConfig,
+      TestRunPluginLifecycle_PluginConfigOverridesTopLevelVersionFile,
+      TestPostPublish_RunsInPluginDeclarationOrder.
+    fixed_in: "2d05b9e"
+    verified: "2026-11-04"
+    risk_level: low
+    files_changed:
+      - pkg/release/release.go
+      - pkg/release/versionfile_config_test.go
+      - docs/how-to/version-file-sync.md
+    commit_message: "fix(versionfile): wire top-level versionFile config and document plugin order"
