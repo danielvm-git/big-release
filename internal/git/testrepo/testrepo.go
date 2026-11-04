@@ -64,7 +64,18 @@ func scrubGitEnv() []string {
 			strings.HasPrefix(e, "GIT_PREFIX="),
 			strings.HasPrefix(e, "GIT_COMMON_DIR="),
 			strings.HasPrefix(e, "GIT_OBJECT_DIRECTORY="),
-			strings.HasPrefix(e, "GIT_ALTERNATE_OBJECT_DIRECTORIES="):
+			strings.HasPrefix(e, "GIT_ALTERNATE_OBJECT_DIRECTORIES="),
+			// Identity vars leak in when `go test` runs inside a git hook
+			// (the pre-commit hook exports the committer's identity). They
+			// would override the temp repo's local user.name/user.email and
+			// make author assertions non-deterministic.
+			strings.HasPrefix(e, "GIT_AUTHOR_NAME="),
+			strings.HasPrefix(e, "GIT_AUTHOR_EMAIL="),
+			strings.HasPrefix(e, "GIT_AUTHOR_DATE="),
+			strings.HasPrefix(e, "GIT_COMMITTER_NAME="),
+			strings.HasPrefix(e, "GIT_COMMITTER_EMAIL="),
+			strings.HasPrefix(e, "GIT_COMMITTER_DATE="),
+			strings.HasPrefix(e, "EMAIL="):
 			continue
 		default:
 			out = append(out, e)
