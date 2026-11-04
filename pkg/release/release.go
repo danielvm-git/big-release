@@ -297,6 +297,7 @@ func (r *Release) Run() error {
 	r.detectCI()
 	if r.detectPR() {
 		r.ctx.Logger.Info("This run was triggered by a pull request and therefore a new version won't be published")
+		r.writeSkipStepOutput("pull_request")
 		return nil
 	}
 
@@ -319,6 +320,7 @@ func (r *Release) Run() error {
 	// empty version and run success hooks for a release that never happened.
 	if !hasPublishableRelease(state) {
 		r.ctx.Logger.Info("No publishable release produced, skipping publishers and success hooks")
+		r.writeSkipStepOutput("no_release")
 		return nil
 	}
 
@@ -327,14 +329,17 @@ func (r *Release) Run() error {
 		return err
 	}
 
-	if !r.ctx.DryRun {
-		r.callSuccessHooks(algoCtx, state)
-		// Expose the published version to the CI runner (GitHub Actions
-		// $GITHUB_OUTPUT) so downstream steps can observe a release
-		// (BUG-release-workflow-softprops-and-verbose).
-		if err := r.writeStepOutput(state); err != nil {
-			r.ctx.Logger.Warn("failed to write step output", zap.Error(err))
-		}
+	if r.ctx.DryRun {
+		r.writeSkipStepOutput("dry_run")
+		return nil
+	}
+
+	r.callSuccessHooks(algoCtx, state)
+	// Expose the published version to the CI runner (GitHub Actions
+	// $GITHUB_OUTPUT) so downstream steps can observe a release
+	// (BUG-release-workflow-softprops-and-verbose).
+	if err := r.writeStepOutput(state); err != nil {
+		r.ctx.Logger.Warn("failed to write step output", zap.Error(err))
 	}
 
 	return nil
@@ -347,25 +352,50 @@ func hasPublishableRelease(state *algorithm.MutableState) bool {
 	return state != nil && state.NextRelease != nil && state.NextRelease.Version != ""
 }
 
-// writeStepOutput exposes the computed version (and a published flag) to the
+// writeStepOutput exposes the computed version and release flags to the
 // enclosing CI runner by appending to the file named by $GITHUB_OUTPUT.
 // Outside GitHub Actions the env var is unset and this is a silent no-op.
 func (r *Release) writeStepOutput(state *algorithm.MutableState) error {
 	if state == nil || state.NextRelease == nil || state.NextRelease.Version == "" {
 		return nil
 	}
+	return appendStepOutputs(
+		"version="+state.NextRelease.Version,
+		"published=true",
+		"released=true",
+		"reason=published",
+	)
+}
+
+// writeSkipStepOutput records why a run did not publish (NT-12). A skipped
+// run still exits 0, so without this signal downstream CI steps cannot tell
+// a pull-request/no-release/dry-run skip from a successful publish.
+func (r *Release) writeSkipStepOutput(reason string) {
+	if err := appendStepOutputs(
+		"published=false",
+		"released=false",
+		"reason="+reason,
+	); err != nil {
+		r.ctx.Logger.Warn("failed to write step output", zap.Error(err))
+	}
+}
+
+// appendStepOutputs appends key=value lines to $GITHUB_OUTPUT. A missing env
+// var is a no-op (outside GitHub Actions).
+func appendStepOutputs(pairs ...string) error {
 	out := os.Getenv("GITHUB_OUTPUT")
 	if out == "" {
 		return nil
 	}
-	line := fmt.Sprintf("version=%s\npublished=true\n", state.NextRelease.Version)
 	f, err := os.OpenFile(out, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("open GITHUB_OUTPUT: %w", err)
 	}
 	defer func() { _ = f.Close() }()
-	if _, err := f.WriteString(line); err != nil {
-		return fmt.Errorf("write GITHUB_OUTPUT: %w", err)
+	for _, pair := range pairs {
+		if _, err := f.WriteString(pair + "\n"); err != nil {
+			return fmt.Errorf("write GITHUB_OUTPUT: %w", err)
+		}
 	}
 	return nil
 }

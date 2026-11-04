@@ -1333,6 +1333,12 @@ func TestWriteStepOutput_WritesVersionAndPublishedFlag(t *testing.T) {
 	if !strings.Contains(body, "published=true") {
 		t.Errorf("expected published=true in %q", body)
 	}
+	if !strings.Contains(body, "released=true") {
+		t.Errorf("expected released=true in %q", body)
+	}
+	if !strings.Contains(body, "reason=published") {
+		t.Errorf("expected reason=published in %q", body)
+	}
 }
 
 func TestWriteStepOutput_NoOpWhenNoNextRelease(t *testing.T) {
