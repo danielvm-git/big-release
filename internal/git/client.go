@@ -86,30 +86,32 @@ func (c *Client) GetCommits(from, to string) ([]*algorithm.Commit, error) {
 		range_spec = to
 	}
 
-	cmd := gitCmd("log", range_spec, "--pretty=format:%H%x00%s%x00%an%x00%ae%x00%ai%x00%b")
+	// The trailing %x00 closes every record, so a body that contains
+	// newlines stays one NUL-delimited field. Commit messages cannot contain
+	// NUL, which makes splitting on NUL unambiguous (a line-based split
+	// truncated multi-line bodies to their first line).
+	cmd := gitCmd("log", range_spec, "--pretty=format:%H%x00%s%x00%an%x00%ae%x00%ai%x00%b%x00")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get commits: %w", err)
 	}
 
-	var commits []*algorithm.Commit
-	for _, line := range strings.Split(string(output), "\n") {
-		if line == "" {
-			continue
-		}
+	fields := strings.Split(string(output), "\x00")
+	// The final %x00 leaves one trailing empty field.
+	if n := len(fields); n > 0 && fields[n-1] == "" {
+		fields = fields[:n-1]
+	}
 
-		parts := strings.SplitN(line, "\x00", 6)
-		if len(parts) < 6 {
-			continue
-		}
-
+	const fieldsPerCommit = 6
+	commits := make([]*algorithm.Commit, 0, len(fields)/fieldsPerCommit)
+	for i := 0; i+fieldsPerCommit-1 < len(fields); i += fieldsPerCommit {
 		commits = append(commits, &algorithm.Commit{
-			Hash:    parts[0],
-			Message: parts[1],
-			Author:  parts[2],
-			Email:   parts[3],
-			Date:    parts[4],
-			Body:    parts[5],
+			Hash:    strings.TrimPrefix(fields[i], "\n"), // git's record separator
+			Message: fields[i+1],
+			Author:  fields[i+2],
+			Email:   fields[i+3],
+			Date:    fields[i+4],
+			Body:    strings.TrimSuffix(fields[i+5], "\n"),
 		})
 	}
 
