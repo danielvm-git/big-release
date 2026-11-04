@@ -370,9 +370,42 @@ func (r *Release) writeStepOutput(state *algorithm.MutableState) error {
 	return nil
 }
 
+// effectivePlugins returns the configured plugin list plus "versionfile"
+// when the top-level versionFile block is set. The top-level block is the
+// documented form, so it must not require also listing the plugin (issue #74).
+func (r *Release) effectivePlugins() []string {
+	names := append([]string(nil), r.ctx.Config.Plugins...)
+	if r.ctx.Config.VersionFile == nil {
+		return names
+	}
+	for _, name := range names {
+		if name == "versionfile" {
+			return names
+		}
+	}
+	return append(names, "versionfile")
+}
+
+// versionFileConfig merges the top-level versionFile block into the raw plugin
+// config. Explicit pluginConfigs.versionfile entries win over the top-level
+// values (issue #74).
+func versionFileConfig(vf *algorithm.VersionFileConfig, explicit map[string]interface{}) map[string]interface{} {
+	merged := map[string]interface{}{}
+	if vf.Path != "" {
+		merged["path"] = vf.Path
+	}
+	if vf.Template != "" {
+		merged["template"] = vf.Template
+	}
+	for k, v := range explicit {
+		merged[k] = v
+	}
+	return merged
+}
+
 func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) error {
 	r.setStatus(state, algorithm.ReleaseStatusAnalyzing)
-	pluginNames := r.ctx.Config.Plugins
+	pluginNames := r.effectivePlugins()
 
 	// Register GitPlugin with the GitAPI from the context.
 	// Only register if not already present to avoid polluting global state
@@ -389,6 +422,9 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 		}
 		if cp, ok := p.(plugins.ConfigurablePlugin); ok {
 			raw := ctx.Config.PluginConfigs[name]
+			if name == "versionfile" && ctx.Config.VersionFile != nil {
+				raw = versionFileConfig(ctx.Config.VersionFile, raw)
+			}
 			if raw == nil {
 				raw = map[string]interface{}{}
 			}

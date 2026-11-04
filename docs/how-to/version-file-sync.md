@@ -21,6 +21,12 @@ versionFile:
 | `path` | `VERSION` | Path to the version file |
 | `template` | `{{.Version}}` | Go template for the file content |
 
+`versionFile` is the supported top-level form: big-release adds the
+`versionfile` plugin to the pipeline automatically, so you do not need to list
+it in `plugins`. The generic `pluginConfigs.versionfile` form also works; list
+`versionfile` in `plugins` when using it, and its values override the top-level
+ones when both are present.
+
 ### Template Variables
 
 The template has access to these variables:
@@ -38,6 +44,11 @@ The template has access to these variables:
 2. The git plugin creates and pushes the tag
 3. The `versionFile` plugin writes the version file
 4. The git plugin commits the version file with `[skip ci]`
+
+> **Order matters if you list the plugin manually.** Phase 6.5 runs
+> `PostPublish` in declaration order. Put `versionfile` **before** `git` so
+> the file is written before the git plugin stages and commits
+> `postTagAssets`. The top-level `versionFile` form handles this for you.
 
 ## Examples
 
@@ -93,10 +104,23 @@ If you don't want the plugin approach, you can use a CI step after big-release:
 
 ### Version file not committed
 
-Make sure the git plugin has `postTagAssets` configured:
+Make sure the git plugin has `postTagAssets` configured and that
+`versionfile` appears **before** `git` in the `plugins` list:
 
 ```yaml
-plugins: [changelog, git, github, versionfile]
+plugins: [changelog, versionfile, git, github]
+pluginConfigs:
+  git:
+    postTagAssets:
+      - VERSION
+```
+
+With the top-level form, the equivalent complete configuration is:
+
+```yaml
+versionFile:
+  path: VERSION
+plugins: [changelog, git, github]
 pluginConfigs:
   git:
     postTagAssets:
