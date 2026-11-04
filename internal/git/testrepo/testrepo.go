@@ -101,6 +101,14 @@ func (r *Repo) SetRemoteOrigin(url string) {
 	runGit(r.t, "remote", "add", "origin", url)
 }
 
+// RunGit runs an arbitrary git command in the repo directory. runGit scrubs
+// ambient hook/worktree environment, so setup commands (e.g. `init --bare`)
+// cannot leak into the repository that invoked the test.
+func (r *Repo) RunGit(args ...string) {
+	r.t.Helper()
+	runGit(r.t, args...)
+}
+
 // ScrubEnv clears sensitive env vars for the test process.
 func ScrubEnv(t *testing.T) {
 	t.Helper()
