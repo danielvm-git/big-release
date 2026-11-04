@@ -1,3 +1,5 @@
+// story: e05s01
+
 package httputil
 
 import (
@@ -44,6 +46,9 @@ func (rc *RetryClient) Do(req *http.Request) (*http.Response, error) {
 
 	for attempt := 0; attempt <= rc.MaxRetries; attempt++ {
 		if attempt > 0 {
+			if err := rewindRequestBody(req); err != nil {
+				return nil, err
+			}
 			time.Sleep(backoff)
 			backoff = time.Duration(math.Min(
 				float64(backoff)*2,
@@ -85,4 +90,22 @@ func (rc *RetryClient) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	return nil, fmt.Errorf("failed after %d retries: %w", rc.MaxRetries, lastErr)
+}
+
+// rewindRequestBody restores req.Body from GetBody so a retried request can
+// resend its payload. Bodyless requests need no work; a request whose body was
+// consumed but has no GetBody cannot be retried safely.
+func rewindRequestBody(req *http.Request) error {
+	if req.Body == nil || req.Body == http.NoBody {
+		return nil
+	}
+	if req.GetBody == nil {
+		return fmt.Errorf("cannot retry request: request body is not rewindable (GetBody is nil)")
+	}
+	body, err := req.GetBody()
+	if err != nil {
+		return fmt.Errorf("cannot rewind request body for retry: %w", err)
+	}
+	req.Body = body
+	return nil
 }
