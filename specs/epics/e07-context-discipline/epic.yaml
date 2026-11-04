@@ -4,7 +4,7 @@ description: >
   Split the mutable Context god-object into ReadOnlyContext (immutable
   input) and MutableState (write targets owned by specific stages).
   Enforces mutation discipline across the pipeline.
-status: planning
+status: complete
 priority: P2
 bcps: 5
 
@@ -22,7 +22,7 @@ stories:
       stages). Plugins receive ReadOnlyContext plus MutableState pointer.
       Calculator writes NextRelease, Generator writes Notes, plugins
       write Assets.
-    status: todo
+    status: done
     files:
       - internal/algorithm/types.go
       - pkg/release/release.go

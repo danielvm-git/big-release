@@ -20,9 +20,9 @@ release:
   security_gate: PASS
   traceability_gate: WAIVED
 bugs:
-  total: 36
-  fixed: 23
-  deferred: 12
-  open: 1
+  total: 42
+  fixed: 42
+  deferred: 0
+  open: 0
   last_verified: "2026-08-10"
 

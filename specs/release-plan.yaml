@@ -20,15 +20,15 @@ release_plan:
     - epic: e05
       title: Publisher & Git Hardening
       priority: P1
-      status: planning
+      status: complete
     - epic: e06
       title: Algorithm & Plugin Unification
       priority: P1
-      status: planning
+      status: complete
     - epic: e07
       title: Context Discipline
       priority: P2
-      status: planning
+      status: complete
     - epic: e21
       title: Advanced GitHub
       priority: P2
@@ -52,4 +52,4 @@ release_plan:
     - epic: e09
       title: Version File Sync
       priority: P1
-      status: complete
+      status: in-progress

@@ -8,4 +8,4 @@ glossary:
   - term: preflight
     definition: Full local verification stack (lint + test + build) that must pass before forward work.
   - term: conventional commits
-    definition: Commit message format: type(scope): description. Drives version calculation.
+    definition: "Commit message format: type(scope): description. Drives version calculation."

@@ -4,7 +4,7 @@ description: >
   Extract shared HTTP retry logic from 6 publishers, define a GitAPI
   interface for testability, and unify the two parallel git execution
   paths (git.Client vs GitPlugin.gitCommand).
-status: done
+status: complete
 priority: P1
 bcps: 8
 

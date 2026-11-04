@@ -9,7 +9,7 @@ description: >
   versionFile plugin, plus documents the CI workaround for immediate use.
 refs:
   - https://github.com/danielvm-git/big-release/issues/62
-status: planning
+status: in-progress
 priority: P1
 bcps: 5
 
@@ -28,7 +28,7 @@ stories:
       version. The interface has a single method:
       `PostPublish(ctx, state) error`. Wire it into runPluginLifecycle as
       Phase 6.5.
-    status: planning
+    status: done
     files:
       - internal/plugins/registry.go
       - pkg/release/release.go
@@ -41,7 +41,7 @@ stories:
       "{{.Version}}"). After the tag is created, writes the rendered template
       to the specified path. Does NOT commit — that's the git plugin's job.
       Register as "versionfile" in the plugin registry.
-    status: planning
+    status: done
     files:
       - internal/plugins/versionfile.go
       - internal/plugins/versionfile_test.go
@@ -54,7 +54,7 @@ stories:
       created, stage and commit any files matching postTagAssets with message
       "chore(release): update version files [skip ci]". This allows the
       VERSION file to be committed with the correct version after tagging.
-    status: planning
+    status: done
     files:
       - internal/plugins/git.go
       - internal/plugins/git_test.go
@@ -67,7 +67,7 @@ stories:
       docs/how-to/version-file-sync.md. Include examples for Go, Node, and
       Python projects. Also document the CI workaround pattern for users who
       don't want the plugin approach.
-    status: planning
+    status: done
     files:
       - internal/algorithm/types.go
       - internal/config/config.go
@@ -82,7 +82,7 @@ stories:
       versionFile plugin, (3) runs a release, (4) verifies VERSION file
       contains the correct version, (5) verifies the commit exists after the
       tag. Uses the testrepo helper from e08.
-    status: planning
+    status: todo
     files:
       - pkg/release/e2e_test.go
 

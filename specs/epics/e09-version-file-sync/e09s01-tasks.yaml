@@ -8,7 +8,7 @@ tasks:
       PostPublish(ctx, state) error method.
     risk: P2
     security: none
-    status: failing
+    status: passing
     verify: go vet ./internal/plugins/
     allure:
       severity: normal
@@ -22,7 +22,7 @@ tasks:
       Phase 6 (Publish).
     risk: P1
     security: none
-    status: failing
+    status: passing
     verify: go test ./pkg/release/ -run TestLifecycle -count=1
     allure:
       severity: high
@@ -35,7 +35,7 @@ tasks:
       Success. Use mock plugin implementing PostPublisher.
     risk: P2
     security: none
-    status: failing
+    status: passing
     verify: go test ./internal/plugins/ -run TestPostPublisher -count=1
     allure:
       severity: normal

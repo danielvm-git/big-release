@@ -4,7 +4,7 @@ description: >
   Eliminate dual release notes generators, split the 8-method Plugin
   interface into capability interfaces, and fix the AnalyzeCommits
   aggregation bug (last-wins instead of priority-based).
-status: planning
+status: complete
 priority: P1
 bcps: 8
 
@@ -21,7 +21,7 @@ stories:
       docs, refactor, chore, style, test). ChangelogPlugin.GenerateNotes
       delegates to ctx.NextRelease.Notes. One generator, one grouping
       strategy.
-    status: todo
+    status: done
     files:
       - internal/algorithm/generator.go
       - internal/algorithm/generator_test.go
@@ -35,7 +35,7 @@ stories:
       ConditionVerifier, CommitAnalyzer, ReleaseVerifier, NotesGenerator,
       Preparer, Publisher, LifecycleHook. Orchestrator type-asserts per
       phase. Plugins implement only what they need.
-    status: todo
+    status: done
     files:
       - internal/plugins/registry.go
       - internal/plugins/git.go
@@ -51,7 +51,7 @@ stories:
       If changelog returns patch after git returns minor, result is patch
       (wrong). Fix: use priority-based aggregation (major > minor > patch),
       same as algorithm.Analyzer.
-    status: todo
+    status: done
     files:
       - pkg/release/release.go
       - pkg/release/release_test.go
