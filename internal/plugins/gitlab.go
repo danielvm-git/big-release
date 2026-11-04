@@ -313,6 +313,11 @@ func (p *GitLabPlugin) forgetRelease() {
 	p.recordRelease("")
 }
 
+// ResetRunState clears the release remembered by a previous run. The registry
+// reuses this plugin instance, so without the reset a rollback in a later run
+// could delete a release it did not create (NT-11).
+func (p *GitLabPlugin) ResetRunState() { p.forgetRelease() }
+
 // rememberedReleaseTag returns the release tag created by Publish, or "".
 func (p *GitLabPlugin) rememberedReleaseTag() string {
 	p.releaseMu.Lock()

@@ -21,17 +21,38 @@ type Context struct {
 	Logger  *zap.Logger
 	DryRun  bool
 	Verbose bool
+
+	// Plugins and Publishers are optional per-run registries. When nil, New
+	// snapshots the process-wide registry so a run cannot leak plugin
+	// instances or per-run registrations into another run (NT-11).
+	Plugins    *plugins.Registry
+	Publishers *publishers.Registry
 }
 
 // Release orchestrates the full release lifecycle: plugins then publishers.
 type Release struct {
-	ctx              *Context
-	detectPublishers func() []publishers.Publisher
+	ctx               *Context
+	plugins           *plugins.Registry
+	publisherRegistry *publishers.Registry
+	detectPublishers  func() []publishers.Publisher
 }
 
 // New creates a new Release orchestrator from a CLI-level Context.
 func New(ctx *Context) *Release {
-	return &Release{ctx: ctx, detectPublishers: publishers.Detect}
+	pluginRegistry := ctx.Plugins
+	if pluginRegistry == nil {
+		pluginRegistry = plugins.Snapshot()
+	}
+	publisherRegistry := ctx.Publishers
+	if publisherRegistry == nil {
+		publisherRegistry = publishers.Snapshot()
+	}
+	return &Release{
+		ctx:               ctx,
+		plugins:           pluginRegistry,
+		publisherRegistry: publisherRegistry,
+		detectPublishers:  publisherRegistry.Detect,
+	}
 }
 
 // Run executes the full release lifecycle:
@@ -272,6 +293,7 @@ func lifecycleStarted(state *algorithm.MutableState) bool {
 }
 
 func (r *Release) Run() error {
+	r.resetPluginRunState()
 	r.detectCI()
 	if r.detectPR() {
 		r.ctx.Logger.Info("This run was triggered by a pull request and therefore a new version won't be published")
@@ -355,13 +377,13 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 	// Register GitPlugin with the GitAPI from the context.
 	// Only register if not already present to avoid polluting global state
 	// on repeated orchestrator invocations (BUG-git-register-global-side-effect).
-	if _, err := plugins.Get("git"); err != nil {
-		plugins.Register(plugins.NewGitPlugin(r.ctx.Git))
+	if _, err := r.plugins.Get("git"); err != nil {
+		r.plugins.Register(plugins.NewGitPlugin(r.ctx.Git))
 	}
 
 	// Phase 0: Configure plugins that accept typed config (e.g. github assets).
 	for _, name := range pluginNames {
-		p, err := plugins.Get(name)
+		p, err := r.plugins.Get(name)
 		if err != nil {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
@@ -379,7 +401,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 	// Phase 1: VerifyConditions — collect all failures (e08s05)
 	var verifyErrs []error
 	for _, name := range pluginNames {
-		p, err := plugins.Get(name)
+		p, err := r.plugins.Get(name)
 		if err != nil {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
@@ -396,7 +418,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 	// Phase 2: AnalyzeCommits — collect release type from plugins (priority-based)
 	var releaseType algorithm.ReleaseType
 	for _, name := range pluginNames {
-		p, err := plugins.Get(name)
+		p, err := r.plugins.Get(name)
 		if err != nil {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
@@ -449,7 +471,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 
 	// Phase 3: Let plugins contribute additional notes (e.g. ChangelogPlugin)
 	for _, name := range pluginNames {
-		p, err := plugins.Get(name)
+		p, err := r.plugins.Get(name)
 		if err != nil {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
@@ -485,7 +507,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 
 	// Phase 4: VerifyRelease
 	for _, name := range pluginNames {
-		p, err := plugins.Get(name)
+		p, err := r.plugins.Get(name)
 		if err != nil {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
@@ -498,7 +520,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 
 	// Phase 4.5: AddChannel — record distribution channel metadata (e22).
 	for _, name := range pluginNames {
-		p, err := plugins.Get(name)
+		p, err := r.plugins.Get(name)
 		if err != nil {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
@@ -516,7 +538,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 	}
 
 	for _, name := range pluginNames {
-		p, err := plugins.Get(name)
+		p, err := r.plugins.Get(name)
 		if err != nil {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
@@ -529,7 +551,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 	r.setStatus(state, algorithm.ReleaseStatusPrepared)
 
 	for _, name := range pluginNames {
-		p, err := plugins.Get(name)
+		p, err := r.plugins.Get(name)
 		if err != nil {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
@@ -547,7 +569,7 @@ func (r *Release) runPluginLifecycle(ctx *algorithm.ReadOnlyContext, state *algo
 
 	// Phase 6.5: PostPublish — write version-derived files after tag creation.
 	for _, name := range pluginNames {
-		p, err := plugins.Get(name)
+		p, err := r.plugins.Get(name)
 		if err != nil {
 			return fmt.Errorf("plugin %q not found: %w", name, err)
 		}
@@ -683,12 +705,27 @@ func (r *Release) handleFailure(ctx *algorithm.ReadOnlyContext, state *algorithm
 	r.callFailHooks(ctx, state, originalErr)
 }
 
+// resetPluginRunState clears state a plugin remembers between runs. The
+// registry reuses plugin instances, so a release ID from an earlier run must
+// not be visible to this run's rollback (NT-11).
+func (r *Release) resetPluginRunState() {
+	for _, name := range r.plugins.List() {
+		p, err := r.plugins.Get(name)
+		if err != nil {
+			continue
+		}
+		if rs, ok := p.(plugins.RunResetter); ok {
+			rs.ResetRunState()
+		}
+	}
+}
+
 // rollbackPlugins calls Rollback on every plugin that opts into the capability.
 // Rollback failures are logged and swallowed so they never mask the original
 // lifecycle error.
 func (r *Release) rollbackPlugins(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) {
-	for _, name := range plugins.List() {
-		p, err := plugins.Get(name)
+	for _, name := range r.plugins.List() {
+		p, err := r.plugins.Get(name)
 		if err != nil {
 			continue
 		}
@@ -706,8 +743,8 @@ func (r *Release) rollbackPlugins(ctx *algorithm.ReadOnlyContext, state *algorit
 
 func (r *Release) callFailHooks(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState, originalErr error) {
 	r.ctx.Logger.Error("Release failed, running fail hooks", zap.Error(originalErr))
-	for _, name := range plugins.List() {
-		p, err := plugins.Get(name)
+	for _, name := range r.plugins.List() {
+		p, err := r.plugins.Get(name)
 		if err != nil {
 			continue
 		}
@@ -720,8 +757,8 @@ func (r *Release) callFailHooks(ctx *algorithm.ReadOnlyContext, state *algorithm
 }
 
 func (r *Release) callSuccessHooks(ctx *algorithm.ReadOnlyContext, state *algorithm.MutableState) {
-	for _, name := range plugins.List() {
-		p, err := plugins.Get(name)
+	for _, name := range r.plugins.List() {
+		p, err := r.plugins.Get(name)
 		if err != nil {
 			continue
 		}

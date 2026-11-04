@@ -108,6 +108,27 @@ func (r *Registry) List() []string {
 	return names
 }
 
+// Snapshot returns a copy of the registry. A release run takes a snapshot so
+// it can register per-run plugins (e.g. a GitPlugin bound to that run's
+// GitAPI) without mutating the process-wide registry (NT-11).
+func (r *Registry) Snapshot() *Registry {
+	out := NewRegistry()
+	for name, p := range r.plugins {
+		out.plugins[name] = p
+	}
+	return out
+}
+
+// Snapshot returns a copy of the global registry.
+func Snapshot() *Registry { return globalRegistry.Snapshot() }
+
+// RunResetter resets state a plugin instance remembers between runs. The
+// registry reuses instances, so a run must clear stale state (e.g. a release
+// ID from a previous run) before it can roll anything back.
+type RunResetter interface {
+	ResetRunState()
+}
+
 // Global registry instance
 var globalRegistry = NewRegistry()
 

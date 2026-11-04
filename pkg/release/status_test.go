@@ -226,6 +226,12 @@ func (f *fakeGit) GetCommits(string, string) ([]*algorithm.Commit, error) {
 	return []*algorithm.Commit{{Type: "feat", Message: "feat: add thing", Subject: "add thing"}}, nil
 }
 
+// Rollback now runs on the per-run GitPlugin, so the fake must answer the
+// tag-inspection calls it makes (NT-11 introduced the per-run registration).
+func (f *fakeGit) GetTags() ([]string, error)           { return nil, nil }
+func (f *fakeGit) DeleteTag(string) error               { return nil }
+func (f *fakeGit) DeleteRemoteTag(string, string) error { return nil }
+
 func TestRun_OnFailure_CallsRollbackBeforeFailHooks(t *testing.T) {
 	t.Setenv("CI", "true")
 	t.Setenv("GITHUB_EVENT_NAME", "push")

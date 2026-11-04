@@ -338,6 +338,11 @@ func (p *GitHubPlugin) forgetRelease() {
 	p.recordRelease(0)
 }
 
+// ResetRunState clears the release remembered by a previous run. The registry
+// reuses this plugin instance, so without the reset a rollback in a later run
+// could delete a release it did not create (NT-11).
+func (p *GitHubPlugin) ResetRunState() { p.forgetRelease() }
+
 // rememberedReleaseID returns the release created by Publish, or 0.
 func (p *GitHubPlugin) rememberedReleaseID() int64 {
 	p.releaseMu.Lock()

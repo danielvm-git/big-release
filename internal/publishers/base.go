@@ -71,6 +71,20 @@ func (r *Registry) List() []string {
 	return names
 }
 
+// Snapshot returns a copy of the registry so a single release run can filter
+// and drive its own set of publishers without touching the global registry
+// (NT-11).
+func (r *Registry) Snapshot() *Registry {
+	out := NewRegistry()
+	for name, p := range r.publishers {
+		out.publishers[name] = p
+	}
+	return out
+}
+
+// Snapshot returns a copy of the global registry.
+func Snapshot() *Registry { return globalRegistry.Snapshot() }
+
 // Global registry instance
 var globalRegistry = NewRegistry()
 
