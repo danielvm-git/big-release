@@ -1,5 +1,11 @@
 # Hot Paths & Implicit State Machines — Latest
 
+> **Status 2026-11-03:** NT-1..NT-7 and NT-10 are fixed. FSM-1 is now explicit
+> (`algorithm.ReleaseStatus` + `legalReleaseTransitions`), and `plugins.Rollbacker`
+> compensates git tags and forge releases. Remaining: NT-8/NT-9 (hook failures
+> are logged, not fatal — intentional), NT-11 (global registry), NT-12 (PR skip
+> returns nil — intentional).
+
 **Reason for existence:** name every hot path in the release pipeline, record the
 sequential I/O that was removed, inventory the implicit finite-state machines
 (FSMs) the service already runs, and list the non-terminal states where a run can

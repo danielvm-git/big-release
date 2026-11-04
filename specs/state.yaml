@@ -12,8 +12,8 @@ environment:
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
 handoff:
-  context: 'Issue #67 fixed: GitHub + GitLab plugins now publish <name>.sha256 checksum assets (hex-only) for every release asset; verified end-to-end on v2.5.0 with sha256sum -c.'
-  next_skill: null
+  context: 'Parallel execution plan complete: NT-1..NT-7/NT-10 and H1/H6/H7/H8 fixed, e09s05 E2E added, specs reconciled (e05/e06/e07/e09 complete), FSM-1 explicit (ReleaseStatus + transition table), Rollbacker compensates git tags and forge releases. Final gate: 612 tests (-race), vet, lint, build, diff-check green. Remaining low/intentional: NT-8/9/11/12.'
+  next_skill: verify-work
 release:
   commit_landed: true
   ci_verified: true

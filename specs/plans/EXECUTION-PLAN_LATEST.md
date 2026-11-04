@@ -163,3 +163,32 @@ behavior test + no scope creep. The plan is complete when WH's G3/G5 pass and
 the spec drift table shows one consistent status per epic.
 
 `verify: go test -race ./... && go vet ./... && golangci-lint run ./...`
+
+---
+
+## 8. Execution log (2026-11-03)
+
+| WS | Branch | Commit | Result |
+|----|--------|--------|--------|
+| W0 | `perf/hot-paths-concurrency` | `decd0bb` | perf work landed; 549 tests |
+| WA | `danielvm-git/wa-specs` | `5aee1ac` | statuses reconciled; registry 61→42; YAML parse OK |
+| WC | `danielvm-git/wc-retry` | `9f4fda5` | body rewind + 3 tests |
+| WD | `danielvm-git/wd-e2e` | `b829872` | `TestE2E_VersionFileSync` |
+| WB | `danielvm-git/wb-git-refs` | `4910234` | `DeleteRemoteTag` + remote rollback |
+| WE | `danielvm-git/we-compensation` | `cc36088` | GitHub release cleanup + GitLab fan-out |
+| WF | `danielvm-git/wf-lifecycle` | `bb26aaa` | `ReleaseStatus` + transition table + `Rollbacker` |
+| WG | `danielvm-git/wg-rollback` | `e3a7593` | rollback in git/github/gitlab |
+
+Final gate on `main`: **612 tests (-race), vet, lint, build, diff-check all green.**
+
+Closed: NT-1…NT-7, NT-10, H1, H6, H7, H8, e09s05, spec drift.
+
+Remaining (low / intentional): NT-8/NT-9 (hook failures logged, not fatal),
+NT-11 (global registry), NT-12 (PR skip returns nil). Known caveats: git
+rollback gates on local tag presence; a GitHub 201 with an unparseable body
+leaves `releaseID == 0` and skips rollback.
+
+Environment defect found during execution: the primary checkout's
+`.git/config` repeatedly flipped `core.bare = true` during Orca worktree
+operations, breaking plain `git` commands. Fixed with
+`git config --file .git/config core.bare false`; investigate the Orca side.
