@@ -1,0 +1,7 @@
+story: e19s02
+tasks:
+  - id: e19s02-t01
+    description: Add draft release creation flag and post-upload finalize patch
+    status: pending
+    verify: go test ./internal/plugins -run TestGitHub_DraftReleaseProgression
+    risk: low

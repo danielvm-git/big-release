@@ -1,0 +1,7 @@
+story: e19s03
+tasks:
+  - id: e19s03-t01
+    description: Implement text/template payload renderer in GitHub release builder
+    status: pending
+    verify: go test ./internal/plugins -run TestGitHub_ReleaseTemplate
+    risk: low

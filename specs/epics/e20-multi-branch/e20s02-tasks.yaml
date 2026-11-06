@@ -1,0 +1,7 @@
+story: e20s02
+tasks:
+  - id: e20s02-t01
+    description: Propagate channel metadata to release state and GitHub release payload
+    status: pending
+    verify: go test ./pkg/release -run TestRelease_ChannelPropagation
+    risk: low

@@ -71,6 +71,33 @@ Any **reproducible gate failure** encountered during unrelated work is a discove
 
 **Hard block:** Red Preflight or red CI blocks kickoff-branch, develop-tdd, and verify-work forward progress until fix-or-log produces green.
 
+## Commands
+
+| Action | Command | Purpose |
+| :--- | :--- | :--- |
+| **Run** | `go run ./cmd/big-release` | Execute local development binary |
+| **Test** | `make test` | Run complete unit and integration test suite with `-race` |
+| **Build** | `make build` | Compile static binary into `bin/big-release` |
+| **Lint** | `make lint` | Run `golangci-lint run ./...` |
+| **Preflight** | `make preflight` | Run combined lint, vet, and race-tested test suite |
+
+## Defensive Code Categories
+
+The following defensive code categories MUST be observed in all network, system, and I/O implementations:
+
+- **Timeout:** All network requests and CLI sub-processes MUST take a mandatory `context.Context` with an explicit timeout or deadline (e.g. HTTP client requests, git commands, external CLI publisher calls).
+- **Retry:** Network and API interactions MUST use exponential backoff retry policies for transient network failures and HTTP 5xx responses (per `internal/publishers/httputil/retry.go`).
+- **Rate Limit:** All forge and registry API callers (GitHub, npm, PyPI, GitLab) MUST respect response rate-limit headers (`Retry-After`, `X-RateLimit-Reset`).
+- **Graceful Degradation:** Optional metadata extraction or secondary changelog enrichment MUST log warnings and fallback gracefully without failing critical release paths.
+- **Circuit Breaker / Rollback:** Multi-stage releases MUST provide automated compensation and state rollback (`Rollbacker`) upon mid-pipeline publication failures.
+
+## Stack Conventions
+
+- **Language & Runtime:** Go 1.26+ (standard library preference, zero-dependency philosophy where practical).
+- **Code Style & Formatting:** Code MUST be formatted with `gofmt -s` and vetted with `go vet ./...` and `golangci-lint`.
+- **Error Handling:** Errors MUST be wrapped using `fmt.Errorf("%w", err)` or consolidated via `pkg/release/errors.go` (`AggregateError`). Never discard errors silently.
+- **Concurrency & Race Safety:** All concurrent operations MUST be verified with `go test -race ./...`. No shared mutable state across goroutines without synchronized mutex guards.
+
 ## Never
 
 - Never dismiss reproducible gate failures as pre-existing or out of scope

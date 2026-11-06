@@ -1,55 +1,165 @@
 release_plan:
-  version: 0.1.0
+  version: 0.2.0
+  methodology: WSJF (Weighted Shortest Job First)
+  baseline_velocity_bcps: 15
   epics:
     - epic: e01
       title: Core Algorithm Implementation
-      priority: P0
       status: complete
-    - epic: e02
-      title: Publishers
-      priority: P1
-      status: complete
-    - epic: e03
-      title: Plugins
-      priority: P2
-      status: complete
+      wsjf:
+        user_business_value: 10
+        time_criticality: 10
+        risk_reduction: 10
+        job_size: 5
+        score: 6.0
+      baseline_bcps: 5
     - epic: e04
       title: Semantic Release Parity
-      priority: P0
       status: complete
-    - epic: e05
-      title: Publisher & Git Hardening
-      priority: P1
-      status: complete
-    - epic: e06
-      title: Algorithm & Plugin Unification
-      priority: P1
-      status: complete
-    - epic: e07
-      title: Context Discipline
-      priority: P2
-      status: complete
-    - epic: e21
-      title: Advanced GitHub
-      priority: P2
-      status: complete
-    - epic: e22
-      title: Channel Management
-      priority: P2
-      status: complete
-    - epic: e23
-      title: GitLab Support
-      priority: P2
-      status: complete
-    - epic: e24
-      title: pnpm Support
-      priority: P2
-      status: complete
+      wsjf:
+        user_business_value: 9
+        time_criticality: 8
+        risk_reduction: 9
+        job_size: 5
+        score: 5.2
+      baseline_bcps: 5
     - epic: e08
       title: Semantic Release Test Parity
-      priority: P1
       status: complete
+      wsjf:
+        user_business_value: 8
+        time_criticality: 8
+        risk_reduction: 9
+        job_size: 5
+        score: 5.0
+      baseline_bcps: 6
+    - epic: e05
+      title: Publisher & Git Hardening
+      status: complete
+      wsjf:
+        user_business_value: 8
+        time_criticality: 7
+        risk_reduction: 8
+        job_size: 5
+        score: 4.6
+      baseline_bcps: 5
+    - epic: e06
+      title: Algorithm & Plugin Unification
+      status: complete
+      wsjf:
+        user_business_value: 7
+        time_criticality: 7
+        risk_reduction: 7
+        job_size: 5
+        score: 4.2
+      baseline_bcps: 5
+    - epic: e02
+      title: Publishers
+      status: complete
+      wsjf:
+        user_business_value: 8
+        time_criticality: 6
+        risk_reduction: 6
+        job_size: 5
+        score: 4.0
+      baseline_bcps: 7
     - epic: e09
       title: Version File Sync
-      priority: P1
       status: complete
+      wsjf:
+        user_business_value: 7
+        time_criticality: 6
+        risk_reduction: 6
+        job_size: 5
+        score: 3.8
+      baseline_bcps: 5
+    - epic: e18
+      title: Notes & Changelog Engine
+      status: planned
+      wsjf:
+        user_business_value: 8
+        time_criticality: 7
+        risk_reduction: 7
+        job_size: 6
+        score: 3.67
+      baseline_bcps: 6
+    - epic: e03
+      title: Plugins
+      status: complete
+      wsjf:
+        user_business_value: 6
+        time_criticality: 5
+        risk_reduction: 6
+        job_size: 5
+        score: 3.4
+      baseline_bcps: 4
+    - epic: e19
+      title: GitHub Publisher & Forge Integration
+      status: planned
+      wsjf:
+        user_business_value: 7
+        time_criticality: 6
+        risk_reduction: 6
+        job_size: 6
+        score: 3.17
+      baseline_bcps: 5
+    - epic: e24
+      title: pnpm Support
+      status: complete
+      wsjf:
+        user_business_value: 6
+        time_criticality: 5
+        risk_reduction: 4
+        job_size: 5
+        score: 3.0
+      baseline_bcps: 4
+    - epic: e20
+      title: Multi-Branch & Distribution Coordination
+      status: planned
+      wsjf:
+        user_business_value: 6
+        time_criticality: 5
+        risk_reduction: 4
+        job_size: 5
+        score: 3.0
+      baseline_bcps: 4
+    - epic: e21
+      title: Advanced GitHub Release Assets
+      status: complete
+      wsjf:
+        user_business_value: 5
+        time_criticality: 4
+        risk_reduction: 4
+        job_size: 5
+        score: 2.6
+      baseline_bcps: 4
+    - epic: e22
+      title: Channel & Dist-Tag Management
+      status: complete
+      wsjf:
+        user_business_value: 5
+        time_criticality: 4
+        risk_reduction: 4
+        job_size: 5
+        score: 2.6
+      baseline_bcps: 3
+    - epic: e23
+      title: GitLab Support
+      status: complete
+      wsjf:
+        user_business_value: 4
+        time_criticality: 4
+        risk_reduction: 4
+        job_size: 5
+        score: 2.4
+      baseline_bcps: 3
+    - epic: e07
+      title: Context Discipline
+      status: complete
+      wsjf:
+        user_business_value: 3
+        time_criticality: 3
+        risk_reduction: 3
+        job_size: 3
+        score: 3.0
+      baseline_bcps: 1

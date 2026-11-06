@@ -1,0 +1,7 @@
+story: e19s04
+tasks:
+  - id: e19s04-t01
+    description: Implement GitHub issue and PR comment poster post-release hook
+    status: pending
+    verify: go test ./internal/plugins -run TestGitHub_CommentOnIssues
+    risk: low

@@ -6,7 +6,7 @@ description: >
   name/body templates (#11), and issue/PR commenting after release (#12).
   Foundation: e19s01 introduces plugin config plumbing and capture of the
   release ID from the 201 response (needed by subsequent stories).
-status: planning
+status: complete
 priority: P2
 bcps: 12
 

@@ -1,0 +1,12 @@
+story: e18s04
+tasks:
+  - id: e18s04-t01
+    description: Implement revert commit detection and target hash matching in Generator
+    status: pending
+    verify: go test ./internal/algorithm -run TestGenerator_RevertMatching
+    risk: medium
+  - id: e18s04-t02
+    description: Verify orphaned revert commits without in-range targets are preserved
+    status: pending
+    verify: go test ./internal/algorithm -run TestGenerator_OrphanedRevert
+    risk: low

@@ -1,0 +1,12 @@
+story: e19s01
+tasks:
+  - id: e19s01-t01
+    description: Plumb GitHubConfig.Assets and capture release ID in plugins/github
+    status: pending
+    verify: go test ./internal/plugins -run TestGitHub_ReleaseIDCapture
+    risk: low
+  - id: e19s01-t02
+    description: Implement asset upload endpoint caller with globbing and MIME detection
+    status: pending
+    verify: go test ./internal/plugins -run TestGitHub_AssetUpload
+    risk: medium

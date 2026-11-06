@@ -1,0 +1,12 @@
+story: e18s02
+tasks:
+  - id: e18s02-t01
+    description: Add unit tests verifying non-release types are filtered from changelog output
+    status: pending
+    verify: go test ./internal/algorithm -run TestGenerator_HideNonReleaseTypes
+    risk: low
+  - id: e18s02-t02
+    description: Ensure hidden type commits with breaking change notes appear in breaking section
+    status: pending
+    verify: go test ./internal/algorithm -run TestGenerator_HiddenTypeWithBreakingChange
+    risk: low

@@ -1,0 +1,17 @@
+story: e18s01
+tasks:
+  - id: e18s01-t01
+    description: Introduce CommitTypeConfig in algorithm/types.go and seed defaults in config
+    status: failing
+    verify: go test ./internal/algorithm -run TestCommitTypeConfig
+    risk: low
+  - id: e18s01-t02
+    description: Update Generator to group and order sections dynamically by commit type config
+    status: failing
+    verify: go test ./internal/algorithm -run TestGenerator_ConfigurableSections
+    risk: medium
+  - id: e18s01-t03
+    description: Thread CommitTypes through Generator constructor in pkg/release
+    status: failing
+    verify: make test
+    risk: low

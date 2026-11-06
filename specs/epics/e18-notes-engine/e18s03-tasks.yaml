@@ -1,0 +1,12 @@
+story: e18s03
+tasks:
+  - id: e18s03-t01
+    description: Thread RepositoryURL into Generator and format commit hashes as clickable links
+    status: pending
+    verify: go test ./internal/algorithm -run TestGenerator_ClickableCommitLinks
+    risk: low
+  - id: e18s03-t02
+    description: Add regex replacement converting issue references into repository issue links
+    status: pending
+    verify: go test ./internal/algorithm -run TestGenerator_IssueLinks
+    risk: low

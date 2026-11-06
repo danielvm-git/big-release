@@ -37,7 +37,25 @@ dist/
 
 # Environment files
 .env
+.env.*
+!.env.example
 .envrc
+
+# Secrets & Credentials
+*.pem
+*.key
+*.cert
+*.p12
+*credentials*
+*secret*
+!specs/tech-architecture/SECURITY_PLAN_LATEST.md
+!specs/security/**
+
+# Python virtual environments
+.venv/
+venv/
+env/
+__pycache__/
 
 # ZCode tooling artifacts
 .zcode/

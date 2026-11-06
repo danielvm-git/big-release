@@ -1,29 +1,63 @@
 workflow_mode: solo-git
-active_flow: null
-active_epic: null
-active_story: null
-epic_cycle: null
+active_flow: build_epic
+active_epic: e20
+active_story: e20s01
+epic_cycle: 1
 bug_id: null
 bug_cycle: null
 bigpowers_version: 2.76.1
+stack_profile: go
+
+project_cycle:
+  phase: 4
+  current_phase: 4
+  phase_name: build
+  phases:
+    discover: complete
+    elaborate: complete
+    plan: complete
+    build: active
+    verify: pending
+    release: pending
+
 environment:
   go: 1.26.3
   golangci-lint: 2.12.2
   platform: darwin/arm64
   binary: ./bin/big-release (dev)
+
+decisions:
+  - id: ADR-0001
+    title: Explicit release state machines
+    status: accepted
+  - id: ADR-0002
+    title: Go single-binary stack
+    status: accepted
+  - id: ADR-0003
+    title: Publisher credential and auth management
+    status: accepted
+  - id: ADR-0004
+    title: Distribution and CI release pipeline
+    status: accepted
+  - id: ADR-0005
+    title: Plan stress-test and grill decisions
+    status: accepted
+    evidence: "grill-me session validated rollback compensation, branch config unmarshaling, registry resetter isolation, and subprocess token redaction."
+
 handoff:
-  context: 'NT-1..NT-7 and NT-10..NT-12 fixed; FSM-1/FSM-3 explicit (ReleaseStatus + PublisherRunState); Rollbacker compensates git tags and forge releases; per-run registry snapshots + RunResetter prevent cross-run state leaks; skipped runs emit released=false + reason= to GITHUB_OUTPUT. Coverage 79.1% (algorithm 99.6%, git 93.4%). Remaining low/intentional: NT-8/9.'
-  next_skill: null
+  context: "Pre-implementation readiness gates remediation complete. Epic e18 (Notes & Changelog Engine) primed for build. Story e18s01 tasks defined; initial failing test (RED) queued for develop-tdd."
+  next_skill: develop-tdd
+
 release:
   commit_landed: true
   ci_verified: true
   security_gate: PASS
-  traceability_gate: WAIVED
+  traceability_gate: PASS
   coverage_gate: "WAIVED: 79.1% total statements (algorithm 99.6%, git 93.4%, httputil 89.4%, pkg/release 83.2%, plugins 78.9%); repo Makefile/CI enforce no coverage threshold"
+
 bugs:
   total: 45
   fixed: 45
   deferred: 0
   open: 0
   last_verified: "2026-11-04"
-

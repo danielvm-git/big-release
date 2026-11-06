@@ -1,0 +1,32 @@
+#!/bin/bash
+set -e
+
+COMMIT_MSG_FILE="$1"
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# 1. P1 Git Attribution Rule: Block Co-authored-by footers (CONVENTIONS.md)
+if grep -qiE '^co[- ]authored[- ]by:' "$COMMIT_MSG_FILE"; then
+  echo "❌ Co-authored-by footer found in commit message — blocked by CONVENTIONS.md § Git Attribution"
+  exit 1
+fi
+
+# 2. Conventional Commits check
+FIRST_LINE=$(head -n 1 "$COMMIT_MSG_FILE")
+
+# Allow merge commits or fixup/squash commits
+if echo "$FIRST_LINE" | grep -qE '^(Merge |fixup! |squash! )'; then
+  exit 0
+fi
+
+# Regex for Conventional Commits: type(scope)!: description or type!: description or type: description
+CONVENTIONAL_REGEX="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|debug)(\([a-zA-Z0-9_-]+\))?!?: .+$"
+
+if ! echo "$FIRST_LINE" | grep -qE "$CONVENTIONAL_REGEX"; then
+  echo "❌ Commit message does not follow Conventional Commits format:"
+  echo "   '$FIRST_LINE'"
+  echo "   Expected format: <type>(<scope>): <description> or <type>: <description>"
+  echo "   Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert, debug"
+  exit 1
+fi
+
+exit 0

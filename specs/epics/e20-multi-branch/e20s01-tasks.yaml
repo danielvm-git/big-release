@@ -1,0 +1,7 @@
+story: e20s01
+tasks:
+  - id: e20s01-t01
+    description: Add branch glob matching in branch validator and tag scanner
+    status: done
+    verify: go test ./internal/git -run TestClient_BranchGlobbing
+    risk: medium

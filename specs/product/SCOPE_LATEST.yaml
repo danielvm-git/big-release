@@ -1,13 +1,24 @@
 scope:
+  problem: >
+    Disparate release tooling creates maintenance fragmentation across multiple language ecosystems.
+  users:
+    - Repository maintainers
+    - CI/CD release runners
   in:
     - Core release algorithm (commit analysis, version calculation, notes generation)
-    - Git operations (commits, tags, push)
-    - Configuration system (YAML, auto-detection, validation)
-    - Plugin system (registry, changelog plugin)
-    - Publisher system (interface + language-specific implementations)
-    - CLI (release, validate, version commands)
-    - Documentation (Diátaxis structure)
+    - Git operations (commits, tags, branch detection, push)
+    - Configuration system (YAML/JSON discovery, auto-detection, schema validation)
+    - Plugin lifecycle (registry, changelog plugin, git plugin, forge releases)
+    - Publisher system (modular interface + language-specific npm/pnpm/pypi/cargo implementations)
+    - CLI commands (`release`, `validate`, `version`, `health`)
+    - Error aggregation and automated state rollback
+    - Documentation following Diátaxis structure
   out:
-    - CI/CD pipeline management (separate concern)
-    - Package registry APIs (consumed, not owned)
-    - Bigpowers methodology (extends, not replaces)
+    - Hosting third-party package registries (consumed via standard client APIs)
+    - Full CI/CD orchestration replacement (operates as a step within GitHub Actions, GitLab CI, etc.)
+    - Bigpowers lifecycle methodology (complements and extends release automation)
+  success_criteria:
+    - Single self-contained binary under 30MB
+    - 0 external runtime dependencies (Go standard library + minimal proven packages)
+    - Fast sub-second commit analysis over repositories with 10k+ commits
+    - Idempotent dry-run verification

@@ -3,9 +3,23 @@ vision:
     A unified, multi-language release tool that determines version,
     generates changelog, and publishes packages across all languages
     from a single binary.
+  problem: >
+    Maintaining disparate release tools (Node.js semantic-release, Python semantic-release,
+    custom Bash scripts) across 35+ polyglot repositories creates toolchain fatigue,
+    inconsistent SemVer calculations, fragmented changelogs, heavy runtime dependencies (e.g. Node on non-JS repos),
+    and fragile CI pipelines.
+  users:
+    - Polyglot open-source library and tool maintainers
+    - Solo developers managing multi-language portfolio repositories
+    - Automated CI/CD pipelines requiring fast, self-contained single-binary release executors
   goals:
-    - Single binary distribution (Go)
-    - Support 8+ language ecosystems (npm, PyPI, crates.io, Go, Packagist, Maven, Swift, Godot)
-    - Port core algorithm from semantic-release (Node.js)
-    - Plugin system for extensibility
-    - 35+ portfolio repos will consume this tool
+    - Single binary distribution written in Go with zero runtime dependencies
+    - Support 8+ language ecosystems (npm, pnpm, PyPI, crates.io, Go, Packagist, Maven, Swift)
+    - Full algorithm parity with semantic-release standard commit analysis
+    - Modular plugin architecture for changelogs, forge integrations, and custom hooks
+    - Seamless consumption across 35+ danielvm-git portfolio repositories
+  success_criteria:
+    - Zero runtime prerequisite beyond git in target CI runners
+    - 100% deterministic SemVer bump calculations matching Node semantic-release test suites
+    - Complete release cycle execution under 10 seconds (excluding package upload latency)
+    - Rollback and compensation safety during network or forge transient failures

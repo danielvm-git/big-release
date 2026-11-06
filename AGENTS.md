@@ -12,7 +12,7 @@ Read CONVENTIONS.md before any GitHub or git operation.
 | `internal/**/*.go` | `docs/reference/` for API contracts |
 | `publishers/**` | Language-specific docs under `docs/how-to/publishers/` |
 | `specs/**` | Matching spec file |
-| Default / session start | This file → `CONVENTIONS.md` → `specs/state.yaml` |
+| Default / session start | This file → `CONVENTIONS.md` → `specs/state.yaml` → `specs/release-plan.yaml` |
 <!-- END bigpowers:context-routing -->
 
 <!-- BEGIN bigpowers:learned-preferences -->

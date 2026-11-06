@@ -8,7 +8,7 @@ description: >
   never propagated; branch matching is exact-name only (no globbing).
   May split into s01 (per-branch tag-range scan) + s02 (channel
   propagation) during plan-work.
-status: planning
+status: in_progress
 priority: P2
 bcps: 14
 

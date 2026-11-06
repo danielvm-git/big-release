@@ -7,7 +7,7 @@ description: >
   clickable commit hash and issue links (#8), filter revert commits (#9).
   Foundation: e18s01 introduces the CommitTypes config struct that all
   other stories build on.
-status: planning
+status: complete
 priority: P1
 bcps: 10
 
