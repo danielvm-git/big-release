@@ -351,6 +351,14 @@ Supports different release channels:
 - `next` → Next channel
 - `beta` → Beta channel
 
+## Preflight
+
+Run the single preflight command before any forward work; it must pass (lint, vet, test):
+
+```bash
+make preflight
+```
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
