@@ -351,6 +351,19 @@ Supports different release channels:
 - `next` → Next channel
 - `beta` → Beta channel
 
+## Build status
+
+[![CI](https://github.com/danielvm-git/big-release/actions/workflows/test-build-release.yml/badge.svg)](https://github.com/danielvm-git/big-release/actions/workflows/test-build-release.yml)
+
+CI runs lint, test and build on every pull request and push to `main`; pushes to `main` also run the release job.
+
+## Tech/framework used
+
+- [Go](https://go.dev/) — single static binary
+- YAML — `.big-release.yml` configuration
+- Bash — helper scripts under `scripts/`
+- GitHub Actions — CI/CD
+
 ## Preflight
 
 Run the single preflight command before any forward work; it must pass (lint, vet, test):
