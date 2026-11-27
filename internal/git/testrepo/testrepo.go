@@ -120,10 +120,18 @@ func (r *Repo) RunGit(args ...string) {
 	runGit(r.t, args...)
 }
 
-// ScrubEnv clears sensitive env vars for the test process.
+// ScrubEnv clears sensitive env vars for the test process, and the CI
+// variables that mark a run as a pull request. Without the latter, a test
+// that expects a release gets none when the suite itself runs on a PR
+// (Release.detectPR skips releasing there), so it passes on main and fails
+// on every PR.
 func ScrubEnv(t *testing.T) {
 	t.Helper()
-	for _, name := range []string{"GH_TOKEN", "GITHUB_TOKEN", "NPM_TOKEN"} {
+	for _, name := range []string{
+		"GH_TOKEN", "GITHUB_TOKEN", "NPM_TOKEN",
+		"GITHUB_EVENT_NAME", "CI_MERGE_REQUEST_ID", "BUILD_REASON",
+		"CIRCLE_PULL_REQUEST", "BITBUCKET_PR_ID", "CHANGE_ID",
+	} {
 		t.Setenv(name, "")
 	}
 }
