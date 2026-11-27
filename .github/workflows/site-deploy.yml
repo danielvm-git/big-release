@@ -1,5 +1,9 @@
 name: Site Deploy
 
+# Runs after "Site Test Build Release" passes on main. The site is one static
+# page (site/index.html; site/main.go only embedded it for BigBase), so it is
+# published to Cloudflare Pages from the exact commit that passed.
+
 on:
   workflow_run:
     workflows: ["Site Test Build Release"]
@@ -7,68 +11,40 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
   group: deploy-site-production
   cancel-in-progress: false
 
-env:
-  SITE_URL: "https://release.bigbase.click"
-
 jobs:
-  deploy:
+  package:
     if: >
       github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main'
-    runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
-      - name: Download deploy-meta artifact
-        uses: actions/download-artifact@v8
+      - uses: actions/checkout@v7
         with:
-          name: deploy-meta
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ github.event.workflow_run.id }}
-          repository: ${{ github.event.workflow_run.repository.full_name }}
-          path: deploy-meta
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
 
-      - name: Verify deploy-meta artifact
-        id: meta
-        run: |
-          if [ ! -s deploy-meta/deploy-meta.json ]; then
-            echo "::error::deploy-meta artifact missing or empty"
-            exit 1
-          fi
-          REF=$(jq -r '.sha' deploy-meta/deploy-meta.json)
-          APP_TYPE=$(jq -r '.app_type' deploy-meta/deploy-meta.json)
-          echo "ref=$REF" >> "$GITHUB_OUTPUT"
-          echo "app_type=$APP_TYPE" >> "$GITHUB_OUTPUT"
-          echo "Deploy metadata: $(cat deploy-meta/deploy-meta.json)"
+      - name: Collect the static files
+        run: mkdir -p out && cp site/index.html out/
 
-      - name: Deploy to BigBase
-        uses: danielvm-git/.github/actions/bigbase-deploy@v1
+      - uses: actions/upload-artifact@v7
         with:
-          site_id: ${{ secrets.BIGBASE_SITE_ID }}
-          app_type: ${{ steps.meta.outputs.app_type }}
-          site_url: ${{ env.SITE_URL }}
-          deploy_token: ${{ secrets.BIGBASE_DEPLOY_TOKEN }}
-          ref: ${{ steps.meta.outputs.ref }}
-          branch: main
-          skip_health_check: true
+          name: site
+          path: out/
+          retention-days: 3
 
-      - name: Health check
-        run: |
-          ATTEMPTS=8
-          INTERVAL=10
-          for i in $(seq 1 "$ATTEMPTS"); do
-            STATUS=$(curl -s -o /dev/null -w '%{http_code}' "${{ env.SITE_URL }}" || echo "000")
-            if [ "$STATUS" = "200" ]; then
-              echo "✅ Site LIVE (HTTP $STATUS)"
-              exit 0
-            fi
-            echo "Attempt $i/$ATTEMPTS: HTTP $STATUS, waiting ${INTERVAL}s..."
-            sleep "$INTERVAL"
-          done
-          echo "::error::Health check failed after $ATTEMPTS attempts"
-          exit 1
+  deploy:
+    needs: [package]
+    permissions:
+      contents: read
+    uses: danielvm-git/.github/.github/workflows/deploy-cloudflare-pages.yml@8fe2bc0aafed089dbf642587d662576989621deb  # danielvm-git/.github#46
+    with:
+      project: danielvm-release
+      domain: release.danielvm.net
+    secrets: inherit

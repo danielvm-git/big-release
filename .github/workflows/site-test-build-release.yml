@@ -24,7 +24,7 @@ concurrency:
 env:
   GO_VERSION: '1.26'
   APP_TYPE: go
-  SITE_URL: "https://release.bigbase.click"
+  SITE_URL: "https://release.danielvm.net"
 
 jobs:
   lint:
