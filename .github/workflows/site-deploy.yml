@@ -43,7 +43,7 @@ jobs:
     needs: [package]
     permissions:
       contents: read
-    uses: danielvm-git/.github/.github/workflows/deploy-cloudflare-pages.yml@8fe2bc0aafed089dbf642587d662576989621deb  # danielvm-git/.github#46
+    uses: danielvm-git/.github/.github/workflows/deploy-cloudflare-pages.yml@0dc0feae39d0bb932a0999ee4f8dde35fb1b702d # danielvm-git/.github main (#46)
     with:
       project: danielvm-release
       domain: release.danielvm.net
