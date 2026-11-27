@@ -1,4 +1,4 @@
-# release.bigbase.click
+# release.danielvm.net
 
 The launch and documentation site for big-release. A self-contained Go app that serves a polished single-page site showcasing:
 
@@ -26,4 +26,4 @@ The app reads `VERSION` at runtime (set by big-release in CI) and serves the emb
 
 ## Deployment
 
-Deployed to `https://release.bigbase.click` via BigBase on every merge to main in the big-release repo.
+Deployed to `https://release.danielvm.net` via Cloudflare Pages on every merge to main in the big-release repo.
